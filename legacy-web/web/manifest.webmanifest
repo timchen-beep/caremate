@@ -1,0 +1,22 @@
+{
+  "name": "CareMate 老人提醒助手",
+  "short_name": "CareMate",
+  "description": "独居老人的用药与作息提醒：到点提醒、一键确认、记录饮水与睡眠。",
+  "lang": "zh-CN",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#24457A",
+  "categories": ["health", "medical", "lifestyle"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "今天的提醒", "url": "/app", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "看护看板", "url": "/dashboard", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,0 +1,47 @@
+[
+  {
+    "item": "配对码换 token",
+    "ok": true,
+    "detail": "HTTP 201, token=ses-c54ctgNy…, 绑定 u-elder"
+  },
+  {
+    "item": "会话令牌可访问绑定的老人",
+    "ok": true,
+    "detail": "HTTP 200，实例 13 条"
+  },
+  {
+    "item": "会话令牌可读到自己的身份",
+    "ok": true,
+    "detail": "role=family, paired_elder=u-elder"
+  },
+  {
+    "item": "会话令牌访问别的老人被拒",
+    "ok": true,
+    "detail": "HTTP 403"
+  },
+  {
+    "item": "错误配对码 404",
+    "ok": true,
+    "detail": "HTTP 404"
+  },
+  {
+    "item": "社区令牌建计划 403",
+    "ok": true,
+    "detail": "HTTP 403"
+  },
+  {
+    "item": "one-off 只在指定日生成",
+    "ok": true,
+    "detail": "指定日 1 条、今天 0 条（日期 2026-11-08）"
+  },
+  {
+    "item": "one-off 缺日期 422",
+    "ok": true,
+    "detail": "HTTP 422: 参数不合法：一次性提醒需要 date（YYYY-MM-DD）"
+  },
+  {
+    "item": "登出后令牌失效",
+    "ok": true,
+    "detail": "登出 200，再用 401"
+  }
+]
