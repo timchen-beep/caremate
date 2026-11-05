@@ -47,3 +47,8 @@ moc_*
 CMakeCache.txt
 CMakeFiles/
 *.user
+
+# CI 与本地验收产生的临时文件
+ci_test.db*
+acceptance*.json
+acceptance.json

@@ -2,12 +2,12 @@
   {
     "item": "配对码换 token",
     "ok": true,
-    "detail": "HTTP 201, token=ses-c54ctgNy…, 绑定 u-elder"
+    "detail": "HTTP 201, token=ses-d3QrT7zD…, 绑定 u-elder"
   },
   {
     "item": "会话令牌可访问绑定的老人",
     "ok": true,
-    "detail": "HTTP 200，实例 13 条"
+    "detail": "HTTP 200，实例 9 条"
   },
   {
     "item": "会话令牌可读到自己的身份",

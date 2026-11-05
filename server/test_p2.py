@@ -1,3 +1,4 @@
+import os
 # -*- coding: utf-8 -*-
 """P1/P2 验收：配对码换 token、会话隔离、one-off 规则。"""
 
@@ -90,5 +91,5 @@ for name, ok, detail in OUT:
     print("%-26s | %s | %s" % (name, "PASS" if ok else "FAIL", detail))
 print("\n总计：%d/%d 通过" % (sum(1 for o in OUT if o[1]), len(OUT)))
 json.dump([{"item": n, "ok": o, "detail": d} for n, o, d in OUT],
-          open(r"C:\Users\43915\Documents\deepseek-harness\default-workspace\caremate-cloud\acceptance_p2.json",
+          open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "acceptance_p2.json"),
                "w", encoding="utf-8"), ensure_ascii=False, indent=2)

@@ -2,7 +2,7 @@
   {
     "item": "第 1 步 七天排程预览",
     "ok": true,
-    "detail": "HTTP 200，87 次，规则 ['course', 'daily', 'interval', 'monthly', 'once', 'weekly']"
+    "detail": "HTTP 200，28 次，规则 ['daily']"
   },
   {
     "item": "第 8 步 传感器事件入口",

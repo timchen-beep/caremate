@@ -1,7 +1,7 @@
 [
   {
     "item": "P95 延迟 ≤ 5 s",
-    "detail": "p50 31 ms / p95 35 ms / p99 36 ms（n=100）",
+    "detail": "p50 30 ms / p95 36 ms / p99 39 ms（n=100）",
     "ok": true
   },
   {
@@ -21,7 +21,7 @@
   },
   {
     "item": "tick 扫描统计",
-    "detail": "{\"scanned\": 17, \"notified\": 3, \"escalated\": 1, \"missed\": 1, \"inactivity\": 0}",
+    "detail": "{\"scanned\": 42, \"notified\": 3, \"escalated\": 1, \"missed\": 1, \"inactivity\": 0}",
     "ok": true
   },
   {

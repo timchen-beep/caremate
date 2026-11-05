@@ -7,7 +7,7 @@
   {
     "item": "派发延迟 P95 ≤ 30 s",
     "ok": true,
-    "detail": "p50 4.0 s / p95 4.0 s / max 4.0 s（样本 1，补扫排除 3）"
+    "detail": "p50 24.0 s / p95 24.0 s / max 24.0 s（样本 1，补扫排除 4）"
   },
   {
     "item": "事件含 prev/new state",
@@ -27,11 +27,11 @@
   {
     "item": "磁盘不足拒绝写入 507",
     "ok": true,
-    "detail": "HTTP 507：磁盘剩余 351467 MB，低于水位 999999999 MB，已停止写入"
+    "detail": "HTTP 507：磁盘剩余 338014 MB，低于水位 999999999 MB，已停止写入"
   },
   {
     "item": "--backup 可产出快照",
     "ok": true,
-    "detail": "新增 ['caremate-20261105-161507.db']"
+    "detail": "新增 ['caremate-20261105-221625.db']"
   }
 ]

@@ -35,6 +35,6 @@
   {
     "item": "6c 太久没动静会告警",
     "ok": true,
-    "detail": "inactivity 告警 1 条（tick: {'scanned': 5, 'notified': 0, 'escalated': 0, 'missed': 0, 'inactivity': 1}）"
+    "detail": "inactivity 告警 2 条（tick: {'scanned': 4, 'notified': 0, 'escalated': 0, 'missed': 0, 'inactivity': 1}）"
   }
 ]

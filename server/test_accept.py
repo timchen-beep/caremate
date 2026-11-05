@@ -19,7 +19,7 @@ import urllib.request
 from datetime import datetime, timedelta
 
 PY = sys.executable
-BASE = r"C:\Users\43915\Documents\deepseek-harness\default-workspace\caremate-cloud"
+BASE = os.environ.get("CAREMATE_BASE") or os.path.dirname(os.path.abspath(__file__))
 SERVER = os.path.join(BASE, "server.py")
 FAM, APP, COMM = "fam-demo-2026", "app-elder-001", "comm-demo-2026"
 PORT = 8400

@@ -11,8 +11,8 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-BASE = r"C:\Users\43915\Documents\deepseek-harness\default-workspace"
-CLOUD = os.path.join(BASE, "caremate-cloud")
+BASE = os.environ.get("CAREMATE_BASE") or os.path.dirname(os.path.abspath(__file__))
+CLOUD = BASE if os.path.exists(os.path.join(BASE, "server.py")) else os.path.join(BASE, "caremate-cloud")
 API = "http://127.0.0.1:8400"
 FAM = "fam-demo-2026"
 OUT = []
@@ -80,7 +80,7 @@ threading.Thread(target=sink.serve_forever, daemon=True).start()
 time.sleep(0.3)
 env = dict(os.environ, PYTHONIOENCODING="utf-8")
 r = subprocess.run([sys.executable, "server.py", "--notify-test", "http://127.0.0.1:8499/hook"],
-                   cwd=CLOUD, capture_output=True, text=True, env=env)
+                   cwd=CLOUD, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
 sent = "sent" in (r.stdout or "") and "True" in (r.stdout or "")
 check("通知通道真发一次", sent and "CareMate" in received.get("body", ""),
       "CLI 输出含 sent=True；收件端收到 %d 字节" % len(received.get("body", "")))
@@ -92,7 +92,7 @@ check("第 7 步 专注模式页面可访问", code == 200 and "按住呼救" in
 
 # 5) demo 预设（1/3/10 分钟）
 r2 = subprocess.run([sys.executable, "server.py", "--demo", "--preview", "1"],
-                    cwd=CLOUD, capture_output=True, text=True, env=env)
+                    cwd=CLOUD, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
 check("--demo 与 --preview 可用", "--demo" or True, "输出首行：%s" % (r2.stdout.splitlines()[0] if r2.stdout else "无"))
 
 print("=" * 74)

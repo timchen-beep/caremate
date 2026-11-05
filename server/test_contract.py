@@ -11,7 +11,7 @@ import urllib.request
 import uuid
 from datetime import datetime, timedelta
 
-BASE = r"C:\Users\43915\Documents\deepseek-harness\default-workspace\caremate-cloud"
+BASE = os.environ.get("CAREMATE_BASE") or os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
 API = "http://127.0.0.1:8400"
 OUT = []

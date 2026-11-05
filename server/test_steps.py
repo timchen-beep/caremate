@@ -15,7 +15,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
 
-BASE = r"C:\Users\43915\Documents\deepseek-harness\default-workspace\caremate-cloud"
+BASE = os.environ.get("CAREMATE_BASE") or os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
 OUT = []
 

@@ -1,0 +1,91 @@
+name: acceptance
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  python-acceptance:
+    name: 七套验收（Python 3.11 / Ubuntu）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 语法检查
+        working-directory: server
+        run: |
+          python -m py_compile server.py bridge.py
+          for f in test_*.py; do python -m py_compile "$f"; done
+          echo "语法检查通过"
+
+      - name: 起服务（8400，临时库）
+        working-directory: server
+        run: |
+          # 项目零第三方依赖，直接用 python 跑
+          CAREMATE_DB=$PWD/ci_test.db CAREMATE_TZ=Asia/Shanghai \
+            python server.py --port 8400 > /tmp/server.log 2>&1 &
+          echo $! > /tmp/server.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8400/api/v1/health > /tmp/health.json 2>/dev/null; then
+              echo "服务已就绪：$(cat /tmp/health.json)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "服务没起来，日志："
+          cat /tmp/server.log
+          exit 1
+
+      - name: 契约 18 项
+        working-directory: server
+        run: python test_contract.py
+
+      - name: 令牌与权限 9 项
+        working-directory: server
+        run: python test_p2.py
+
+      - name: 时区与历史 9 项
+        working-directory: server
+        run: python test_align.py
+
+      - name: 呼救与撤销 7 项
+        working-directory: server
+        run: python test_steps.py
+
+      - name: 派发与限速 7 项
+        working-directory: server
+        run: python test_v06.py
+
+      - name: 新增能力 7 项
+        working-directory: server
+        run: python test_extra.py
+
+      - name: 可靠性 6 项（含 10 次重启，放在最后避免干扰）
+        working-directory: server
+        run: python test_accept.py
+
+      - name: 汇总结果
+        if: always()
+        working-directory: server
+        run: |
+          echo "== 服务日志尾部 =="
+          tail -20 /tmp/server.log || true
+          echo "== 生成的验收报告 =="
+          for f in acceptance*.json; do
+            [ -f "$f" ] && { echo "--- $f ---"; cat "$f"; }
+          done
+
+      - name: 停服务
+        if: always()
+        run: kill "$(cat /tmp/server.pid)" 2>/dev/null || true
