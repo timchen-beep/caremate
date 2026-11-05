@@ -1,0 +1,41 @@
+# 数据与运行时
+*.db
+*.db-wal
+*.db-shm
+server.pid
+backups/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Flutter / Android
+app/build/
+app/.dart_tool/
+app/.idea/
+app/.gradle/
+app/.kotlin/
+app/android/.gradle/
+app/android/app/build/
+app/*.iml
+app/android/*.iml
+.packages
+.pub-cache/
+.pub/
+
+# 签名私钥（绝不入库）
+*.jks
+*.keystore
+app/android/key.properties
+
+# 构建产物
+*.apk
+*.aab
+*.so
+
+# 编辑器
+.vscode/
+.DS_Store
+Thumbs.db

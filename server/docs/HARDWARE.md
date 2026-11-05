@@ -1,0 +1,114 @@
+# 硬件接入（香橙派 / 树莓派 / ESP32）
+
+> 现在这套是纯 Python 标准库，**本身就能跑在 ARM Linux 上**（树莓派 OS、香橙派 Armbian 都行）。
+> 缺的只是"把消息广播给板子和传感器"这一段——已经补了 `bridge.py`（零依赖 MQTT 3.1.1）。
+
+## 一、分工（别把什么都塞一块板子）
+
+```
+         ┌─────────────── 局域网（手机热点也行）───────────────┐
+         │                                                     │
+   [ESP32 + LD2410C]                                   [树莓派/香橙派]
+   只读传感器、点灯、蜂鸣                              server.py  +  mosquitto
+        │                                                  ▲
+        │  publish  home/sensor/presence                   │ bridge.py 把 outbox 发到 broker
+        └──────────────►  broker  ◄─────────────────────────┘
+                            │
+        ┌───────────────────┴───────────────────┐
+   [老人手机 PWA]                        [家属电脑看板]
+   订阅 home/reminder/{user}/state        浏览器访问 :8000
+```
+
+- **树莓派 / 香橙派**：跑 `server.py`（1 核 2G 足够）+ `mosquitto` + `bridge.py`。
+- **ESP32**：只做两件事——把雷达状态 publish 出去、收告警点亮灯/响蜂鸣。**不要**把业务判断写在固件里（报告里"适配层不能有业务逻辑"这句就是这意思）。
+- **数据不落 ESP32**：掉线不影响提醒，重连后靠服务端状态补齐。
+
+## 二、上板三步
+
+### 1. 板子上装环境
+
+```bash
+# 树莓派 OS / 香橙派 Armbian 通用
+sudo apt update
+sudo apt install -y python3 python3-venv tzdata mosquitto mosquitto-clients
+sudo systemctl enable --now mosquitto
+
+# 允许局域网连接（默认只监听 127.0.0.1 的板子需要这一步）
+echo "listener 1883 0.0.0.0" | sudo tee -a /etc/mosquitto/conf.d/caremate.conf
+echo "allow_anonymous true"  | sudo tee -a /etc/mosquitto/conf.d/caremate.conf
+sudo systemctl restart mosquitto
+
+# 自测：另开一个窗口
+mosquitto_sub -h 127.0.0.1 -t 'home/#' -v
+```
+
+> `tzdata` 必须装，否则 `ZoneInfo("Asia/Shanghai")` 会退回固定 +8（东八区没问题，但夏令时地区会错）。
+
+### 2. 起服务和桥
+
+```bash
+cd /opt/caremate
+CAREMATE_TZ=Asia/Shanghai CAREMATE_MQTT_URL=mqtt://127.0.0.1:1883 \
+  python3 server.py --host 0.0.0.0 --port 8000 &
+
+# 桥：把 outbox 发到 broker，发完标记已消费
+python3 bridge.py --host 127.0.0.1 --api http://127.0.0.1:8000
+```
+
+看效果：老人端点一次确认，`mosquitto_sub` 那个窗口应立刻出现
+`home/reminder/u-elder/state {"state":"confirmed", ...}`。
+
+### 3. ESP32 烧固件
+
+- 文件：`firmware/esp32_node.ino`（Arduino IDE，装 PubSubClient + ArduinoJson）
+- 改四个值：WiFi 名/密码、`MQTT_HOST`（板子局域网 IP）、`ELDER_ID`
+- 接线：LD2410C `TX→GPIO16`、`RX→GPIO17`、`VCC→5V`；LED `GPIO4`；蜂鸣器 `GPIO5`
+- 烧完串口应看到 `[mqtt] 已连上并订阅`，手在雷达前动一下会打印 `[radar] 有人`
+
+## 三、topic 与 payload（和报告 4.2.3 一致）
+
+| topic | 谁发 | payload 关键字段 |
+|---|---|---|
+| `home/reminder/{user}/state` | 服务端 | `occurrence, plan_id, due_at, action, state, actor, event_id` |
+| `home/record/{user}` | 服务端 | `id, type, occurred_at` |
+| `home/alarm/{user}` | 服务端 | `id, kind(sos/missed/escalated/inactivity), level, occurrence, message` |
+| `home/sensor/presence` | ESP32 | `elder_id, present(bool), source("ld2410c"), ts` |
+| `home/terminal/ack` | 终端 | `occurrence, action`（预留给带屏终端） |
+
+ESP32 只需要订阅两个：`home/alarm/{user}` 和 `home/reminder/{user}/state`。
+
+## 四、灯语义（报告 R4-4 要求的"语义表"）
+
+| 状态 | 颜色 | 蜂鸣 |
+|---|---|---|
+| 已完成 confirmed | 绿 | 无 |
+| 待确认 notified | 黄 | 短鸣 1 声 |
+| 未确认 missed | 红 | 短鸣 2 声 |
+| 呼救 sos | 红闪 | 长鸣 1.5 秒 |
+
+没有三色灯就按亮度区分，但**语义表本身要写进报告**，否则终端只是装饰。
+
+## 五、板子怎么选
+
+| 板子 | 干什么 | 注意 |
+|---|---|---|
+| **树莓派 4B/Zero2W** | 服务端 + broker + 桥 | 生态最稳，`apt` 包全；4B 2G 足够 |
+| **香橙派 Zero3 / 3B** | 同上 | 更便宜，Armbian；先确认 `python3` 版本 ≥3.9（要 `zoneinfo`） |
+| **ESP32（任一款）** | 传感器节点 | 只做读传感器 + 点灯；不要在这里跑业务 |
+| **ESP32-S3** | 同上 + 有余力跑摄像头 | 电源要 5V/1A，别从雷达板取电 |
+
+## 六、没有路由器怎么演示
+
+手机开热点 → 板子和笔记本连同一个热点 → 板子 IP 通常是 `192.168.43.x`。
+`mosquitto_sub` 和浏览器都打这个 IP，全程不碰外网，符合"局域网零依赖演示"。
+
+## 七、FAQ
+
+**Q：桥挂了会怎样？**
+告警仍在 `outbox` 里，不会丢；桥恢复后重发，重复靠 `event_id` 去重。
+
+**Q：ESP32 掉线，提醒还会响吗？**
+会。提醒在服务端和手机端；ESP32 只是灯和蜂鸣，属于附加反馈。
+
+**Q：能不能让 ESP32 直接调 HTTP 接口？**
+可以（`POST /api/v1/sensor/presence`），但那样每台设备都要配令牌；MQTT 更适合多设备。桥就是干这个转换的。
