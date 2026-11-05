@@ -1,0 +1,6 @@
+id=caremate_kiosk
+name=CareMate Kiosk Layer
+version=v1.0
+versionCode=1
+author=CareMate
+description=老人端系统级改造：priv-app、精确闹钟预授权、桌面替换、Doze 白名单、状态栏隐藏。可整模块禁用回滚。

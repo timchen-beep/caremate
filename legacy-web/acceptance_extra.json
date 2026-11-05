@@ -1,0 +1,37 @@
+[
+  {
+    "item": "第 1 步 七天排程预览",
+    "ok": true,
+    "detail": "HTTP 200，87 次，规则 ['course', 'daily', 'interval', 'monthly', 'once', 'weekly']"
+  },
+  {
+    "item": "第 8 步 传感器事件入口",
+    "ok": true,
+    "detail": "HTTP 201，source=ld2410c"
+  },
+  {
+    "item": "传感器写进事件表",
+    "ok": true,
+    "detail": "presence 事件 1 条"
+  },
+  {
+    "item": "通知未配置时如实失败",
+    "ok": true,
+    "detail": "HTTP 409：未配置 CAREMATE_WEBHOOK_URL（演示可指向任意收件端点）"
+  },
+  {
+    "item": "通知通道真发一次",
+    "ok": true,
+    "detail": "CLI 输出含 sent=True；收件端收到 76 字节"
+  },
+  {
+    "item": "第 7 步 专注模式页面可访问",
+    "ok": true,
+    "detail": "HTTP 200"
+  },
+  {
+    "item": "--demo 与 --preview 可用",
+    "ok": "--demo",
+    "detail": "输出首行：演示预设：升级 1/3/10 分钟，等会儿 5 分钟"
+  }
+]
