@@ -1,0 +1,18 @@
+﻿[Unit]
+Description=CareMate cloud service (single process + scheduler)
+After=network-online.target mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=caremate
+WorkingDirectory=/opt/caremate
+Environment=CAREMATE_TZ=Asia/Shanghai
+Environment=CAREMATE_MODE=cloud
+Environment=CAREMATE_MQTT_URL=mqtt://127.0.0.1:1883
+ExecStart=/usr/bin/python3 /opt/caremate/server.py --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

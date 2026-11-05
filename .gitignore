@@ -1,4 +1,4 @@
-# 数据与运行时
+# 鏁版嵁涓庤繍琛屾椂
 *.db
 *.db-wal
 *.db-shm
@@ -25,17 +25,25 @@ app/android/*.iml
 .pub-cache/
 .pub/
 
-# 签名私钥（绝不入库）
+# 绛惧悕绉侀挜锛堢粷涓嶅叆搴擄級
 *.jks
 *.keystore
 app/android/key.properties
 
-# 构建产物
+# 鏋勫缓浜х墿
 *.apk
 *.aab
 *.so
 
-# 编辑器
-.vscode/
+# 缂栬緫鍣?.vscode/
 .DS_Store
 Thumbs.db
+
+# Qt 构建产物
+qt/build/
+*.o
+*.obj
+moc_*
+CMakeCache.txt
+CMakeFiles/
+*.user

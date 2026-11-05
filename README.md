@@ -34,8 +34,10 @@
 | 目录 | 内容 |
 |---|---|
 | `server/` | Python 后端、老人端网页预览、家属看板、部署脚本、MQTT 桥、ESP32 固件、七套验收脚本 |
-| `app/` | Flutter 老人端（Android，已能 `flutter build apk`） |
-| `docs/` | 手机端对接契约、演示脚本、硬件接入、验收清单 |
+| `app/` | **Flutter 老人端（正式交付）**，已能 `flutter build apk` |
+| `qt/` | Qt/QML 老人端（B4 路线，骨架，未编译）——契约相同，可平替 `app/` |
+| `pi/` | 树莓派/香橙派部署：mosquitto 配置、systemd、零依赖 MQTT 桥 |
+| `docs/` | 手机端契约、演示脚本、硬件接入、云部署、R1–R8 需求对照、验收清单 |
 | `scripts/` | 系统改造脚本：priv-app 安装、kiosk 开关、chaos 复现、8 项自检 |
 | `device/` | 刷机方向：选机对照、刷 LineageOS、回滚 |
 | `magisk-module/` | 可整体禁用的 kiosk 定制层 |
