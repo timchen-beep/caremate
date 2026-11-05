@@ -1,0 +1,35 @@
+# Caddy 反向代理 + 自动 TLS
+# 把 caremate.example.com 换成你自己的域名（A 记录要先指到这台机器）
+
+caremate.example.com {
+	encode gzip
+	# 应用只监听本机 127.0.0.1:8000；Caddy 负责 443 与证书
+	reverse_proxy 127.0.0.1:8000 {
+		header_up X-Real-IP {remote_host}
+		flush_interval -1
+	}
+
+	# 健康检查走这里，方便 uptime 监控
+	@health path /api/v1/health
+	respond @health 200
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/caremate.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format console
+	}
+}
+
+# 本地调试（没有域名时）：只监听局域网，不申请证书
+# :8080 {
+# 	reverse_proxy 127.0.0.1:8000
+# }

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 特权应用预授权：不弹系统对话框，直接可用的权限 -->
+<permissions>
+    <privapp-permissions package="com.caremate.caremate">
+        <!-- 精确闹钟：Android 14 新装默认拒绝，这里绕过 -->
+        <permission name="android.permission.SCHEDULE_EXACT_ALARM"/>
+        <permission name="android.permission.USE_EXACT_ALARM"/>
+        <!-- 通知（Android 13+） -->
+        <permission name="android.permission.POST_NOTIFICATIONS"/>
+        <!-- 免打扰策略：呼救渠道 bypassDnd 需要 -->
+        <permission name="android.permission.ACCESS_NOTIFICATION_POLICY"/>
+        <!-- 开机自恢复 -->
+        <permission name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+        <!-- 后台常驻 -->
+        <permission name="android.permission.FOREGROUND_SERVICE"/>
+        <permission name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+        <!-- 唤醒屏幕 -->
+        <permission name="android.permission.WAKE_LOCK"/>
+        <permission name="android.permission.VIBRATE"/>
+    </privapp-permissions>
+</permissions>
