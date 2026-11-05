@@ -53,6 +53,18 @@
 | [`v2-qt`](../../tree/v2-qt) | 65 | Qt/QML 老人端 + 树莓派 broker + ESP32 雷达 + root 安卓 | 对照课程文档的 Qt 技术路线 |
 | [`v3-flash`](../../tree/v3-flash) | 56 | LineageOS + Magisk kiosk 定制层 + 8 项系统自检 | 需要"只有这一个 App"的设备级演示 |
 
+### 核心版（只看实现代码）
+
+每条归档分支都有对应的 `-core` 版本：**只保留实现功能的代码**，去掉文档、证据、APK、测试产物。适合"想读代码"或"想复用某一块"的时候。
+
+| 分支 | 文件数 | 里面只有什么 |
+|---|---|---|
+| [`v1-web-core`](../../tree/v1-web-core) | 35 | `server.py`（业务与状态机）+ 老人端/看板 HTML + Flutter 源码 + 七套测试 |
+| [`v2-qt-core`](../../tree/v2-qt-core) | 46 | QML 页面 + `ReminderModel` + Android 精确闹钟 JNI + 树莓派部署 + 雷达固件 |
+| [`v3-flash-core`](../../tree/v3-flash-core) | 39 | 系统改造脚本 + Magisk 模块 + 刷机/回滚脚本 |
+
+每个 `-core` 分支根部都有 `README.md`，写了核心文件速览、怎么跑、以及哪些部分尚未验证。
+
 > 这些分支的历史互不相关，`git switch v2-qt` 会**整体替换工作区**（看着像项目变了），看完记得 `git switch main` 切回来。只想看代码就在网页上点分支切换，别在本地切。
 
 ## 快速开始（3 条命令）
