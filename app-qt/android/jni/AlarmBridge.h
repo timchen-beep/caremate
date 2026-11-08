@@ -31,3 +31,4 @@ signals:
 private:
     void ensureChannel();
 };
+
