@@ -158,3 +158,4 @@ json.dump([{"item": n, "ok": o, "detail": d} for n, o, d in OUT],
           open(os.path.join(BASE, "acceptance_v06.json"), "w", encoding="utf-8"),
           ensure_ascii=False, indent=2)
 sys.exit(0 if ok_n == len(OUT) else 1)
+
