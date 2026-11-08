@@ -44,3 +44,4 @@ fi
 echo "== 5 首次开机后回归基线"
 echo "  检查：能打电话、相机、WiFi、指纹"
 echo "  再执行： scripts/10-privapp-install.sh"
+
