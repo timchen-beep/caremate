@@ -41,3 +41,4 @@ alarms = call("/api/v1/alarms?user_id=u-elder")["items"]
 mine = [a for a in alarms if occ and a["occurrence"] == occ[0]["id"]]
 print("\n该实例告警：", [(a["kind"], a["level"], a["created_local"]) for a in mine])
 print("结论：", "PASS —— 无人操作也会升级" if occ and occ[0]["state"] in ("escalated", "missed") else "FAIL")
+
