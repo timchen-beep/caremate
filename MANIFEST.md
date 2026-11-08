@@ -67,3 +67,4 @@ python test_extra.py      :: 7/7（需服务在 8400）
 2. Flutter 源码未编译（本机无 SDK），无 ndroid/ 平台目录。
 3. 部署脚本未在真实服务器跑过；MQTT 桥未连真 broker 验证（只有报文级自测）。
 4. 技术选型与《需求扩展与技术路线》不同：文档要 Qt/MQTT/雷达，本备份是 Python + Web + 预留 MQTT。
+
