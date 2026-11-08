@@ -107,3 +107,4 @@ json.dump([{"item": a, "ok": b, "detail": c} for a, b, c in OUT],
           open(os.path.join(CLOUD, "acceptance_extra.json"), "w", encoding="utf-8"),
           ensure_ascii=False, indent=2)
 sys.exit(0 if n == len(OUT) else 1)
+
