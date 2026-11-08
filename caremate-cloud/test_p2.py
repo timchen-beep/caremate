@@ -93,3 +93,4 @@ print("\n总计：%d/%d 通过" % (sum(1 for o in OUT if o[1]), len(OUT)))
 json.dump([{"item": n, "ok": o, "detail": d} for n, o, d in OUT],
           open(r"C:\Users\43915\Documents\deepseek-harness\default-workspace\caremate-cloud\acceptance_p2.json",
                "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+
