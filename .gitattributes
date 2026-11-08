@@ -1,3 +1,4 @@
+# 作用：行尾规则：仓库存 LF、bat 用 CRLF、二进制文件不做转换
 # 统一行尾：仓库里存 LF，避免 Windows 上反复出现"只有行尾变了"的假改动
 * text=auto eol=lf
 
@@ -31,3 +32,4 @@
 *.xml  text eol=lf
 *.ino  text eol=lf
 *.prop text eol=lf
+
