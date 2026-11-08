@@ -8,3 +8,4 @@ echo "== 型号"; adb shell getprop ro.product.model
 echo "== 系统"; adb shell getprop ro.build.version.release
 echo "== 包是否安装"; adb shell pm list packages | grep -i caremate || echo "  未安装"
 echo "== 精确闹钟权限"; adb shell appops get com.caremate.app SCHEDULE_EXACT_ALARM || true
+
