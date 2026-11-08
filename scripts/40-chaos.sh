@@ -24,3 +24,4 @@ case "$CASE" in
     echo "连点 10 次完成：检查服务端是否只记 1 条" ;;
   *) echo "用法: $0 [offline|reboot|time-skew|tap-spam]" ;;
 esac
+
