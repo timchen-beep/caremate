@@ -24,3 +24,4 @@
 3. `POST /api/v1/outbox/drain` 标记已消费。
 
 桥挂了不丢消息（还在 outbox）；重复发也无害（`event_id` 去重）。
+
