@@ -101,3 +101,4 @@ python3 test_accept.py
 2. **数据库口令/路径**：`CAREMATE_DB` 指向挂载盘；换 PostgreSQL 时只需重写 `connect()`。
 3. **备份**：`sqlite3 caremate.db ".backup /backup/caremate-$(date +%F).db"` 放进 cron，每天一次。
 
+<!-- 文件：legacy-web/deploy/README.md -->
