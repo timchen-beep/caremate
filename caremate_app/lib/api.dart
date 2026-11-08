@@ -1,3 +1,4 @@
+// 作用：HTTP 客户端：Bearer 令牌、JSON 编解码、错误码到中文提示的映射
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;

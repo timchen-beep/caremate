@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# 作用：MQTT 桥：把 outbox 里的事件用零依赖 MQTT 3.1.1 客户端 publish 到 broker，再标记已消费
 """CareMate MQTT 桥：把服务端 outbox 里的事件发到 mosquitto（树莓派/香橙派上跑）。
 
 为什么自己写：这台机器没有 paho-mqtt，而且目标板子上也不想装依赖。

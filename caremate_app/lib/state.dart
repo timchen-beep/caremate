@@ -1,3 +1,4 @@
+// 作用：全局状态与动作：拉计划、点确认/稍后、离线队列落盘、联网补传、同步
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
