@@ -1,3 +1,4 @@
+// 作用：今天页：到点卡片 + 吃了/等会儿/没做 三个大按钮
 import 'package:flutter/material.dart';
 
 import '../models.dart';

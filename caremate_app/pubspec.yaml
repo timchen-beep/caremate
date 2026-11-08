@@ -1,3 +1,4 @@
+# 作用：Flutter 依赖：flutter_local_notifications、timezone、shared_preferences、http
 name: caremate
 description: CareMate —— 独居老人用药与作息提醒终端（App 端）
 publish_to: "none"

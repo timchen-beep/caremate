@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+// 作用：我的页：服务器地址与令牌、配对码、通知自检、同步状态
+import 'package:flutter/material.dart';
 
 import '../notify.dart';
 import '../state.dart';

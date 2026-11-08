@@ -1,3 +1,4 @@
+<!-- 作用：本包说明：定位、状态、上手顺序、已知限制 -->
 # CareMate App（Flutter）—— 老人口袋里的那一端
 
 形态分工：**老人端就是 App**（系统通知、锁屏亮屏、离线记录），**看护端是 Web 看板**（`../caremate-cloud/web/dashboard.html`）。
