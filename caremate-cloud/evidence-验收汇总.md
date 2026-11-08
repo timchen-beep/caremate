@@ -32,3 +32,4 @@ python collect_evidence.py
 
 > 验收用默认阈值 2/5/15；`--demo` 会把阈值设成 1/3/10、等会儿 5 分钟，**只用于演示**（口径不同，别混用）。
 
+<!-- 文件：caremate-cloud/evidence-验收汇总.md -->
