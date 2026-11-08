@@ -200,3 +200,4 @@
 | `saveSettings` | 保存服务器地址/令牌并立即重新同步 |
 | `todayEvents` | 筛选出今天的动作记录 |
 
+<!-- 文件：FUNCTIONS.md -->
