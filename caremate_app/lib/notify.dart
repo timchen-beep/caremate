@@ -49,7 +49,7 @@ class Notifier {
   /// 点通知带出来的计划 ID
   static String? lastTappedPlanId;
 
-  static TZDateTime _nextInstanceOf(int hour, int minute) {
+  static tz.TZDateTime _nextInstanceOf(int hour, int minute) {
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
     if (scheduled.isBefore(now)) {
@@ -93,6 +93,8 @@ class Notifier {
             ),
           ),
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
           matchDateTimeComponents: DateTimeComponents.time,
           payload: p.id,
         );

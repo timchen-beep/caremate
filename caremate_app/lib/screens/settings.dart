@@ -20,6 +20,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String _bindCode = '——';
 
   @override
+  // 函数 initState：读取已保存的服务器地址与令牌
   void initState() {
     super.initState();
     _url = TextEditingController(text: widget.state.baseUrl);
@@ -27,6 +28,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadMe();
   }
 
+  // 函数 _loadMe：拉取当前账号信息（角色、绑定老人）
   Future<void> _loadMe() async {
     try {
       final me = await widget.state.api.me();
@@ -38,6 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   @override
+  // 函数 dispose：释放输入框控制器
   void dispose() {
     _url.dispose();
     _token.dispose();
@@ -45,6 +48,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   @override
+  // 函数 build：我的页布局：服务器/令牌、配对、通知自检、同步状态
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),

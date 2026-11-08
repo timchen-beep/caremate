@@ -1,6 +1,4 @@
 // 作用：数据模型：Occurrence / Plan / AppEvent，字段与契约 v0.1 一一对应
-import 'dart:convert';
-
 /// 状态枚举（契约 §4，不要自己造词）
 const kStates = ['pending', 'notified', 'snoozed', 'confirmed', 'missed', 'escalated'];
 

@@ -21,6 +21,7 @@ class CareMateApp extends StatelessWidget {
   final AppState state;
 
   @override
+  // 函数 build：构建界面（App 外层 / 首页外壳）
   Widget build(BuildContext context) {
     const ink = Color(0xFF14264A);
     const accent = Color(0xFF24457A);
@@ -62,12 +63,14 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver {
   int _index = 0;
 
   @override
+  // 函数 initState：启动时初始化状态与本地通知
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
+  // 函数 dispose：释放控制器与计时器
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -85,6 +88,7 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver {
   }
 
   @override
+  // 函数 build：构建界面（App 外层 / 首页外壳）
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.state,
