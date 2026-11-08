@@ -69,3 +69,18 @@ python test_extra.py      :: 7/7（需服务在 8400）
 4. 技术选型与《需求扩展与技术路线》不同：文档要 Qt/MQTT/雷达，本备份是 Python + Web + 预留 MQTT。
 
 <!-- 文件：MANIFEST.md -->
+
+## 分支地图
+
+本分支实际包含：
+- `caremate-cloud/`
+- `caremate_app/`
+- `docs/`
+- `evidence/`
+
+不在本分支的常用目录，去哪找：
+
+- `scripts/` —— 系统改造脚本（priv-app / kiosk / 自检）→ `v3-flash`、`v3-flash-core` 或 `main`
+- `magisk-module/` —— Magisk 定制层 → `v3-flash`、`v3-flash-core` 或 `main`
+- `device/` —— 刷机与回滚 → `v3-flash`、`v3-flash-core` 或 `main`
+- `app/` —— Flutter 老人端 → `main` 的 `app/`
