@@ -145,4 +145,4 @@ class _SettingsPageState extends State<SettingsPage> {
       );
 }
 
-# 文件：caremate_app/lib/screens/settings.dart
+// 文件：caremate_app/lib/screens/settings.dart
