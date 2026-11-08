@@ -37,19 +37,12 @@ bash scripts/50-verify-system.sh    # 8 项全 OK 才可以演
 ## 分支地图
 
 本分支实际包含：
-
 - `device/`
 - `legacy-web/`
 - `magisk-module/`
 - `scripts/`
 
-不在本分支的内容，去哪找：
+不在本分支的常用目录，去哪找：
 
-- `app/` → Flutter 老人端在 `main` 的 `app/`、或 `v1-web` 的 `caremate_app/`
-- `caremate_app/` → Flutter 老人端在 `main` 的 `app/`
-- `app-qt/` → Qt 骨架在 `main` 的 `qt/`、或 `v2-qt` 的 `app-qt/`
-- `qt/` → Qt 骨架在 `v2-qt` / `v2-qt-core` 的 `app-qt/`
-- `pi/` → 板子部署在 `main` 的 `pi/`、或 `v2-qt` 的 `pi/`
-- `esp32/` → 雷达固件在 `main` 的 `server/firmware/`、或 `v2-qt` 的 `esp32/`
-- `server/` → 后端在 `main` 的 `server/`；本分支里叫 `legacy-web/` 或 `caremate-cloud/`
-- `docs/` → 文档在 `main` 的 `docs/`
+- `app/` —— Flutter 老人端 → `main` 的 `app/`（本仓库正式交付的客户端）
+- `docs/` —— 文档 → `main` 的 `docs/`
