@@ -23,3 +23,4 @@ else
   adb shell am task lock stop 2>/dev/null || true
 fi
 echo "完成（$MODE）"
+
