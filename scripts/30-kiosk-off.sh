@@ -25,3 +25,4 @@ echo "== 5 解除任务锁定（如果之前锁过）"
 adb shell am task lock stop 2>/dev/null || true
 
 echo "== 完成。检查：桌面图标回来了、能下拉状态栏"
+
