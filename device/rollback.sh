@@ -23,3 +23,4 @@ fi
 echo "== 4 重启"
 adb reboot
 echo "重启后检查：桌面回来了、状态栏回来了、能正常装其他 App"
+
