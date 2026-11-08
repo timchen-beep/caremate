@@ -54,11 +54,13 @@ class ApiClient {
     return body;
   }
 
+  // 函数 _get：GET 封装：带 Bearer、超时、错误码映射
   Future<dynamic> _get(String path, [Map<String, String>? q]) async {
     final r = await http.get(_u(path, q), headers: _headers).timeout(const Duration(seconds: 8));
     return _decode(r);
   }
 
+  // 函数 _send：写操作封装（POST/PATCH）：序列化 + 错误处理
   Future<dynamic> _send(String method, String path, Map<String, dynamic> data) async {
     final req = http.Request(method, _u(path))
       ..headers.addAll(_headers)

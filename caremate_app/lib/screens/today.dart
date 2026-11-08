@@ -15,6 +15,7 @@ class TodayPage extends StatelessWidget {
   final AppState state;
 
   @override
+  // 函数 build：今天页布局：到点卡片 + 三个大按钮 + 今日列表
   Widget build(BuildContext context) {
     final due = state.due;
     final today = state.todayEvents();
@@ -74,6 +75,7 @@ class TodayPage extends StatelessWidget {
         ),
       );
 
+  // 函数 _reminderCard：到点卡片：标题、计划时间、迟到分钟
   Widget _reminderCard(DueItem item) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -108,6 +110,7 @@ class TodayPage extends StatelessWidget {
     );
   }
 
+  // 函数 _bigButton：主操作按钮（吃了/等会儿），84 高、30 号字
   Widget _bigButton(String text, {bool filled = true, required VoidCallback onTap}) {
     return SizedBox(
       width: double.infinity,
@@ -127,6 +130,7 @@ class TodayPage extends StatelessWidget {
     );
   }
 
+  // 函数 _dangerButton：次要操作按钮（这次没做），红框，弱化视觉
   Widget _dangerButton(String text, {required VoidCallback onTap}) {
     return SizedBox(
       width: double.infinity,
@@ -168,6 +172,7 @@ class TodayPage extends StatelessWidget {
         ),
       );
 
+  // 函数 _eventRow：动作流水行：标题 + 状态 + 未同步标记
   Widget _eventRow(AppEvent e) {
     final color = switch (e.action) {
       'confirmed' => const Color(0xFF0E5B33),

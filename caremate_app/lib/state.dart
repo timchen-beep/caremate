@@ -53,6 +53,7 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // 函数 _persist：把待同步队列与设置写入本地存储（断网也不丢）
   Future<void> _persist() async {
     await _prefs.setString('events', jsonEncode(events.map((e) => e.toJson()).toList()));
     await _prefs.setString('userId', userId);
@@ -154,6 +155,7 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // 函数 pair：用配对码换取令牌
   Future<void> pair(String code) async {
     final j = await api.pair(code);
     token = (j['token'] ?? '').toString();
@@ -163,6 +165,7 @@ class AppState extends ChangeNotifier {
     await sync();
   }
 
+  // 函数 saveSettings：保存服务器地址/令牌并立即重新同步
   Future<void> saveSettings({String? url, String? tk}) async {
     if (url != null && url.trim().isNotEmpty) baseUrl = url.trim().replaceAll(RegExp(r'/$'), '');
     if (tk != null && tk.trim().isNotEmpty) token = tk.trim();
@@ -176,6 +179,7 @@ class AppState extends ChangeNotifier {
     return occurrences.where((o) => o.slotLocal.startsWith(today)).toList();
   }
 
+  // 函数 todayEvents：筛选出今天的动作记录
   List<AppEvent> todayEvents() {
     final today = dateOf(DateTime.now());
     return events.where((e) => e.slotLocal.startsWith(today)).toList();
