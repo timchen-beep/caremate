@@ -20,3 +20,4 @@ echo "== 4 关自动时间（可选，防演示被改时间）"
 adb shell settings put global auto_time 0 || true
 
 echo "== 完成。按 Home / 返回 应回不到桌面。恢复执行 30-kiosk-off.sh"
+
