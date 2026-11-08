@@ -1,3 +1,4 @@
+// 作用：Android 构建根配置：AGP 与 Kotlin 插件版本、仓库
 allprojects {
     repositories {
         google()

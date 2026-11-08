@@ -1,3 +1,4 @@
+<!-- 作用：老人端清单：通知、精确闹钟、开机重排、振动与唤醒锁 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 网络：拉计划、上报事件 -->
     <uses-permission android:name="android.permission.INTERNET"/>

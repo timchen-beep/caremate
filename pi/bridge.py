@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# 作用：树莓派/香橙派上的 MQTT 桥（与 server/bridge.py 同一实现，按板子部署习惯放置）
 """CareMate MQTT 桥：把服务端 outbox 里的事件发到 mosquitto（树莓派/香橙派上跑）。
 
 为什么自己写：这台机器没有 paho-mqtt，而且目标板子上也不想装依赖。

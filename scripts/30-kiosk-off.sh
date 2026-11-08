@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 作用：一键恢复：还原桌面、状态栏、常亮与自动时间（演示前必须先演这一条）
 # 一键恢复：演示前必须演一遍这个
 set -uo pipefail
 PKG=com.caremate.caremate

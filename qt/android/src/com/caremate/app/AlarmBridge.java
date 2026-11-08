@@ -1,3 +1,4 @@
+// 作用：Java 侧：AlarmManager.setExactAndAllowWhileIdle + 通知渠道（普通/呼救两级）
 // ------------------------------------------------------------------
 // Java 侧：精确闹钟 + 通知（报告 §3.2 B4 里点名的"30–60 行 Java"）
 // 放到 app-qt/android/src/com/caremate/app/AlarmBridge.java

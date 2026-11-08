@@ -1,3 +1,4 @@
+# 作用：Qt 工程构建：QML 模块声明、Android 包源码目录
 cmake_minimum_required(VERSION 3.21)
 project(CareMate VERSION 1.0 LANGUAGES CXX)
 

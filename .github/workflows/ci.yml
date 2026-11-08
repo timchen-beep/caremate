@@ -1,3 +1,4 @@
+# 作用：CI：push/PR 时在 Ubuntu 上跑七套验收（固定 Asia/Shanghai，失败项转注解）
 name: acceptance
 
 on:

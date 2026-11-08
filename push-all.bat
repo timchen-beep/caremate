@@ -1,3 +1,4 @@
+@REM 作用：一次推送 main 与三条归档分支（本地辅助脚本）
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"

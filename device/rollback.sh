@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 作用：回滚：解除 kiosk、禁用 Magisk 模块、按需卸载 App、重启验证
 # 回滚：把演示机变回普通手机
 set -uo pipefail
 PKG=com.caremate.caremate

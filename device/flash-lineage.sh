@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 作用：刷机骨架：校验机型、备份 boot/dtbo/vbmeta、解锁、刷官方 LineageOS
 # 刷 LineageOS 骨架脚本：每一步都先校验，再执行；失败即停。
 # 用法： bash flash-lineage.sh <机型代号> [lineage-*.zip 路径]
 set -euo pipefail

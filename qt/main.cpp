@@ -1,3 +1,4 @@
+// 作用：Qt 入口：注册 ReminderModel、加载 main.qml（Android 走 Qt for Android）
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>

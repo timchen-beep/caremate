@@ -1,3 +1,4 @@
+// 作用：App 入口：初始化状态与本地通知，挂三个 tab（今天/记录/我的）
 import 'package:flutter/material.dart';
 
 import 'notify.dart';

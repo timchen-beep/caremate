@@ -1,3 +1,4 @@
+@REM 作用：Gradle wrapper（Windows），Flutter 构建入口
 @if "%DEBUG%" == "" @echo off
 @rem ##########################################################################
 @rem

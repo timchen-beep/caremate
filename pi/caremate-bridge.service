@@ -1,4 +1,5 @@
-﻿[Unit]
+# 作用：树莓派 systemd 单元：跑 MQTT 桥（outbox → broker）
+[Unit]
 Description=CareMate MQTT bridge (outbox -> mosquitto)
 After=network-online.target caremate-server.service mosquitto.service
 Wants=caremate-server.service

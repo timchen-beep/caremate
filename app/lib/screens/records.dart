@@ -1,3 +1,4 @@
+// 作用：记录页：今日统计、今天要做的事、已提交动作（含未同步标记）
 import 'package:flutter/material.dart';
 
 import '../state.dart';

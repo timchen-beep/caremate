@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 作用：把 APK 装成系统特权应用（/system/priv-app）并放权限白名单，免授权拿到精确闹钟
 # 把 CareMate 装成系统特权应用（不换 ROM 也能做，只需 root）
 set -euo pipefail
 PKG=com.caremate.caremate

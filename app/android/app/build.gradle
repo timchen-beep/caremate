@@ -1,3 +1,4 @@
+// 作用：应用模块构建：namespace、targetSdk、release 签名（无 key.properties 时退回 debug 签名）
 plugins {
     id "com.android.application"
     id "kotlin-android"

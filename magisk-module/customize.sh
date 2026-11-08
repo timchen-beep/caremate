@@ -1,4 +1,5 @@
 #!/system/bin/sh
+# 作用：Magisk 安装时执行：检查 APK 是否就位、设置 priv-app 权限
 # Magisk 安装时执行：把 APK 与权限声明放进 system 分区
 SKIPUNZIP=0
 

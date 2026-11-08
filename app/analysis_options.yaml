@@ -1,3 +1,4 @@
+# 作用：Dart 静态检查规则（flutter_lints）
 # This file configures the analyzer, which statically analyzes Dart code to
 # check for errors, warnings, and lints.
 #
