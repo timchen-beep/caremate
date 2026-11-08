@@ -1,3 +1,4 @@
+# 作用：Android 模块忽略规则（本地 SDK 路径、构建缓存）
 gradle-wrapper.jar
 /.gradle
 /captures/
@@ -11,3 +12,4 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
