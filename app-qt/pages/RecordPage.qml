@@ -101,3 +101,4 @@ Item {
         function show(msg) { text = msg; visible = true; }
     }
 }
+
