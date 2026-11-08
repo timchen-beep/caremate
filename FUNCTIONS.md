@@ -1,6 +1,6 @@
 # 函数说明（每个函数在干什么）
 
-> 由代码里的 `函数 X：说明` 注释提取；共 152 个函数。
+> 由代码里的 `函数 X：说明` 注释提取；共 113 个函数。
 
 ## `app/lib/api.dart`
 
@@ -164,55 +164,6 @@
 | `static` | 静态文件服务（web/ 下的页面与资源） |
 | `today_occurrences` | 今天到未来的实例（老人端首页） |
 | `utc_now` | 当前 UTC 时间（带时区），全库时间基准 |
-
-## `server/web/app.html`
-
-| 函数 | 作用 |
-|---|---|
-| `act` | 提交动作（确认/稍后/没做），带本地排队 |
-| `api` | 请求封装：带令牌、解析 JSON |
-| `apiBase` | 服务器地址（可在设置里改） |
-| `contrast` | 对比度计算（自检面板显示实测值） |
-| `down` | 按下开始计时（长按判定） |
-| `fire` | 长按达到阈值才真正触发呼救 |
-| `hideUndo` | 隐藏撤销条 |
-| `load` | 首次加载：拉计划与记录 |
-| `lum` | 相对亮度计算（无障碍对比度用） |
-| `parseRGB` | 把颜色解析成 RGB 三元组 |
-| `renderLog` | 渲染动作流水 |
-| `renderPlans` | 渲染今日计划列表 |
-| `renderRecords` | 渲染记录页 |
-| `renderStage` | 渲染当前该做的事（大卡片） |
-| `runCheck` | 无障碍自检：字号、按钮尺寸、对比度、单屏选项数 |
-| `showUndo` | 显示 5 秒撤销条 |
-| `speak` | 语音播报（系统 TTS，按文案表选短句） |
-| `switchTab` | 切换底部 tab |
-| `tick` | 每秒刷新时钟与倒计时 |
-| `toast` | 底部提示条 |
-| `up` | 松开取消长按 |
-
-## `server/web/dashboard.html`
-
-| 函数 | 作用 |
-|---|---|
-| `api` | 请求封装：带令牌、解析 JSON、失败抛错 |
-| `beep` | 用 WebAudio 发提示音（无音频文件依赖） |
-| `drawChart` | 画趋势柱状图（近 7 天完成率） |
-| `flashTitle` | 标题闪烁提醒（不依赖桌面通知权限） |
-| `incoming` | 收到新告警：弹红色横幅 + 声音 + 标题闪烁 |
-| `msg` | 统一的提示行输出（页面底部黄条） |
-| `pill` | 状态色块（已完成/待提醒/未确认） |
-| `refresh` | 每 5 秒拉一次数据并重渲染 |
-| `renderAlarms` | 渲染未处理告警数量与详情 |
-| `renderAlerts` | 渲染告警列表（含确认） |
-| `renderCloud` | 渲染云端信息：模式、时区、调度器、outbox |
-| `renderPlans` | 渲染计划列表与暂停/恢复 |
-| `renderRecords` | 渲染记录（含修订历史与撤销） |
-| `renderStats` | 渲染统计：完成率、连续天数、口径说明 |
-| `renderToday` | 渲染今日进度：每个实例一行 + 可代确认 |
-| `showToastLine` | 显示一行临时提示 |
-| `switchTab` | 切换左侧五个分区 |
-| `watchAlarms` | 长轮询 /alarms/wait，有新告警立即回调（<1 秒到达） |
 
 ## `server/web/kiosk.html`
 
