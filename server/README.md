@@ -1,4 +1,4 @@
-<!-- 作用：后端说明：接口清单、部署方式、验收命令与设计取舍 -->
+# 作用：后端说明：接口清单、部署方式、验收命令与设计取舍
 # CareMate 云端 + 双入口（v0.5：按 4.2 文档对齐）
 
 ## v0.5 改了什么（对照《Opening Report 4.2》）
@@ -143,5 +143,27 @@ GET  /export.csv?type=records|events|alarms   三份均带 BOM
 
 | 文档改法 | 代码落点 | 验收 |
 |---|---|---|
-| P95 拆成「派发延迟 ≤30 s」与「接口 ≤5 s」 | `/api/v1/metrics`：`dispatch = notified_at - due_at`，只统计到期前已物化的实例
+| P95 拆成「派发延迟 ≤30 s」与「接口 ≤5 s」 | `/api/v1/metrics`：`dispatch = notified_at - due_at`，只统计到期前已物化的实例，补扫单独计数 | p50 27 s / p95 27 s（样本 1，排除 3 条补扫） |
+| 事件要能单查询解释 | `events.payload` 写 `prev_state / new_state / level / reason`；新增 `GET /api/v1/occurrences/{id}/events` | 链条 `pending→notified`，一次 GET 返回 |
+| 4 位码防枚举 | `/auth/pair` 每地址每分钟 5 次，超出 429 | 六次请求 201×5 → 429 |
+| 磁盘满会让提醒停摆 | `ensure_disk()`：低于 `CAREMATE_DISK_MIN_MB`（默认 200）拒绝写入，返回 507 | HTTP 507 |
+| 每日在线备份 | `python server.py --backup`（`CAREMATE_BACKUP_DIR` 指目录） | 产出 `caremate-YYYYmmdd-HHMMSS.db` |
+| snooze 回流与上限 | 已有：10 分钟回 notified，最多 3 次，第 4 次记 missed（`reason=snooze_limit`） | 见 4.2.6 条目 |
 
+版本号 0.6.0。三套验收：`test_accept.py` 6/6、`test_p2.py` 9/9、`test_v06.py` 7/7。
+
+## v0.7.0：按《接口与实现决策清单》对齐（2026-11-03）
+
+| 清单项 | 结论 | 代码 |
+|---|---|---|
+| 查某天实例：报告 `GET /occurrences?from=&to=` | 按报告 | 已支持 from/to（含首尾，≤62 天）；`/overview` 保留为一次拿全 |
+| 状态变更：报告 `POST /occurrences/{id}/events` | 按报告 | 看板已改用它；`/occurrences/action` 仅 App 兼容 |
+| 告警：报告 `GET /alerts` | 按报告 | `/alerts` = 超阈值未确认清单；`/alarms` 只是流水 |
+| occurrence 落表 + 历史不变 | 按报告 | 实例行加 `slot_local` 与 `title_snap/dose_snap/kind_snap`，改计划不动历史 |
+| 唯一状态入口 | 按报告 | `transition()` 是唯一 `UPDATE occurrences SET state=`（全文件搜得 1 处） |
+| UTC + 时区 | 按报告 | 实例身份改用本地墙钟：换时区同一行重算 `due_at`，不新增行 |
+| 配对码换 token / 部署脚本 / 一次规则 | 已完成（11-03） | v0.5–v0.6 已实现，见上两节 |
+
+顺带修的真 bug：`ensure_occurrences()` / `occurrences()` 自开连接未提交，事务被回滚——表现是"每次请求都能看到实例、重启就没了"，也让"10 次重启"测试之前是空转通过。现在显式 commit。
+
+四套验收：`test_accept.py` 6/6、`test_p2.py` 9/9、`test_v06.py` 7/7、`test_align.py` 9/9（合计 31/31）。
