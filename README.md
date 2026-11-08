@@ -63,3 +63,24 @@ CareMate_路线版_<日期>/
 ```
 
 <!-- 文件：README.md -->
+
+## 分支地图
+
+本分支实际包含：
+
+- `android-root/`
+- `app-qt/`
+- `docs/`
+- `esp32/`
+- `legacy-web/`
+- `pi/`
+
+不在本分支的内容，去哪找：
+
+- `scripts/` → 系统改造脚本在 `v3-flash` / `v3-flash-core` 分支（或 `main` 的 `scripts/`）
+- `magisk-module/` → Magisk 定制层在 `v3-flash` / `v3-flash-core` 分支
+- `device/` → 刷机与回滚在 `v3-flash` / `v3-flash-core` 分支
+- `app/` → Flutter 老人端在 `main` 的 `app/`、或 `v1-web` 的 `caremate_app/`
+- `caremate_app/` → Flutter 老人端在 `main` 的 `app/`
+- `qt/` → Qt 骨架在 `v2-qt` / `v2-qt-core` 的 `app-qt/`
+- `server/` → 后端在 `main` 的 `server/`；本分支里叫 `legacy-web/` 或 `caremate-cloud/`
