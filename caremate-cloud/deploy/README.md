@@ -63,7 +63,7 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo 
 sudo apt update && sudo apt install -y caddy
 ```
 
-把 `deploy/Caddyfile` 里的域名换成你的，然后：
+把 `Caddyfile` 里的域名换成你的，然后：
 
 ```bash
 sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
