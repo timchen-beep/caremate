@@ -74,3 +74,4 @@ CareMate_刷机版_<日期>/
 - 20-kiosk-on.sh 执行前必须先准备好 30-kiosk-off.sh
 - 演示前 24 小时冻结系统，不再刷/不再改
 
+<!-- 文件：README.md -->
