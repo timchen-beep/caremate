@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 作用：家属看板：5 秒刷新进度、长轮询收告警弹红条、计划/记录/告警/统计/云端五个分区 -->
+<!-- 作用：家属看板：5 秒刷新今日进度、长轮询收告警弹红条、计划/记录/告警/统计/云端五个分区 -->
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -103,5 +103,710 @@
     <div class="t1" id="sosTitle">有人呼救！</div>
     <div class="t2" id="sosSub"></div>
   </div>
-  <button id="sosAck">我看到了</
+  <button id="sosAck">我看到了</button>
+</div>
+<div class="toastline" id="toastLine"></div>
 
+<div class="wrap">
+  <div class="cards">
+    <div class="card"><div class="k">今日实例</div><div class="v" id="kTotal">–</div></div>
+    <div class="card"><div class="k">已完成</div><div class="v" id="kDone">–</div></div>
+    <div class="card"><div class="k">未确认</div><div class="v" id="kMiss">–</div></div>
+    <div class="card"><div class="k">7 天完成率</div><div class="v" id="kRate">–</div></div>
+    <div class="card"><div class="k">连续达标</div><div class="v" id="kStreak">–</div></div>
+    <div class="card"><div class="k">告警</div><div class="v" id="kAlarm">–</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="today">今日</button>
+    <button class="tab" data-tab="plans">提醒计划</button>
+    <button class="tab" data-tab="records">记录</button>
+    <button class="tab" data-tab="stats">统计</button>
+    <button class="tab" data-tab="alarms">告警</button>
+    <button class="tab" data-tab="cloud">云端</button>
+  </div>
+
+  <!-- 今日 -->
+  <div id="v-today">
+    <div class="panel">
+      <h2>今日实例 <span class="sub" id="todaySub"></span></h2>
+      <table>
+        <thead><tr><th>时刻</th><th>计划</th><th>类别</th><th>状态</th><th>稍后</th><th>操作</th></tr></thead>
+        <tbody id="todayRows"><tr><td colspan="6">加载中…</td></tr></tbody>
+      </table>
+      <div class="hint">状态口径：<code>pending</code> 未到点 → <code>notified</code> 已到点 → <code>escalated</code> 升级给家属 → <code>confirmed / missed</code>。
+        家属可代确认（文档：家属「替老人确认」）。</div>
+    </div>
+  </div>
+
+  <!-- 计划 -->
+  <div id="v-plans" class="hide">
+    <div class="panel">
+      <h2>新增计划 <span class="sub">7 种重复规则</span></h2>
+      <form class="inline" id="planForm">
+        <label>名称<input id="pTitle" placeholder="如 苯磺酸氨氯地平 5mg"></label>
+        <label>类别
+          <select id="pKind">
+            <option value="medication">用药</option><option value="water">饮水</option>
+            <option value="activity">活动</option><option value="meal">餐食</option>
+          </select>
+        </label>
+        <label>剂量<input id="pDose" placeholder="1 片 / 200ml" style="width:110px"></label>
+        <label>规则
+          <select id="pRule">
+            <option value="daily">每天</option>
+            <option value="weekly">指定星期</option>
+            <option value="interval">隔 N 天</option>
+            <option value="monthly">每月某日</option>
+            <option value="course">疗程（连续 N 天）</option>
+            <option value="mealOffset">餐前/餐后（按饮食记录）</option>
+            <option value="once">一次性（指定某天）</option>
+          </select>
+        </label>
+        <label id="wrapDate" class="hide">日期<input id="pDate" type="date" style="width:160px"></label>
+        <label id="wrapTimes">时刻（逗号分隔）<input id="pTimes" value="08:00"></label>
+        <label id="wrapWeek" class="hide">星期
+          <select id="pWeek"><option value="1,2,3,4,5">工作日</option><option value="6,7">周末</option>
+            <option value="1,2,3,4,5,6,7">每天</option></select>
+        </label>
+        <label id="wrapN" class="hide">N / 日 / 天数<input id="pN" value="2" style="width:80px"></label>
+        <label id="wrapAnchor" class="hide">餐次
+          <select id="pAnchor"><option value="breakfast">早餐</option><option value="lunch">午餐</option>
+            <option value="dinner">晚餐</option></select>
+        </label>
+        <label id="wrapOffset" class="hide">偏移（分钟，负=餐前）<input id="pOffset" value="30" style="width:100px"></label>
+        <label>备注<input id="pNote" placeholder="餐后 / 随餐"></label>
+        <button class="btn" type="submit">新增</button>
+      </form>
+      <div class="msg" id="planMsg"></div>
+    </div>
+
+    <div class="panel">
+      <h2>计划列表 <span class="sub" id="planCount"></span></h2>
+      <table>
+        <thead><tr><th>计划</th><th>类别</th><th>规则</th><th>时刻</th><th>剂量</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="planRows"><tr><td colspan="7">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 记录 -->
+  <div id="v-records" class="hide">
+    <div class="panel">
+      <h2>新增记录</h2>
+      <form class="inline" id="recForm">
+        <label>类型
+          <select id="rType">
+            <option value="water">饮水</option><option value="activity">活动</option>
+            <option value="diet">饮食</option><option value="sleep_start">入睡</option>
+            <option value="sleep_end">起床</option><option value="mood">情绪</option>
+          </select>
+        </label>
+        <label>数值<input id="rValue" value="200" style="width:90px"></label>
+        <label>单位<input id="rUnit" value="ml" style="width:70px"></label>
+        <label>时间<input id="rAt" style="width:170px"></label>
+        <label>备注<input id="rNote" placeholder="如 一杯温水 / 早餐"></label>
+        <button class="btn" type="submit">新增</button>
+      </form>
+      <div class="msg" id="recMsg"></div>
+      <div class="hint">记录可更正（PATCH）与撤销（DELETE，逻辑删除并留痕）；编辑后 <code>revision</code> 自增，导出里能看到。</div>
+    </div>
+
+    <div class="panel">
+      <h2>近 7 天记录 <span class="sub" id="recCount"></span></h2>
+      <table>
+        <thead><tr><th>时间</th><th>类型</th><th>数值</th><th>备注</th><th>记录人</th><th>版本</th><th>操作</th></tr></thead>
+        <tbody id="recRows"><tr><td colspan="7">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 统计 -->
+  <div id="v-stats" class="hide">
+    <div class="panel">
+      <h2>近 7 天走势 <span class="sub" id="statsSub"></span></h2>
+      <div class="chart" id="chart"></div>
+      <div class="hint" id="caliber"></div>
+    </div>
+    <div class="panel">
+      <h2>导出</h2>
+      <button class="btn line" data-export="records">记录 CSV</button>
+      <button class="btn line" data-export="events">实例 CSV</button>
+      <button class="btn line" data-export="alarms">告警 CSV</button>
+      <div class="hint">CSV 带 BOM，Excel 直接打开不乱码；月度 PDF（给医生）是平台文档里的 P1 项，本版未做。</div>
+    </div>
+  </div>
+
+  <!-- 告警 -->
+  <div id="v-alarms" class="hide">
+    <div class="panel">
+      <h2>告警 <span class="sub" id="alarmCount"></span></h2>
+      <table>
+        <thead><tr><th>时间</th><th>类型</th><th>级别</th><th>说明</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="alarmRows"><tr><td colspan="6">加载中…</td></tr></tbody>
+      </table>
+      <div class="hint">升级链：到点 → 2 分钟本机语音 → 5 分钟通知家属 → 15 分钟强制提醒并记未确认（分钟数用 <code>CAREMATE_THRESHOLD_1/2/3</code> 调整）。</div>
+    </div>
+    <div class="panel">
+      <h2>未确认升级清单 <span class="sub" id="alertSub"></span></h2>
+      <table>
+        <thead><tr><th>计划时间</th><th>计划</th><th>状态</th><th>级别</th><th>迟到</th><th>通知时间</th></tr></thead>
+        <tbody id="alertRows"><tr><td colspan="6">加载中…</td></tr></tbody>
+      </table>
+      <div class="hint">来自 <code>/api/v1/alerts</code>：状态 escalated 或 missed 且未确认的实例，级别由调度器写入。</div>
+    </div>
+
+    <div class="panel">
+      <h2>社区上报（模拟 webhook）</h2>
+      <form class="inline" id="webForm">
+        <label>社区令牌<input id="cToken" value="comm-demo-2026" style="width:160px"></label>
+        <label>内容<input id="cMsg" value="今日上门发现老人未按计划服药" style="width:280px"></label>
+        <button class="btn" type="submit">上报一条</button>
+      </form>
+      <div class="msg" id="webMsg"></div>
+    </div>
+  </div>
+
+  <!-- 云端 -->
+  <div id="v-cloud" class="hide">
+    <div class="panel">
+      <h2>云服务接口 <span class="sub">预留位：改这里就能上云</span></h2>
+      <div class="kv" id="cloudInfo">读取中…</div>
+    </div>
+    <div class="panel">
+      <h2>用配对码换令牌 <span class="sub">文档 4.2.7：不发账号密码</span></h2>
+      <form class="inline" id="pairForm">
+        <label>老人配对码<input id="pairCode" value="8823" style="width:110px"></label>
+        <label>备注<input id="pairLabel" value="家属-女儿" style="width:140px"></label>
+        <button class="btn" type="submit">换取令牌</button>
+        <button class="btn line" type="button" id="btnUnpair">清除本机令牌</button>
+      </form>
+      <div class="msg" id="pairMsg"></div>
+      <div class="hint">换到的令牌只绑这一个老人，30 天有效；换手机或清了缓存就重新配一次。
+        当前页面右上角的令牌框会自动换成新令牌（也可以手动粘贴）。</div>
+    </div>
+
+    <div class="panel">
+      <h2>事件出口（outbox）</h2>
+      <div class="kv">
+        <div class="k">topic 约定</div><div>home/reminder/{user}/state、home/record/{user}、home/alarm/{user}、home/sensor/presence、home/terminal/ack</div>
+        <div class="k">本地模式</div><div>写 SQLite <code>outbox</code> 表，桥进程拉取后转发 MQTT</div>
+        <div class="k">云模式</div><div>把 <code>publish()</code> 换成 paho-mqtt publish 或 Webhook POST，调用方不用改</div>
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn line" id="btnOutbox">查看待发事件</button>
+        <button class="btn line" id="btnDrain">标记已消费</button>
+      </div>
+      <div class="msg" id="cloudMsg"></div>
+    </div>
+    <div class="panel">
+      <h2>上云清单</h2>
+      <div class="hint">
+        1. 数据库：<code>CAREMATE_DB</code> 换 PostgreSQL 连接串（本文件 <code>connect()</code> 是唯一切换点）；<br>
+        2. 鉴权：<code>CAREMATE_JWT_SECRET</code> 非空后改为签发/校验 JWT（当前固定令牌，便于演示）；<br>
+        3. 事件出口：<code>CAREMATE_MQTT_URL=mqtt://127.0.0.1:1883</code>，<code>publish()</code> 内改为真实发布；<br>
+        4. 社区上报：<code>CAREMATE_WEBHOOK_URL</code> 指向社区后台；<br>
+        5. 成本口径（文档 R7-5）：1 核 2G 学生机 50–100 元/月，演示场景零成本。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const ELDER = "u-elder";
+const savedTok = localStorage.getItem("caremate.dash.token");
+const tok = () => $("token").value.trim();
+const pad = (n) => String(n).padStart(2, "0");
+const nowText = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+
+const STATE = {
+  confirmed: ["已完成", "ok"], missed: ["未确认", "bad"], pending: ["待提醒", "idle"],
+  notified: ["已到点", "warn"], escalated: ["已升级", "bad"]
+};
+const KIND = { medication: "用药", water: "饮水", activity: "活动", meal: "餐食" };
+const RULE = { daily: "每天", weekly: "指定星期", interval: "隔 N 天", monthly: "每月某日",
+               course: "疗程", mealOffset: "餐前/餐后" };
+const RTYPE = { water: "饮水", activity: "活动", diet: "饮食", sleep_start: "入睡", sleep_end: "起床", mood: "情绪" };
+const UNIT = { water: "ml", activity: "min", diet: "kcal" };
+
+let state = { overview: null };
+
+// 函数 msg：统一的提示行输出（页面底部黄条）
+function msg(el, text, kind) {
+  el.textContent = text || "";
+  el.className = "msg" + (text ? " " + (kind || "ok") : "");
+}
+
+// 函数 api：请求封装：带令牌、解析 JSON、失败抛错
+async function api(path, opt = {}) {
+  const r = await fetch(path, {
+    method: opt.method || "GET",
+    headers: Object.assign({ "Content-Type": "application/json", "X-Token": tok() }, opt.headers || {}),
+    body: opt.body
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+  return data;
+}
+
+// 函数 switchTab：切换左侧五个分区
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.tab === name));
+  ["today", "plans", "records", "stats", "alarms", "cloud"].forEach((k) =>
+    $("v-" + k).classList.toggle("hide", k !== name));
+  try { history.replaceState(null, "", "#" + name); } catch (e) { }
+}
+
+document.querySelectorAll(".tab").forEach((t) => t.onclick = () => switchTab(t.dataset.tab));
+
+
+/* ---------------- 渲染 ---------------- */
+// 函数 pill：状态色块（已完成/待提醒/未确认）
+function pill(key) {
+  const s = STATE[key] || [key, "idle"];
+  return '<span class="pill ' + s[1] + '">' + s[0] + "</span>";
+}
+
+// 函数 renderToday：渲染今日进度：每个实例一行 + 可代确认
+function renderToday(ov) {
+  const occ = ov.occurrences || [];
+  $("todaySub").textContent = (ov.date || "") + " · 共 " + occ.length + " 条 · 时区 " + (ov.tz || "Asia/Shanghai");
+  $("todayRows").innerHTML = occ.length ? occ.map((o) => {
+    const ops = [];
+    const nowLocal = new Date().toISOString().slice(0, 10) + " " +
+      String(new Date().getHours()).padStart(2, "0") + ":" + String(new Date().getMinutes()).padStart(2, "0");
+    const future = (o.due_at_local || o.slot) > nowLocal;
+    // 文档：代确认要写 actor，走 /occurrences/{id}/events
+    if (!future && o.state !== "confirmed") ops.push('<button class="btn tiny" data-occ="' + o.id + '|confirmed">代确认</button>');
+    if (!future && o.state !== "confirmed" && o.state !== "missed") ops.push('<button class="btn tiny warn" data-occ="' + o.id + '|missed">记未确认</button>');
+    const lv = o.level >= 2 ? ' <span class="pill bad">L' + o.level + "</span>" : "";
+    const sent = o.notified_local ? '<span class="pill idle">通知 ' + o.notified_local + "</span>" : "";
+    return "<tr><td>" + (o.time_local || o.slot.slice(11)) + "</td><td>" + o.title +
+      (o.dose ? ' <span class="pill idle">' + o.dose + "</span>" : "") + "</td>" +
+      "<td>" + (KIND[o.kind] || o.kind) + "</td><td>" + pill(o.state) + lv + "</td>" +
+      "<td>" + sent + " " + (o.snooze_count || 0) + " / " + ((o.snooze_count || 0) + (o.snooze_left || 0)) + "</td>" +
+      "<td>" + (ops.join("") || '<span class="pill ok">—</span>') + "</td></tr>";
+  }).join("") : '<tr><td colspan="6">今天没有实例</td></tr>';
+}
+
+// 函数 renderPlans：渲染计划列表与暂停/恢复
+function renderPlans(plans) {
+  $("planCount").textContent = "共 " + plans.length + " 条";
+  $("planRows").innerHTML = plans.length ? plans.map((p) => {
+    const r = p.rule || {};
+    let detail = RULE[r.kind] || r.kind || "每天";
+    if (r.kind === "weekly") detail += " " + (p.weekdays || "");
+    if (r.kind === "interval") detail += " " + (r.n || 2) + " 天";
+    if (r.kind === "monthly") detail += " " + (r.day || 1) + " 号";
+    if (r.kind === "course") detail += " " + (r.start || "") + " 起 " + (r.days || 7) + " 天";
+    if (r.kind === "mealOffset") detail += " " + ({ breakfast: "早餐", lunch: "午餐", dinner: "晚餐" }[r.anchor] || "") + " " + (r.offset || 0) + " 分";
+    return "<tr><td>" + p.title + "</td><td>" + (KIND[p.kind] || p.kind) + "</td><td>" + detail + "</td>" +
+      "<td>" + (p.times || "—").replace(/,/g, " / ") + "</td><td>" + (p.dose || "—") + "</td>" +
+      "<td>" + (p.active ? '<span class="pill ok">启用</span>' : '<span class="pill idle">停用</span>') +
+      (p.paused_until ? ' <span class="pill warn">暂停至 ' + p.paused_until + "</span>" : "") + "</td>" +
+      '<td><button class="btn tiny line" data-plan="' + p.id + "|" + (p.active ? 0 : 1) + '">' +
+      (p.active ? "停用" : "启用") + '</button>' +
+      '<button class="btn tiny line" data-pause="' + p.id + '">暂停 1 天</button>' +
+      '<button class="btn tiny warn" data-del="' + p.id + '">删除</button></td></tr>';
+  }).join("") : '<tr><td colspan="7">还没有计划</td></tr>';
+}
+
+// 函数 renderRecords：渲染记录（含修订历史与撤销）
+function renderRecords(items) {
+  $("recCount").textContent = "共 " + items.length + " 条";
+  $("recRows").innerHTML = items.length ? items.map((r) =>
+    "<tr><td>" + r.occurred_at + "</td><td>" + (RTYPE[r.type] || r.type) + "</td>" +
+    "<td>" + (r.value == null ? "—" : r.value) + " " + (r.unit || "") + "</td>" +
+    "<td>" + (r.note || "") + "</td><td>" + (r.created_by || "") + "</td>" +
+    "<td>v" + (r.revision || 1) + (r.deleted ? ' <span class="pill bad">已撤销</span>' : "") + "</td>" +
+    '<td><button class="btn tiny line" data-rec-edit="' + r.id + '">改</button>' +
+    '<button class="btn tiny warn" data-rec-del="' + r.id + '">撤销</button></td></tr>'
+  ).join("") : '<tr><td colspan="7">还没有记录</td></tr>';
+}
+
+// 函数 renderAlerts：渲染告警列表（含确认）
+async function renderAlerts() {
+  try {
+    // 契约里 /alerts 返回数组；要阈值就用 envelope=1，两者都兼容
+    const r = await api("/api/v1/alerts?user_id=" + ELDER + "&envelope=1");
+    const items = Array.isArray(r) ? r : (r.items || []);
+    const th = (Array.isArray(r) ? null : r.thresholds) ||
+      (items[0] && items[0].thresholds) || { t1: 2, t2: 5, t3: 15 };
+    $("alertSub").textContent = "共 " + items.length + " 条 · 阈值 " +
+      th.t1 + "/" + th.t2 + "/" + th.t3 + " 分钟";
+    $("alertRows").innerHTML = items.length ? items.map((o) =>
+      "<tr><td>" + (o.time_local || (o.due_at_local || "").slice(11)) + "</td><td>" + o.title + "</td>" +
+      "<td>" + pill(o.state) + "</td><td>L" + o.level + "</td><td>" + o.late_min + " 分</td>" +
+      "<td>" + (o.notified_local || "—") + "</td></tr>").join("")
+      : '<tr><td colspan="6">没有未确认的实例</td></tr>';
+  } catch (e) {
+    $("alertRows").innerHTML = '<tr><td colspan="6">读取失败：' + e.message + "</td></tr>";
+  }
+}
+
+// 函数 renderAlarms：渲染未处理告警数量与详情
+function renderAlarms(items) {
+  $("alarmCount").textContent = "共 " + items.length + " 条";
+  $("alarmRows").innerHTML = items.length ? items.map((a) =>
+    "<tr><td>" + (a.created_local || String(a.created_at).replace("T", " ")) + "</td><td>" + a.kind + "</td>" +
+    "<td>" + a.level + "</td><td>" + a.message + "</td>" +
+    "<td>" + (a.acked_at ? '<span class="pill idle">已读</span>' : '<span class="pill bad">待处理</span>') + "</td>" +
+    '<td><button class="btn tiny line" data-ack="' + a.id + '">标为已读</button></td></tr>'
+  ).join("") : '<tr><td colspan="6">暂无告警</td></tr>';
+}
+
+// 函数 drawChart：画趋势柱状图（近 7 天完成率）
+function drawChart() {
+  const s = state.overview && state.overview.stats;
+  if (!s || !s.by_day || !s.by_day.length) {
+    $("chart").innerHTML = '<div class="hint" style="margin:auto">近 7 天还没有实例</div>';
+    return;
+  }
+  const max = Math.max.apply(null, s.by_day.map((d) => d.confirmed + d.missed + d.other)) || 1;
+  const h = (n) => Math.round((n / max) * 100);
+  $("chart").innerHTML = s.by_day.map((d) =>
+    '<div class="bar">' +
+    (d.missed ? '<div class="seg m" style="height:' + h(d.missed) + '%" title="未确认 ' + d.missed + '"></div>' : "") +
+    (d.other ? '<div class="seg s" style="height:' + h(d.other) + '%" title="进行中 ' + d.other + '"></div>' : "") +
+    (d.confirmed ? '<div class="seg c" style="height:' + h(d.confirmed) + '%" title="已完成 ' + d.confirmed + '"></div>' : "") +
+    '<div class="lab">' + d.date.slice(5) + "<br>" + (d.confirmed + d.missed + d.other) + " 条</div></div>"
+  ).join("");
+}
+
+// 函数 renderStats：渲染统计：完成率、连续天数、口径说明
+function renderStats(s) {
+  const rate = s.completion == null ? "—" : Math.round(s.completion * 100) + "%";
+  $("kRate").textContent = rate;
+  $("kStreak").textContent = s.streak_days + " 天";
+  $("kAlarm").textContent = s.alarms;
+  $("statsSub").textContent = "完成 " + s.confirmed + " / 未确认 " + s.missed + " / 进行中 " + s.pending;
+  const c = s.caliber || {};
+  $("caliber").innerHTML =
+    "<b>口径说明</b>（文档要求写清，便于复核）：<br>" +
+    "· 统计周期：" + (c.period || "") + "<br>" +
+    "· 完成率：" + (c.completion || "") + "<br>" +
+    "· 漏记处理：" + (c.missing || "") + "<br>" +
+    "· 超时口径：" + (c.expired || "");
+  drawChart();
+}
+
+// 函数 renderCloud：渲染云端信息：模式、时区、调度器、outbox
+async function renderCloud() {
+  try {
+    const v = await api("/api/v1/version");
+    const th = v.thresholds || {};
+    $("cloudInfo").innerHTML =
+      '<div class="k">版本</div><div>v' + v.version + "（API " + v.api + "）</div>" +
+      '<div class="k">运行模式</div><div>' + v.mode + "</div>" +
+      '<div class="k">数据模型</div><div>' + (v.model || []).join(" → ") + "</div>" +
+      '<div class="k">实例状态</div><div>' + (v.states || []).join(" / ") + "</div>" +
+      '<div class="k">升级阈值</div><div>' + (th.t1 || 2) + " / " + (th.t2 || 5) + " / " + (th.t3 || 15) +
+        " 分钟（稍后上限 " + (th.snooze_max || 3) + " 次）</div>" +
+      '<div class="k">MQTT</div><div>' + (v.cloud.mqtt ? "已配置" : "未配置（走本地 outbox）") + "</div>" +
+      '<div class="k">JWT</div><div>' + (v.cloud.jwt ? "已配置" : "未配置（用配对码换的会话令牌）") + "</div>" +
+      '<div class="k">Webhook</div><div>' + (v.cloud.webhook || "未配置") + "</div>";
+  } catch (e) {
+    $("cloudInfo").textContent = "读取失败：" + e.message;
+  }
+}
+
+/* ---------------- 加载 ---------------- */
+// 函数 refresh：每 5 秒拉一次数据并重渲染
+async function refresh() {
+  try {
+    const ov = await api("/api/v1/overview?user_id=" + ELDER + "&days=7");
+    state.overview = ov;
+    const occ = ov.occurrences || [];
+    $("kTotal").textContent = occ.length;
+    $("kDone").textContent = occ.filter((o) => o.state === "confirmed").length;
+    $("kMiss").textContent = occ.filter((o) => o.state === "missed").length;
+    renderToday(ov);
+    renderPlans(ov.plans || []);
+    renderRecords(ov.records || []);
+    renderAlarms(ov.alarms || []);
+    renderAlerts();
+    renderStats(ov.stats);
+    const me = await api("/api/v1/me");
+    $("role").textContent = { elder: "老人", family: "家属", community: "社区" }[me.role] || me.role;
+  } catch (e) {
+    msg($("planMsg"), "读取失败：" + e.message, "bad");
+  }
+}
+
+/* ---------------- 交互 ---------------- */
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button[data-occ],button[data-plan],button[data-pause],button[data-del],button[data-rec-edit],button[data-rec-del],button[data-ack]");
+  if (!b) return;
+  try {
+    if (b.dataset.occ) {
+      const parts = b.dataset.occ.split("|");
+      // 文档 4.2.5：所有状态变更走同一入口，并写入 acting identity
+      await api("/api/v1/occurrences/" + parts[0] + "/events", { method: "POST",
+        body: JSON.stringify({ action: parts[1], actor: "u-family", source: "console",
+                               client_ts: "console-" + Date.now() }) });
+      msg($("planMsg"), "已记录：" + (parts[1] === "confirmed" ? "代确认" : "未确认") + "（记录人 u-family）", "ok");
+    }
+    if (b.dataset.plan) {
+      const parts = b.dataset.plan.split("|");
+      await api("/api/v1/plans/" + parts[0], { method: "PUT",
+        body: JSON.stringify({ user_id: ELDER, active: Number(parts[1]) }) });
+    }
+    if (b.dataset.pause) {
+      const d = new Date(); d.setDate(d.getDate() + 1);
+      const until = d.toISOString().slice(0, 10);
+      await api("/api/v1/plans/" + b.dataset.pause, { method: "PUT",
+        body: JSON.stringify({ user_id: ELDER, paused_until: until, active: 1 }) });
+      msg($("planMsg"), "已暂停到 " + until, "ok");
+    }
+    if (b.dataset.del) {
+      await api("/api/v1/plans/" + b.dataset.del + "?user_id=" + ELDER, { method: "DELETE" });
+    }
+    if (b.dataset.ack) {
+      await api("/api/v1/alarms/ack", { method: "POST", body: JSON.stringify({ id: b.dataset.ack, user_id: ELDER }) });
+    }
+    if (b.dataset.recDel) {
+      await api("/api/v1/records/" + b.dataset.recDel, { method: "DELETE" });
+      msg($("recMsg"), "已撤销该记录（逻辑删除，保留留痕）", "ok");
+    }
+    if (b.dataset.recEdit) {
+      const item = (state.overview.records || []).find((r) => r.id === b.dataset.recEdit);
+      const v = prompt("新的数值", item ? item.value : "");
+      if (v === null) return;
+      await api("/api/v1/records/" + b.dataset.recEdit, { method: "PATCH",
+        body: JSON.stringify({ value: Number(v) }) });
+      msg($("recMsg"), "已更正，revision 自增", "ok");
+    }
+  } catch (e) {
+    msg($("planMsg"), "操作失败：" + e.message, "bad");
+  }
+  await refresh();
+});
+
+$("pRule").onchange = () => {
+  const k = $("pRule").value;
+  $("wrapTimes").classList.toggle("hide", k === "mealOffset");
+  $("wrapWeek").classList.toggle("hide", k !== "weekly");
+  $("wrapN").classList.toggle("hide", !(k === "interval" || k === "monthly" || k === "course"));
+  $("wrapAnchor").classList.toggle("hide", k !== "mealOffset");
+  $("wrapDate").classList.toggle("hide", k !== "once");
+  $("wrapOffset").classList.toggle("hide", k !== "mealOffset");
+  $("pN").placeholder = k === "monthly" ? "几号" : (k === "course" ? "天数" : "N");
+};
+
+$("planForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const k = $("pRule").value;
+  const rule = { kind: k };
+  if (k === "weekly") rule.weekdays = $("pWeek").value.split(",");
+  if (k === "interval") { rule.n = Number($("pN").value) || 2; rule.start = new Date().toISOString().slice(0, 10); }
+  if (k === "monthly") rule.day = Number($("pN").value) || 1;
+  if (k === "course") { rule.days = Number($("pN").value) || 7; rule.start = new Date().toISOString().slice(0, 10); }
+  if (k === "mealOffset") { rule.anchor = $("pAnchor").value; rule.offset = Number($("pOffset").value) || 30; }
+  if (k === "once") {
+    if (!$("pDate").value) { msg($("planMsg"), "一次性提醒要先选日期", "bad"); return; }
+    rule.date = $("pDate").value;
+  }
+  try {
+    await api("/api/v1/plans", { method: "POST", body: JSON.stringify({
+      user_id: ELDER, title: $("pTitle").value.trim(), kind: $("pKind").value,
+      times: $("pTimes").value, weekdays: $("pWeek").value, dose: $("pDose").value,
+      note: $("pNote").value, rule: rule
+    }) });
+    msg($("planMsg"), "已新增并下发（App 端「今天的计划」可见）", "ok");
+    $("pTitle").value = "";
+    await refresh();
+  } catch (e) {
+    msg($("planMsg"), "新增失败：" + e.message, "bad");
+  }
+};
+
+$("rType").onchange = () => { $("rUnit").value = UNIT[$("rType").value] || ""; };
+
+$("recForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  try {
+    await api("/api/v1/records", { method: "POST", body: JSON.stringify({
+      user_id: ELDER, type: $("rType").value, value: Number($("rValue").value) || null,
+      unit: $("rUnit").value, occurred_at: $("rAt").value || nowText(), note: $("rNote").value
+    }) });
+    msg($("recMsg"), "已记录", "ok");
+    $("rNote").value = "";
+    await refresh();
+  } catch (e) {
+    msg($("recMsg"), "记录失败：" + e.message, "bad");
+  }
+};
+
+$("webForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  try {
+    const r = await api("/api/v1/community/webhook", {
+      method: "POST", headers: { "X-Token": $("cToken").value.trim() },
+      body: JSON.stringify({ user_id: ELDER, kind: "community", level: 2, message: $("cMsg").value })
+    });
+    msg($("webMsg"), "已上报：" + r.id + "（webhook：" + r.webhook + "）", "ok");
+    await refresh();
+  } catch (e) {
+    msg($("webMsg"), "上报失败：" + e.message, "bad");
+  }
+};
+
+$("btnOutbox").onclick = async () => {
+  try {
+    const r = await api("/api/v1/outbox");
+    msg($("cloudMsg"), "待发事件 " + r.items.length + " 条；最近一条：" +
+      (r.items.length ? r.items[r.items.length - 1].topic : "无"), "ok");
+  } catch (e) { msg($("cloudMsg"), e.message, "bad"); }
+};
+
+$("btnDrain").onclick = async () => {
+  try {
+    const r = await api("/api/v1/outbox/drain", { method: "POST", body: "{}" });
+    msg($("cloudMsg"), "已标记 " + r.delivered + " 条为已消费（模拟 MQTT 桥）", "ok");
+  } catch (e) { msg($("cloudMsg"), e.message, "bad"); }
+};
+
+document.querySelectorAll("button[data-export]").forEach((b) => {
+  b.onclick = () => window.open("/api/v1/export.csv?type=" + b.dataset.export +
+    "&days=7&user_id=" + ELDER + "&token=" + encodeURIComponent(tok()), "_blank");
+});
+
+$("pairForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  try {
+    const r = await fetch("/api/v1/auth/pair", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: $("pairCode").value.trim(), label: $("pairLabel").value })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+    $("token").value = data.token;
+    localStorage.setItem("caremate.dash.token", data.token);
+    msg($("pairMsg"), "已绑定 " + data.name + "（" + data.elder_id + "），令牌有效期到 " + data.expires_at.slice(0, 10), "ok");
+    await refresh();
+    await renderCloud();
+  } catch (e) {
+    msg($("pairMsg"), "配对失败：" + e.message, "bad");
+  }
+};
+
+$("btnUnpair").onclick = () => {
+  localStorage.removeItem("caremate.dash.token");
+  $("token").value = "";
+  msg($("pairMsg"), "已清除本机令牌（服务端会话 30 天后过期）", "ok");
+};
+
+$("btnReload").onclick = refresh;
+$("rAt").value = nowText();
+if (savedTok) $("token").value = savedTok;
+/* ================= 求救实时反馈 ================= */
+let alarmSeq = 0;
+let sosAlarm = null;
+
+// 函数 beep：用 WebAudio 发提示音（无音频文件依赖）
+function beep(times) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    let t = ctx.currentTime;
+    for (let i = 0; i < (times || 3); i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = i % 2 ? 660 : 880;
+      gain.gain.value = 0.08;
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.18);
+      t += 0.22;
+    }
+    setTimeout(() => ctx.close().catch(() => {}), 1500);
+  } catch (e) {}
+}
+
+// 函数 flashTitle：标题闪烁提醒（不依赖桌面通知权限）
+function flashTitle(text) {
+  const origin = document.title;
+  let n = 0;
+  const timer = setInterval(() => {
+    document.title = n % 2 ? origin : "⚠ " + text;
+    if (++n > 10) { clearInterval(timer); document.title = origin; }
+  }, 700);
+}
+
+// 函数 showToastLine：显示一行临时提示
+function showToastLine(text) {
+  const el = $("toastLine");
+  el.textContent = text;
+  el.style.display = "block";
+  clearTimeout(showToastLine._t);
+  showToastLine._t = setTimeout(() => { el.style.display = "none"; }, 5000);
+}
+
+// 函数 incoming：收到新告警：弹红色横幅 + 声音 + 标题闪烁
+function incoming(a) {
+  const isSos = a.kind === "sos";
+  const label = isSos ? "老人在呼救" : (a.kind === "missed" ? "有提醒未确认" : "有新告警");
+  if (isSos) {
+    sosAlarm = a;
+    $("sosTitle").textContent = "⚠ " + label;
+    $("sosSub").textContent = (a.message || "") + " ｜ " + (a.created_local || "");
+    $("sosBar").classList.add("on");
+    document.body.classList.add("has-sos");
+    beep(5);
+    flashTitle("老人呼救");
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        new Notification("CareMate：老人按下呼救", { body: a.message || "", tag: "sos" });
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((p) => {
+          if (p === "granted") new Notification("CareMate：老人按下呼救", { body: a.message || "" });
+        });
+      }
+    }
+    switchTab("alarms");
+    refresh();
+  } else {
+    showToastLine(label + "：" + (a.message || ""));
+  }
+}
+
+$("sosAck").onclick = async () => {
+  if (sosAlarm) {
+    try { await api("/api/v1/alarms/ack", { method: "POST", body: JSON.stringify({ id: sosAlarm.id }) }); } catch (e) {}
+  }
+  sosAlarm = null;
+  $("sosBar").classList.remove("on");
+  document.body.classList.remove("has-sos");
+  await refresh();
+};
+
+// 函数 watchAlarms：长轮询 /alarms/wait，有新告警立即回调（<1 秒到达）
+async function watchAlarms() {
+  for (;;) {
+    try {
+      const r = await api("/api/v1/alarms/wait?user_id=" + ELDER + "&since=" + alarmSeq + "&timeout=20");
+      alarmSeq = r.seq || alarmSeq;
+      (r.items || []).forEach(incoming);
+    } catch (e) {
+      await new Promise((res) => setTimeout(res, 3000));
+    }
+  }
+}
+
+/* 演示/截图用：地址栏加 ?demo=sos 直接看横幅 */
+if (new URLSearchParams(location.search).get("demo") === "sos") {
+  setTimeout(() => incoming({ kind: "sos", level: 3, id: "demo",
+    message: "呼救：老人按下了呼救键（演示）", created_local: new Date().toISOString().slice(11, 16) }), 50);
+}
+
+switchTab((location.hash || "").slice(1) || "today");
+refresh();
+renderCloud();
+setInterval(refresh, 5000);
+if (new URLSearchParams(location.search).get("nowatch") !== "1") watchAlarms();
+</script>
+</body>
+</html>
