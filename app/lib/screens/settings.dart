@@ -145,3 +145,4 @@ class _SettingsPageState extends State<SettingsPage> {
       );
 }
 
+// 说明：本页字段（服务器/令牌/配对码）变更时，要同步 test_steps.py 与 README 里的填写说明
