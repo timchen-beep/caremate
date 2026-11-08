@@ -25,3 +25,4 @@
 
 桥挂了不丢消息（还在 outbox）；重复发也无害（`event_id` 去重）。
 
+<!-- 文件：docs/topics.md -->
