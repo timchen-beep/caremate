@@ -1,3 +1,4 @@
+# 作用：忽略规则：数据库、签名私钥、构建产物、APK、CI 临时文件
 # 鏁版嵁涓庤繍琛屾椂
 *.db
 *.db-wal
@@ -52,3 +53,4 @@ CMakeFiles/
 ci_test.db*
 acceptance*.json
 acceptance.json
+
