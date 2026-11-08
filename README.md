@@ -10,7 +10,7 @@
 | 规则→实例（C++ 版） | `app-qt/core/ReminderModel.cpp` | 对照 `server.py` 的 `slots_on()` |
 | 老人端界面 | `app-qt/pages/{Today,Record,Family}Page.qml` | 三页 + 底部 tab |
 | 呼救 | `app-qt/pages/SosButton.qml` | 按住 3 秒才触发 |
-| 精确闹钟 | `app-qt/android/jni/AlarmBridge.cpp` + `android/src/com/caremate/app/AlarmBridge.java` | `setExactAndAllowWhileIdle` + 通知渠道 |
+| 精确闹钟 | `app-qt/android/jni/AlarmBridge.cpp` + `app-qt/android/src/com/caremate/app/AlarmBridge.java` | `setExactAndAllowWhileIdle` + 通知渠道 |
 | 云端业务 | `legacy-web/server.py` | 与 v1 同一套状态机 |
 | MQTT 桥 | `pi/bridge.py` | 零依赖 MQTT 3.1.1：outbox → broker |
 | 板子部署 | `pi/mosquitto.conf`、`pi/*.service`、`pi/setup-pi.sh` | 树莓派/香橙派 |
@@ -37,3 +37,22 @@ cmake --build build
 
 完整版在 `v2-qt` 分支；正式交付的客户端是 `main` 分支里的 Flutter 版（`app/`）。
 
+## 分支地图
+
+本分支实际包含：
+
+- `app-qt/`
+- `esp32/`
+- `legacy-web/`
+- `pi/`
+
+不在本分支的内容，去哪找：
+
+- `scripts/` → 系统改造脚本在 `v3-flash` / `v3-flash-core` 分支（或 `main` 的 `scripts/`）
+- `magisk-module/` → Magisk 定制层在 `v3-flash` / `v3-flash-core` 分支
+- `device/` → 刷机与回滚在 `v3-flash` / `v3-flash-core` 分支
+- `app/` → Flutter 老人端在 `main` 的 `app/`、或 `v1-web` 的 `caremate_app/`
+- `caremate_app/` → Flutter 老人端在 `main` 的 `app/`
+- `qt/` → Qt 骨架在 `v2-qt` / `v2-qt-core` 的 `app-qt/`
+- `server/` → 后端在 `main` 的 `server/`；本分支里叫 `legacy-web/` 或 `caremate-cloud/`
+- `docs/` → 文档在 `main` 的 `docs/`
