@@ -1,4 +1,5 @@
-﻿# topic 与 payload（与报告 4.2.3 一致）
+<!-- 作用：MQTT topic 与 payload 约定，含发布方/订阅方与频率说明 -->
+# topic 与 payload（与报告 4.2.3 一致）
 
 | topic | 发布方 | 订阅方 | payload |
 |---|---|---|---|
@@ -23,3 +24,4 @@
 3. `POST /api/v1/outbox/drain` 标记已消费。
 
 桥挂了不丢消息（还在 outbox）；重复发也无害（`event_id` 去重）。
+
