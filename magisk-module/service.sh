@@ -24,3 +24,4 @@ settings put global policy_control immersive.full=* >> $LOG 2>&1 || true
 # settings put global auto_time 0
 
 echo "[$(date)] service.sh done" >> $LOG
+
