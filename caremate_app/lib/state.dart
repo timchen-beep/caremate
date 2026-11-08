@@ -185,3 +185,4 @@ class AppState extends ChangeNotifier {
     return events.where((e) => e.slotLocal.startsWith(today)).toList();
   }
 }
+
