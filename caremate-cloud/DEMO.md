@@ -96,3 +96,4 @@ python server.py --notify-test https://你的webhook地址
 打开 `/kiosk`：四个大按钮（吃药 / 记一笔 / 找家人 / 按住呼救），装成 PWA 后无地址栏；
 左上角**按住 5 秒**退出。真正的锁 Home/返回要靠 Android 设备管理，这一版只做到"网页退不出去、但退得回来"。
 
+<!-- 文件：caremate-cloud/DEMO.md -->
