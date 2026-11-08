@@ -95,3 +95,4 @@ void AlarmBridge::requestPermissions()
     qInfo() << "[AlarmBridge] 桌面无权限概念";
 #endif
 }
+
