@@ -1,3 +1,4 @@
+# 作用：systemd 单元：以单进程跑后端（多进程会有两个调度循环）
 [Unit]
 Description=CareMate cloud service (single process, built-in scheduler)
 After=network-online.target

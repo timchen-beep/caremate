@@ -1,3 +1,4 @@
+// 作用：Qt 记录页：喝水/入睡/起床一键记录
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts

@@ -1,3 +1,4 @@
+// 作用：Qt 呼救按钮：按住 3 秒才触发，松手取消
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts

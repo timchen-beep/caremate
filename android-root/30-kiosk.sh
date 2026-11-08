@@ -1,4 +1,5 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
+# 作用：把手机锁成只有这一个 App（含 off 恢复分支）
 # 30 把手机变成"只有这一个 App"（可逆）
 # 注意：先跑 00-precheck 确认真是演示机，别锁自己的日常机
 set -uo pipefail

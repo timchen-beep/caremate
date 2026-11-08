@@ -1,4 +1,5 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
+# 作用：预检：确认演示机是否已 root、包是否已装、精确闹钟权限状态
 # 00 预检：确认这台机器是不是"那台 root 的演示机"
 set -uo pipefail
 echo "== 设备"; adb devices

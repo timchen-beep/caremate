@@ -1,4 +1,5 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
+# 作用：四种异常复现：断网 / 重启 / 改时间 / 连点
 # 40 chaos：把四种"会出事"的情况变成一条命令（验收用）
 set -uo pipefail
 CASE="${1:-offline}"

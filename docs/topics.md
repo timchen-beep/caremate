@@ -1,4 +1,5 @@
-﻿# topic 与 payload（与报告 4.2.3 一致）
+<!-- 作用：MQTT topic 与 payload 约定 -->
+# topic 与 payload（与报告 4.2.3 一致）
 
 | topic | 发布方 | 订阅方 | payload |
 |---|---|---|---|

@@ -1,3 +1,4 @@
+// 作用：Qt 今天页：到点卡片 + 三个 84 高的大按钮
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts

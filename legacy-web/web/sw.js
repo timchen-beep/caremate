@@ -1,3 +1,4 @@
+// 作用：Service Worker：缓存静态页，让老人端可离线打开
 /* CareMate service worker：外壳可离线，接口永远走网络（离线时页面提示"离线"，不假装成功） */
 const CACHE = "caremate-shell-v1";
 const SHELL = ["/app", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];

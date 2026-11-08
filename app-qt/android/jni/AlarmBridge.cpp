@@ -1,3 +1,4 @@
+// 作用：用 QJniObject 调 Java 侧的闹钟与通知渠道，桌面构建时打印模拟
 #include "AlarmBridge.h"
 
 #include <QDebug>

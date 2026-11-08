@@ -1,4 +1,5 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
+# 作用：授予精确闹钟权限 + Doze 白名单 + 通知权限（root 机器免手动设置）
 # 10 精确闹钟 + 电量白名单（Android 14 新装默认拒绝精确闹钟）
 set -uo pipefail
 PKG=com.caremate.app

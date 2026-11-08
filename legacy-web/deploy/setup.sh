@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 作用：服务器一键部署：装 Python/tzdata、建 systemd 单元、起服务并用 curl 自检
 # CareMate 一键部署（Ubuntu 22.04+，需 root）
 # 用法：sudo bash deploy/setup.sh caremate.example.com
 set -euo pipefail

@@ -1,3 +1,4 @@
+// 作用：Qt 外壳：三 tab 布局、字号/按钮尺寸常量（32px 正文、84px 按钮）
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts

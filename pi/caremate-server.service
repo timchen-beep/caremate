@@ -1,4 +1,5 @@
-﻿[Unit]
+# 作用：树莓派 systemd 单元：板子上以单进程跑后端
+[Unit]
 Description=CareMate cloud service (single process + scheduler)
 After=network-online.target mosquitto.service
 Wants=mosquitto.service
