@@ -37,6 +37,7 @@ def _utf8(s):
     return struct.pack("!H", len(raw)) + raw
 
 
+# 函数 _remaining：MQTT 剩余长度字段的变长编码
 def _remaining(n):
     out = b""
     while True:
@@ -48,6 +49,7 @@ def _remaining(n):
             return out + bytes([byte])
 
 
+# 函数 pkt_connect：构造 CONNECT 报文（协议名/级别/keepalive/clientId）
 def pkt_connect(client_id="caremate-bridge", keepalive=60):
     var = _utf8("MQTT") + bytes([0x04, 0x02]) + struct.pack("!H", keepalive)
     payload = _utf8(client_id)
@@ -55,6 +57,7 @@ def pkt_connect(client_id="caremate-bridge", keepalive=60):
     return b"\x10" + _remaining(len(body)) + body
 
 
+# 函数 pkt_publish：构造 PUBLISH 报文（QoS0，topic + payload）
 def pkt_publish(topic, payload):
     if isinstance(payload, (dict, list)):
         payload = json.dumps(payload, ensure_ascii=False)
@@ -64,16 +67,19 @@ def pkt_publish(topic, payload):
     return b"\x30" + _remaining(len(body)) + body
 
 
+# 函数 pkt_pingreq：构造心跳报文
 def pkt_pingreq():
     return b"\xc0\x00"
 
 
+# 函数 pkt_disconnect：构造断开报文
 def pkt_disconnect():
     return b"\xe0\x00"
 
 
 # ---------------------------------------------------------------- 简单客户端
 class Mqtt:
+    # 函数 __init__：保存 broker 地址与 dry-run 标记
     def __init__(self, host, port=1883, client_id="caremate-bridge", dry_run=False):
         self.host, self.port = host, port
         self.client_id = client_id
@@ -81,6 +87,7 @@ class Mqtt:
         self.sock = None
         self.sent = 0
 
+    # 函数 connect：建立 TCP 连接并校验 CONNACK 返回码
     def connect(self):
         if self.dry_run:
             return True
@@ -91,6 +98,7 @@ class Mqtt:
             raise ConnectionError("broker 拒绝连接：%r" % ack)
         return True
 
+    # 函数 publish：发送一条 PUBLISH；失败时重连一次再发
     def publish(self, topic, payload):
         packet = pkt_publish(topic, payload)
         if self.dry_run:
@@ -109,6 +117,7 @@ class Mqtt:
         self.sent += 1
         return self.sent
 
+    # 函数 ping：发送心跳，保活连接
     def ping(self):
         if self.sock and not self.dry_run:
             try:
@@ -116,6 +125,7 @@ class Mqtt:
             except OSError:
                 self.close()
 
+    # 函数 close：优雅断开并关闭 socket
     def close(self):
         if self.sock and not self.dry_run:
             try:
@@ -133,6 +143,7 @@ def api_get(path, base=API, token=TOKEN):
         return json.loads(r.read().decode() or "{}")
 
 
+# 函数 api_post：调用后端接口（JSON POST）
 def api_post(path, data, base=API, token=TOKEN):
     req = urllib.request.Request(
         base + path, data=json.dumps(data).encode(),
@@ -141,10 +152,12 @@ def api_post(path, data, base=API, token=TOKEN):
         return json.loads(r.read().decode() or "{}")
 
 
+# 函数 drain：把 outbox 里已发的事件标记为已消费
 def drain(base=API, token=TOKEN):
     return api_post("/api/v1/outbox/drain", {}, base, token)
 
 
+# 函数 pump：主循环：拉 outbox → publish → drain
 def pump(mqtt, base=API, token=TOKEN, once=False, interval=2.0, verbose=True):
     """把 outbox 里待发的事件逐条发到 broker，发完标记已消费。"""
     total = 0
