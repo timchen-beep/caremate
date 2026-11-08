@@ -10,6 +10,7 @@ class RecordsPage extends StatelessWidget {
   final AppState state;
 
   @override
+  // 函数 build：记录页：今日统计 + 今天要做的事 + 已提交动作
   Widget build(BuildContext context) {
     final total = state.occurrences.length;
     final done = state.occurrences.where((o) => o.state == 'confirmed').length;

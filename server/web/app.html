@@ -212,8 +212,10 @@ let plans = [], due = [], occurrences = [], records = [], current = null, busy =
 $("token").value = token;
 $("base").value = base || originBase;
 
+// 函数 apiBase：服务器地址（可在设置里改）
 function apiBase() { return (base || originBase).replace(/\/$/, ""); }
 
+// 函数 api：请求封装：带令牌、解析 JSON
 async function api(path, opt = {}) {
   let r;
   try {
@@ -230,6 +232,7 @@ async function api(path, opt = {}) {
   return data;
 }
 
+// 函数 toast：底部提示条
 function toast(text, bad) {
   const t = $("toast");
   t.textContent = text;
@@ -239,6 +242,7 @@ function toast(text, bad) {
   toast._t = setTimeout(() => { t.style.display = "none"; }, 3500);
 }
 
+// 函数 tick：每秒刷新时钟与倒计时
 function tick() {
   const d = new Date();
   $("clock").textContent = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
@@ -247,6 +251,7 @@ function tick() {
 const STATE = { pending: ["待提醒", "idle"], notified: ["该吃了", "warn"], escalated: ["已通知家属", "bad"],
                 confirmed: ["已完成", "ok"], missed: ["未确认", "bad"] };
 
+// 函数 renderStage：渲染当前该做的事（大卡片）
 function renderStage() {
   if (!due.length) {
     $("stage").innerHTML = '<div class="idle">现在没有要做的事<small>到点会自动提醒你</small></div>';
@@ -275,6 +280,7 @@ function renderStage() {
   speak(it.title + "，该" + (it.kind === "water" ? "喝水" : "吃药") + "了");
 }
 
+// 函数 speak：语音播报（系统 TTS，按文案表选短句）
 function speak(text) {
   if (!("speechSynthesis" in window)) return;
   try {
@@ -287,6 +293,7 @@ function speak(text) {
 
 let undoState = null;   // {occId, timer}
 
+// 函数 showUndo：显示 5 秒撤销条
 function showUndo(occId, label) {
   const bar = $("undoBar");
   $("undoText").textContent = label;
@@ -296,6 +303,7 @@ function showUndo(occId, label) {
   undoState.timer = setTimeout(hideUndo, 5000);   // 与后端 CAREMATE_UNDO_SECONDS 对齐
 }
 
+// 函数 hideUndo：隐藏撤销条
 function hideUndo() {
   $("undoBar").style.display = "none";
   if (undoState) clearTimeout(undoState.timer);
@@ -320,6 +328,7 @@ $("btnUndo").onclick = async () => {
   }
 };
 
+// 函数 act：提交动作（确认/稍后/没做），带本地排队
 async function act(it, action) {
   if (busy) return;
   busy = true;
@@ -345,6 +354,7 @@ async function act(it, action) {
   }
 }
 
+// 函数 renderPlans：渲染今日计划列表
 function renderPlans() {
   const rows = occurrences;
   $("planCount").textContent = rows.length ? "共 " + rows.length + " 条" : "";
@@ -356,6 +366,7 @@ function renderPlans() {
   }).join("") : '<div style="color:#3a4a63;font-size:22px;padding:8px 0">今天没有计划</div>';
 }
 
+// 函数 renderLog：渲染动作流水
 function renderLog() {
   const today = new Date().toISOString().slice(0, 10);
   const items = occurrences.filter((o) => o.slot.slice(0, 10) === today && o.state !== "pending");
@@ -366,6 +377,7 @@ function renderLog() {
   }).join("") : '<div style="color:#3a4a63;font-size:22px;padding:8px 0">还没有记录</div>';
 }
 
+// 函数 renderRecords：渲染记录页
 function renderRecords() {
   const c = records.filter((r) => !r.deleted);
   const water = c.filter((r) => r.type === "water").reduce((a, r) => a + (r.value || 0), 0);
@@ -381,6 +393,7 @@ function renderRecords() {
 }
 
 /* ---------- 无障碍自检：把文档里的数字当场量出来 ---------- */
+// 函数 lum：相对亮度计算（无障碍对比度用）
 function lum(rgb) {
   const [r, g, b] = rgb.map((v) => {
     v /= 255;
@@ -388,16 +401,19 @@ function lum(rgb) {
   });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
+// 函数 parseRGB：把颜色解析成 RGB 三元组
 function parseRGB(s) {
   const m = s.match(/\d+(\.\d+)?/g);
   return m ? m.slice(0, 3).map(Number) : [255, 255, 255];
 }
+// 函数 contrast：对比度计算（自检面板显示实测值）
 function contrast(fg, bg) {
   const a = lum(parseRGB(fg)), b = lum(parseRGB(bg));
   const hi = Math.max(a, b), lo = Math.min(a, b);
   return Math.round((hi + 0.05) / (lo + 0.05) * 10) / 10;
 }
 
+// 函数 runCheck：无障碍自检：字号、按钮尺寸、对比度、单屏选项数
 function runCheck() {
   const cs = getComputedStyle(document.body);
   const fs = Math.round(parseFloat(cs.fontSize));
@@ -429,6 +445,7 @@ function runCheck() {
   ).join("");
 }
 
+// 函数 load：首次加载：拉计划与记录
 async function load() {
   try {
     const b = await api("/api/v1/app/bundle");
@@ -457,6 +474,7 @@ document.querySelectorAll(".tab").forEach((el) => {
   el.onclick = () => switchTab(el.dataset.tab);
 });
 
+// 函数 switchTab：切换底部 tab
 function switchTab(t) {
   document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("on", x.dataset.tab === t));
   $("viewToday").classList.toggle("hide", t !== "today");
@@ -502,23 +520,27 @@ $("btnSave").onclick = async () => {
   btn.innerHTML = '按住呼救<span class="bar" id="sosBar"></span>';
   let timer = null, start = 0;
   const bar = () => $("sosBar");
+  // 函数 tick：每秒刷新时钟与倒计时
   function tick() {
     const pct = Math.min(100, ((Date.now() - start) / 3000) * 100);
     bar().style.width = pct + "%";
     if (pct >= 100) fire();
   }
+  // 函数 down：按下开始计时（长按判定）
   function down(ev) {
     ev.preventDefault();
     start = Date.now();
     btn.classList.add("firing");
     timer = setInterval(tick, 60);
   }
+  // 函数 up：松开取消长按
   function up() {
     btn.classList.remove("firing");
     if (timer) clearInterval(timer);
     timer = null;
     if (bar()) bar().style.width = "0%";
   }
+  // 函数 fire：长按达到阈值才真正触发呼救
   async function fire() {
     up();
     if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
