@@ -57,7 +57,7 @@
 
 | 文件 | 作用 |
 |---|---|
-| `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑七套验收（固定 Asia/Shanghai，失败项转注解） |
+| `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 七套验收 + 页面检查 + 完整性守卫） |
 | `.github/workflows/flutter-build.yml` | 手动触发的 APK 构建（release/debug 可选，产物上传为 artifact） |
 
 ## Flutter 老人端（37）
