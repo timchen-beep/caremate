@@ -39,3 +39,4 @@ if adb shell dumpsys alarm | grep -q $PKG; then ok "AlarmManager 已登记提醒
 echo
 echo "结果：通过 $pass 项，失败 $fail 项"
 [ "$fail" -eq 0 ] && echo "可以演示" || echo "先修失败项，再演示"
+
