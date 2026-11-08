@@ -33,3 +33,4 @@ flutter build apk --release
 
 - 加 HOME 之后，**必须先准备好 `30-kiosk-off.sh`**，否则按 Home 也回不到原桌面。
 - 不建议把 App 做成"独占桌面且禁卸载"，评委常要求当场恢复。
+
