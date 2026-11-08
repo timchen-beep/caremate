@@ -36,3 +36,22 @@ Flutter 端：源码完整、可 `flutter build apk`，但**未在真机验证�
 
 完整版（含文档、部署、证据、APK 说明）在 `v1-web` 分支；主线整合版在 `main`。
 
+## 分支地图
+
+本分支实际包含：
+
+- `caremate-cloud/`
+- `caremate_app/`
+
+不在本分支的内容，去哪找：
+
+- `scripts/` → 系统改造脚本在 `v3-flash` / `v3-flash-core` 分支（或 `main` 的 `scripts/`）
+- `magisk-module/` → Magisk 定制层在 `v3-flash` / `v3-flash-core` 分支
+- `device/` → 刷机与回滚在 `v3-flash` / `v3-flash-core` 分支
+- `app/` → Flutter 老人端在 `main` 的 `app/`、或 `v1-web` 的 `caremate_app/`
+- `app-qt/` → Qt 骨架在 `main` 的 `qt/`、或 `v2-qt` 的 `app-qt/`
+- `qt/` → Qt 骨架在 `v2-qt` / `v2-qt-core` 的 `app-qt/`
+- `pi/` → 板子部署在 `main` 的 `pi/`、或 `v2-qt` 的 `pi/`
+- `esp32/` → 雷达固件在 `main` 的 `server/firmware/`、或 `v2-qt` 的 `esp32/`
+- `server/` → 后端在 `main` 的 `server/`；本分支里叫 `legacy-web/` 或 `caremate-cloud/`
+- `docs/` → 文档在 `main` 的 `docs/`
