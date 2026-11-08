@@ -168,3 +168,4 @@ GET  /export.csv?type=records|events|alarms   三份均带 BOM
 
 四套验收：`test_accept.py` 6/6、`test_p2.py` 9/9、`test_v06.py` 7/7、`test_align.py` 9/9（合计 31/31）。
 
+<!-- 文件：caremate-cloud/README.md -->
