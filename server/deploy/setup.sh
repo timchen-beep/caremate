@@ -62,3 +62,4 @@ echo ""
 echo "完成。入口： https://$DOMAIN/   老人端 /app   看护端 /dashboard"
 echo "日志： journalctl -u caremate -f      /var/log/caddy/caremate.log"
 echo "备份： sqlite3 $APP_DIR/caremate.db \".backup /var/backups/caremate-\$(date +%F).db\""
+
