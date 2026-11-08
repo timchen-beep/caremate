@@ -56,3 +56,4 @@ bash android-root/00-precheck.sh
 3. ESP32 未烧录：没有硬件；接线与 topic 见 docs/HARDWARE.md（在 legacy-web/docs/）。
 4. root 脚本未执行：命令依照 dumpsys/am/cmd/settings 官方用法写，但没在真机跑过；30-kiosk.sh 一定先演 off 再演 on。
 
+<!-- 文件：MANIFEST.md -->
