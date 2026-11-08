@@ -6,3 +6,4 @@
 
 打包成 zip 时，压缩包根目录要直接是 module.prop（不要多一层文件夹）：
   cd magisk-module && 7z a ..\CareMate-Kiosk-v1.zip *
+
