@@ -114,3 +114,4 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver {
     );
   }
 }
+
