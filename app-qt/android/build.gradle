@@ -1,4 +1,5 @@
-﻿// Qt for Android 的构建入口（Qt 6.5+，AGP 8.x）
+// 作用：Qt for Android 的 Gradle 配置（AGP 8.1、compileSdk 34）
+// Qt for Android 的构建入口（Qt 6.5+，AGP 8.x）
 buildscript {
     repositories { google(); mavenCentral() }
     dependencies { classpath "com.android.tools.build:gradle:8.1.4" }

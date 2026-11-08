@@ -1,4 +1,5 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
+# 作用：板子一键安装：apt 装 mosquitto、放 broker 配置、装两个 systemd、起服务并自检
 # 树莓派 / 香橙派 一键准备（Ubuntu/Debian 系）
 set -euo pipefail
 echo "== 1/5 系统依赖"

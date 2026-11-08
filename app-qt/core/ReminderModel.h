@@ -1,3 +1,4 @@
+// 作用：Qt 规则模型的接口：规则→实例、确认/稍后/未做、到期列表
 #include <QObject>
 #include <QString>
 #include <QVariantList>

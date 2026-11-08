@@ -1,3 +1,4 @@
+// 作用：Qt 规则模型的实现：七种规则展开、30 秒刷新到期判断（对照后端 slots_on/transition）
 #include "ReminderModel.h"
 
 #include <QDebug>

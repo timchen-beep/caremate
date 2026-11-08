@@ -1,3 +1,4 @@
+// 作用：Qt 家属模式：今日实例列表 + 代确认（同一 APK 的另一种界面）
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
