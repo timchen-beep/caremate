@@ -25,3 +25,4 @@ adb shell su -c "chmod 644 /system/etc/permissions/privapp-permissions-$PKG.xml"
 echo "== 4 重启并验证"
 adb reboot
 echo "  重启后执行： bash scripts/50-verify-system.sh"
+
