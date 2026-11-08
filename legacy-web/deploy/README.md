@@ -100,3 +100,4 @@ python3 test_accept.py
 1. **把演示令牌换掉**：直接改 `init_db()` 里的 `token`，或只用配对码换来的会话令牌。
 2. **数据库口令/路径**：`CAREMATE_DB` 指向挂载盘；换 PostgreSQL 时只需重写 `connect()`。
 3. **备份**：`sqlite3 caremate.db ".backup /backup/caremate-$(date +%F).db"` 放进 cron，每天一次。
+
