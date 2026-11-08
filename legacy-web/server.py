@@ -86,14 +86,17 @@ def tzinfo():
     return timezone(timedelta(hours=8))
 
 
+# 函数 utc_now：当前 UTC 时间（带时区），全库时间基准
 def utc_now():
     return datetime.now(timezone.utc)
 
 
+# 函数 iso：datetime → ISO 字符串（UTC，秒级）
 def iso(dt):
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# 函数 parse_iso：宽松解析客户端传来的 ISO 时间串，失败返回 None
 def parse_iso(s):
     if not s:
         return None
@@ -105,16 +108,19 @@ def parse_iso(s):
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
+# 函数 local_dt：UTC ISO → 本地时区 datetime（读展示用）
 def local_dt(iso_s):
     dt = parse_iso(iso_s)
     return dt.astimezone(tzinfo()) if dt else None
 
 
+# 函数 local_str：UTC ISO → 本地 'YYYY-MM-DD HH:MM'（页面与日志用）
 def local_str(iso_s, fmt="%Y-%m-%d %H:%M"):
     dt = local_dt(iso_s)
     return dt.strftime(fmt) if dt else ""
 
 
+# 函数 minutes_since：距某个 UTC 时刻过了多少分钟（判断升级/超时）
 def minutes_since(iso_s, now=None):
     dt = parse_iso(iso_s)
     if not dt:
@@ -145,6 +151,7 @@ def normalize_times(raw):
     return sorted(out)
 
 
+# 函数 normalize_weekdays：星期写法归一：Mon/mon/1 → 1..7 列表
 def normalize_weekdays(raw):
     items = raw if isinstance(raw, (list, tuple)) else str(raw or "").replace("，", ",").split(",")
     days = set()
@@ -235,6 +242,7 @@ CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
 """
 
 
+# 函数 connect：打开 SQLite 连接：WAL、忙等超时、行工厂
 def connect():
     conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
@@ -244,6 +252,7 @@ def connect():
 
 def migrate(conn):
     """老库补列/补表；历史时间字段一次性转 UTC。"""
+    # 函数 cols：取表的列名集合，用于加列式迁移
     def cols(table):
         return {r["name"] for r in conn.execute("PRAGMA table_info(%s)" % table)}
 
@@ -312,6 +321,7 @@ def migrate(conn):
                          (nt, nw, 1 if nt else 0, row["id"]))
 
 
+# 函数 init_db：建表 + 迁移 + 首次写入演示账号与示例计划
 def init_db():
     with connect() as conn:
         conn.executescript(SCHEMA)
@@ -365,6 +375,7 @@ def user_by_token(token):
     return user
 
 
+# 函数 link_of：查家属与老人的绑定关系（越权判断的基础）
 def link_of(viewer_id, elder_id):
     if viewer_id == elder_id:
         return {"can_edit": 1, "self": True}
@@ -374,6 +385,7 @@ def link_of(viewer_id, elder_id):
     return dict(row) if row else None
 
 
+# 函数 can_view：越权判断：能否查看目标老人的数据
 def can_view(user, target):
     """会话令牌只能看自己配对的老人；演示账号按 links 表判定。"""
     if user.get("paired_elder"):
@@ -393,10 +405,12 @@ def rule_of(plan):
     return {"kind": "weekly" if wd != "1,2,3,4,5,6,7" else "daily"}
 
 
+# 函数 plan_times：取计划的提醒时刻列表（已归一成 HH:MM）
 def plan_times(plan):
     return normalize_times(plan["times"])
 
 
+# 函数 slots_on：某天某计划应产生的全部提醒时刻（含餐前偏移、间隔/每周/一次性规则）
 def slots_on(plan, day):
     rule = rule_of(plan)
     kind = rule.get("kind", "daily")
@@ -433,6 +447,7 @@ def slots_on(plan, day):
     return times
 
 
+# 函数 meal_slots：就餐相关提醒（餐前 30 分钟等）的时刻计算
 def meal_slots(plan, day):
     """餐前/餐后：按当天第一条饮食记录推算（文档的“相对一餐的偏移”）"""
     rule = rule_of(plan)
@@ -505,6 +520,7 @@ class DiskFull(RuntimeError):
     """磁盘剩余空间低于水位时抛出，接口层转 507。"""
 
 
+# 函数 ensure_disk：磁盘剩余空间检查：低于阈值返回 507，避免写坏数据库
 def ensure_disk():
     try:
         free_mb = shutil.disk_usage(os.path.dirname(DB_PATH) or ".").free / (1024 * 1024)
@@ -517,6 +533,7 @@ def ensure_disk():
 _pair_hits = {}
 
 
+# 函数 pair_rate_limited：配对接口限速（按 IP，每分钟若干次）
 def pair_rate_limited(ip):
     """每地址每分钟最多 CONFIG["pair_per_min"] 次配对尝试。"""
     now = time.time()
@@ -530,6 +547,7 @@ def pair_rate_limited(ip):
         return False
 
 
+# 函数 occ_row：按实例 id 取一行，不存在返回 None
 def occ_row(conn, oid):
     row = conn.execute("SELECT * FROM occurrences WHERE id=?", (oid,)).fetchone()
     return dict(row) if row else None
@@ -643,6 +661,7 @@ def transition(oid, action, actor="", source="app", client_ts="", payload=None, 
             conn.close()
 
 
+# 函数 _alarm_once：同一实例的同级告警只发一次，避免刷屏
 def _alarm_once(conn, user_id, kind, level, oid, message):
     if oid:
         dup = conn.execute("SELECT 1 FROM alarms WHERE occurrence=? AND kind=? AND level=? LIMIT 1",
@@ -662,11 +681,13 @@ def _alarm_once(conn, user_id, kind, level, oid, message):
     return aid
 
 
+# 函数 _ack_open_alarms：把该实例所有未处理告警标记为已处理
 def _ack_open_alarms(conn, oid):
     conn.execute("UPDATE alarms SET acked_at=? WHERE occurrence=? AND acked_at=''",
                  (iso(utc_now()), oid))
 
 
+# 函数 publish：把事件写进 outbox（MQTT 桥和长轮询从这里取）
 def publish(topic, payload, conn=None):
     """所有对外事件的唯一出口：本地写 outbox，云模式换成 MQTT/Webhook 即可。"""
     own = conn is None
@@ -681,6 +702,7 @@ def publish(topic, payload, conn=None):
             conn.close()
 
 
+# 函数 sos：呼救：建告警 + 立即推给家属端（<1 秒到达）
 def sos(user_id, actor, note="", device=""):
     """第 6 步：老人长按呼救 → level 3 告警 + 推给家属/社区（走同一个 outbox）。"""
     msg = "呼救：%s" % (note or "老人按下了呼救键")
@@ -698,6 +720,7 @@ def sos(user_id, actor, note="", device=""):
             "at": iso(utc_now()), "message": msg}
 
 
+# 函数 ingest_presence：传感器上报有人/无人，写事件并影响久未活动判断
 def ingest_presence(user_id, present=True, source="sensor"):
     """第 8 步接口层：屋里有没有人。presence 事件会自动压制「没动静」告警。"""
     with connect() as conn:
@@ -710,6 +733,7 @@ def ingest_presence(user_id, present=True, source="sensor"):
     return {"user_id": user_id, "present": bool(present), "source": source, "at": iso(utc_now())}
 
 
+# 函数 inactivity_check：长时间无互动且无传感器活动 → 通知家属
 def inactivity_check(now=None):
     """第 6 步：太久没动静也报警（多久算久可配）。"""
     now = now or utc_now()
@@ -741,6 +765,7 @@ def inactivity_check(now=None):
     return fired
 
 
+# 函数 notify：外部通知通道（Webhook），未配置时如实报 409
 def notify(kind, message, meta=None):
     """第 6 步：告警发出去。配了 CAREMATE_WEBHOOK_URL 就真发一次 HTTP POST（短信网关/钉钉/自建都行）。"""
     url = CONFIG["webhook_url"]
@@ -756,6 +781,7 @@ def notify(kind, message, meta=None):
         return {"sent": False, "reason": str(exc), "url": url}
 
 
+# 函数 raise_alarm：生成一条告警：写库 + 入 outbox + 触发通知
 def raise_alarm(user_id, kind, level, occurrence, message):
     with connect() as conn:
         return _alarm_once(conn, user_id, kind, level, occurrence, message)
@@ -805,6 +831,7 @@ def scheduler_tick(now=None):
     return stats
 
 
+# 函数 scheduler_loop：后台调度线程，按 TICK 周期跑 scheduler_tick
 def scheduler_loop(stop_evt):
     print("[scheduler] 每 %d 秒扫描一次到期实例（阈值 %d/%d/%d 分钟）"
           % (TICK, CONFIG["th1"], CONFIG["th2"], CONFIG["th3"]))
@@ -858,6 +885,7 @@ def occ_view(row, conn=None):
     }
 
 
+# 函数 occurrences：按区间查实例（老人端/家属端共用）
 def occurrences(user_id, day=None, horizon=1, conn=None):
     own = conn is None
     conn = conn or connect()
@@ -876,6 +904,7 @@ def occurrences(user_id, day=None, horizon=1, conn=None):
             conn.close()
 
 
+# 函数 today_occurrences：今天到未来的实例（老人端首页）
 def today_occurrences(user_id):
     return occurrences(user_id, utc_now().astimezone(tzinfo()).date(), 1)
 
@@ -885,6 +914,7 @@ RECORD_TYPES = ("sleep_start", "sleep_end", "water", "activity", "diet", "mood")
 RECORD_UNITS = {"water": "ml", "activity": "min", "diet": "kcal"}
 
 
+# 函数 add_record：新增一条记录并写事件审计
 def add_record(user_id, body, creator):
     rtype = body.get("type")
     if rtype not in RECORD_TYPES:
@@ -910,6 +940,7 @@ def add_record(user_id, body, creator):
     return {"id": rid, "revision": 1}
 
 
+# 函数 correct_record：纠正记录：追加新版本，旧版本标记 superseded_by
 def correct_record(rid, body, actor):
     """更正 = 新写一条 revision+1 的记录；旧记录 superseded_by 指向新记录（append-only，永不覆盖）"""
     with _lock, connect() as conn:
@@ -931,6 +962,7 @@ def correct_record(rid, body, actor):
     return {"id": new_id, "supersedes": rid, "revision": (row["revision"] or 1) + 1}
 
 
+# 函数 delete_record：撤销记录：30 分钟窗口内可撤，留下撤销痕迹
 def delete_record(rid, actor):
     with _lock, connect() as conn:
         row = conn.execute("SELECT * FROM records WHERE id=?", (rid,)).fetchone()
@@ -956,6 +988,7 @@ def delete_record(rid, actor):
     return {"id": rid, "deleted": True}
 
 
+# 函数 list_records：记录列表，可选带修订历史
 def list_records(user_id, days=7, include_history=False):
     start = (utc_now().astimezone(tzinfo()).date() - timedelta(days=days - 1)).isoformat() + " 00:00"
     sql = "SELECT * FROM records WHERE user_id=? AND occurred_at>=?"
@@ -1050,6 +1083,7 @@ def dispatch_stats(days=7):
             delays.append(max(0.0, (d1 - d0).total_seconds()))
     delays.sort()
 
+    # 函数 pct：百分比计算，除零返回 0
     def pct(p):
         return round(delays[min(len(delays) - 1, int(len(delays) * p))], 2) if delays else None
 
@@ -1061,6 +1095,7 @@ def dispatch_stats(days=7):
             "last_tick": json.loads(last["v"]) if last else None}
 
 
+# 函数 do_backup：用 SQLite 在线备份生成一致快照
 def do_backup(dest_dir=None):
     """SQLite 在线备份，可直接放进 cron / 计划任务。"""
     dest_dir = dest_dir or os.environ.get("CAREMATE_BACKUP_DIR", os.path.join(BASE, "backups"))
@@ -1164,11 +1199,13 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "CareMateCloud/" + VERSION
     protocol_version = "HTTP/1.1"
 
+    # 函数 log_message：访问日志：方法、路径、耗时
     def log_message(self, fmt, *args):
         if os.environ.get("CAREMATE_QUIET"):
             return
         print("[%s] %s" % (time.strftime("%H:%M:%S"), fmt % args))
 
+    # 函数 send_body：统一响应输出：CORS 头、内容类型、长度
     def send_body(self, code, body, ctype="application/json; charset=utf-8"):
         if isinstance(body, (dict, list)):
             body = json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -1186,6 +1223,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
+    # 函数 json：发送 JSON 响应（自动序列化，保留中文）
     def json(self, code, obj):
         self.send_body(code, obj)
 
@@ -1199,6 +1237,7 @@ class Handler(BaseHTTPRequestHandler):
             token = (parse_qs(urlparse(self.path).query).get("token") or [""])[0]
         return user_by_token(token)
 
+    # 函数 _plan_view：计划对外视图
     def _plan_view(self, user_id, plan_id):
         with connect() as conn:
             row = conn.execute("SELECT * FROM plans WHERE id=? AND user_id=?",
@@ -1212,6 +1251,7 @@ class Handler(BaseHTTPRequestHandler):
         d["elder_id"] = d["user_id"]
         return d
 
+    # 函数 _record_view：记录对外视图
     def _record_view(self, rid):
         with connect() as conn:
             row = conn.execute("SELECT * FROM records WHERE id=?", (rid,)).fetchone()
@@ -1222,16 +1262,19 @@ class Handler(BaseHTTPRequestHandler):
         d["elder_id"] = d["user_id"]
         return d
 
+    # 函数 _fail：统一错误响应（含 code / error 字段）
     def _fail(self, exc, code_map):
         for kind, code in code_map:
             if isinstance(exc, kind):
                 return self.json(code, {"error": str(exc)})
         return self.json(500, {"error": str(exc)})
 
+    # 函数 body_json：读取请求体并解析 JSON，空体返回 {}
     def body_json(self):
         n = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(n).decode("utf-8") or "{}") if n else {}
 
+    # 函数 static：静态文件服务（web/ 下的页面与资源）
     def static(self, rel):
         path = os.path.normpath(os.path.join(WEB, rel))
         if not path.startswith(WEB) or not os.path.isfile(path):
@@ -1249,6 +1292,7 @@ class Handler(BaseHTTPRequestHandler):
         with open(path, "rb") as fh:
             self.send_body(200, fh.read(), ctype)
 
+    # 函数 _dispatch：路由分发：按方法 + 路径前缀匹配到具体处理
     def _dispatch(self, impl):
         try:
             impl()
@@ -1265,21 +1309,27 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
+    # 函数 do_GET：HTTP GET 入口
     def do_GET(self):
         self._dispatch(self._get)
 
+    # 函数 do_POST：HTTP POST 入口
     def do_POST(self):
         self._dispatch(self._post)
 
+    # 函数 do_PUT：HTTP PUT 入口
     def do_PUT(self):
         self._dispatch(self._put)
 
+    # 函数 do_PATCH：HTTP PATCH 入口
     def do_PATCH(self):
         self._dispatch(self._patch)
 
+    # 函数 do_DELETE：HTTP DELETE 入口
     def do_DELETE(self):
         self._dispatch(self._delete)
 
+    # 函数 do_OPTIONS：CORS 预检请求
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -1569,11 +1619,13 @@ class Handler(BaseHTTPRequestHandler):
 
         return self.json(404, {"error": "no route", "path": p})
 
+    # 函数 _alarm_view：告警对外视图
     def _alarm_view(self, r):
         d = dict(r)
         d["created_local"] = local_str(r["created_at"])
         return d
 
+    # 函数 _export：导出 CSV（按月/按人）
     def _export(self, q, target):
         kind = q.get("type", "records")
         days = int(q.get("days", 7))
@@ -1606,6 +1658,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    # 函数 _need_edit：写操作权限校验：老人只能动自己的，家属/社区按角色限制
     def _need_edit(self, user, target):
         if user["role"] == "elder" and target == user["id"]:
             return True
@@ -1777,6 +1830,7 @@ class Handler(BaseHTTPRequestHandler):
 
         return self.json(404, {"error": "no route", "path": p})
 
+    # 函数 _put：PUT 的具体处理（改计划等）
     def _put(self):
         parts = urlparse(self.path).path.strip("/").split("/")
         user = self.me()
@@ -1797,6 +1851,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json(422, {"error": "参数不合法：%s" % e})
         return self.json(404, {"error": "no route"})
 
+    # 函数 _patch：PATCH 的具体处理（改记录、暂停计划等）
     def _patch(self):
         parts = urlparse(self.path).path.strip("/").split("/")
         user = self.me()
@@ -1818,6 +1873,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json(422, {"error": "参数不合法：%s" % e})
         return self.json(404, {"error": "no route"})
 
+    # 函数 _delete：DELETE 的具体处理（删记录/删计划）
     def _delete(self):
         parts = urlparse(self.path).path.strip("/").split("/")
         user = self.me()
@@ -1846,6 +1902,7 @@ class Server(ThreadingHTTPServer):
     daemon_threads = True
 
 
+# 函数 main：命令行入口：参数解析、启动 HTTP 服务与调度线程
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")

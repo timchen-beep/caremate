@@ -332,11 +332,13 @@ const UNIT = { water: "ml", activity: "min", diet: "kcal" };
 
 let state = { overview: null };
 
+// 函数 msg：统一的提示行输出（页面底部黄条）
 function msg(el, text, kind) {
   el.textContent = text || "";
   el.className = "msg" + (text ? " " + (kind || "ok") : "");
 }
 
+// 函数 api：请求封装：带令牌、解析 JSON、失败抛错
 async function api(path, opt = {}) {
   const r = await fetch(path, {
     method: opt.method || "GET",
@@ -348,6 +350,7 @@ async function api(path, opt = {}) {
   return data;
 }
 
+// 函数 switchTab：切换左侧五个分区
 function switchTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.tab === name));
   ["today", "plans", "records", "stats", "alarms", "cloud"].forEach((k) =>
@@ -359,11 +362,13 @@ document.querySelectorAll(".tab").forEach((t) => t.onclick = () => switchTab(t.d
 
 
 /* ---------------- 渲染 ---------------- */
+// 函数 pill：状态色块（已完成/待提醒/未确认）
 function pill(key) {
   const s = STATE[key] || [key, "idle"];
   return '<span class="pill ' + s[1] + '">' + s[0] + "</span>";
 }
 
+// 函数 renderToday：渲染今日进度：每个实例一行 + 可代确认
 function renderToday(ov) {
   const occ = ov.occurrences || [];
   $("todaySub").textContent = (ov.date || "") + " · 共 " + occ.length + " 条 · 时区 " + (ov.tz || "Asia/Shanghai");
@@ -385,6 +390,7 @@ function renderToday(ov) {
   }).join("") : '<tr><td colspan="6">今天没有实例</td></tr>';
 }
 
+// 函数 renderPlans：渲染计划列表与暂停/恢复
 function renderPlans(plans) {
   $("planCount").textContent = "共 " + plans.length + " 条";
   $("planRows").innerHTML = plans.length ? plans.map((p) => {
@@ -406,6 +412,7 @@ function renderPlans(plans) {
   }).join("") : '<tr><td colspan="7">还没有计划</td></tr>';
 }
 
+// 函数 renderRecords：渲染记录（含修订历史与撤销）
 function renderRecords(items) {
   $("recCount").textContent = "共 " + items.length + " 条";
   $("recRows").innerHTML = items.length ? items.map((r) =>
@@ -418,6 +425,7 @@ function renderRecords(items) {
   ).join("") : '<tr><td colspan="7">还没有记录</td></tr>';
 }
 
+// 函数 renderAlerts：渲染告警列表（含确认）
 async function renderAlerts() {
   try {
     // 契约里 /alerts 返回数组；要阈值就用 envelope=1，两者都兼容
@@ -437,6 +445,7 @@ async function renderAlerts() {
   }
 }
 
+// 函数 renderAlarms：渲染未处理告警数量与详情
 function renderAlarms(items) {
   $("alarmCount").textContent = "共 " + items.length + " 条";
   $("alarmRows").innerHTML = items.length ? items.map((a) =>
@@ -447,6 +456,7 @@ function renderAlarms(items) {
   ).join("") : '<tr><td colspan="6">暂无告警</td></tr>';
 }
 
+// 函数 drawChart：画趋势柱状图（近 7 天完成率）
 function drawChart() {
   const s = state.overview && state.overview.stats;
   if (!s || !s.by_day || !s.by_day.length) {
@@ -464,6 +474,7 @@ function drawChart() {
   ).join("");
 }
 
+// 函数 renderStats：渲染统计：完成率、连续天数、口径说明
 function renderStats(s) {
   const rate = s.completion == null ? "—" : Math.round(s.completion * 100) + "%";
   $("kRate").textContent = rate;
@@ -480,6 +491,7 @@ function renderStats(s) {
   drawChart();
 }
 
+// 函数 renderCloud：渲染云端信息：模式、时区、调度器、outbox
 async function renderCloud() {
   try {
     const v = await api("/api/v1/version");
@@ -500,6 +512,7 @@ async function renderCloud() {
 }
 
 /* ---------------- 加载 ---------------- */
+// 函数 refresh：每 5 秒拉一次数据并重渲染
 async function refresh() {
   try {
     const ov = await api("/api/v1/overview?user_id=" + ELDER + "&days=7");
@@ -692,6 +705,7 @@ if (savedTok) $("token").value = savedTok;
 let alarmSeq = 0;
 let sosAlarm = null;
 
+// 函数 beep：用 WebAudio 发提示音（无音频文件依赖）
 function beep(times) {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -712,6 +726,7 @@ function beep(times) {
   } catch (e) {}
 }
 
+// 函数 flashTitle：标题闪烁提醒（不依赖桌面通知权限）
 function flashTitle(text) {
   const origin = document.title;
   let n = 0;
@@ -721,6 +736,7 @@ function flashTitle(text) {
   }, 700);
 }
 
+// 函数 showToastLine：显示一行临时提示
 function showToastLine(text) {
   const el = $("toastLine");
   el.textContent = text;
@@ -729,6 +745,7 @@ function showToastLine(text) {
   showToastLine._t = setTimeout(() => { el.style.display = "none"; }, 5000);
 }
 
+// 函数 incoming：收到新告警：弹红色横幅 + 声音 + 标题闪烁
 function incoming(a) {
   const isSos = a.kind === "sos";
   const label = isSos ? "老人在呼救" : (a.kind === "missed" ? "有提醒未确认" : "有新告警");
@@ -766,6 +783,7 @@ $("sosAck").onclick = async () => {
   await refresh();
 };
 
+// 函数 watchAlarms：长轮询 /alarms/wait，有新告警立即回调（<1 秒到达）
 async function watchAlarms() {
   for (;;) {
     try {
