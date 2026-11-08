@@ -24,3 +24,4 @@ case "$CASE" in
     for i in $(seq 1 10); do adb shell input tap 206 520; done ;;
   *) echo "用法: $0 [offline|reboot|time-skew|tap-spam]" ;;
 esac
+
