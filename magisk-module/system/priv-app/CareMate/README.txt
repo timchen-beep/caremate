@@ -1,3 +1,5 @@
+作用：说明：把 app/CareMate-release.apk 复制到本目录并命名为 CareMate.apk
+
 把 app/CareMate-release.apk 复制到本目录，文件名保持 CareMate.apk：
 
   copy app\CareMate-release.apk magisk-module\system\priv-app\CareMate\CareMate.apk

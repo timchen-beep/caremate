@@ -1,3 +1,4 @@
+# 作用：Magisk 模块元信息（id、名称、版本、描述），安装器据此识别本模块
 id=caremate_kiosk
 name=CareMate Kiosk Layer
 version=v1.0
