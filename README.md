@@ -69,6 +69,16 @@
 
 > **第一次看这个项目？先读 [GUIDE.md](GUIDE.md)** —— 从零讲起：项目是什么、四个核心概念、一条完整数据流、建议阅读顺序、改功能改哪里。
 
+## 改代码之前
+
+先读 [`CONTRIBUTING.md`](CONTRIBUTING.md)（三条铁律 + 踩过的坑），改完跑一条命令：
+
+```bash
+python tools/verify_all.py --flutter
+```
+
+它会做：完整性守卫（文件没被截断）→ Python/Shell 语法 → 起服务 → 七套验收 → 四个页面 HTTP 检查 →（可选）Flutter analyze，全过才打印 `总计：16/16 通过`。
+
 ## 代码怎么看
 
 两份自动生成的索引（改代码时改注释，重新生成即可，不会和代码脱节）：
