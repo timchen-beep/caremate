@@ -15,3 +15,4 @@ set_perm_recursive "$MODPATH/system/priv-app/CareMate" 0 0 0755 0644
 set_perm "$MODPATH/system/etc/permissions/privapp-permissions-com.caremate.caremate.xml" 0 0 0644
 
 ui_print "- 完成。重启后生效；禁用本模块即可回滚。"
+
