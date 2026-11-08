@@ -4,7 +4,9 @@
 set -uo pipefail
 PKG=com.caremate.caremate
 pass=0; fail=0
+# 函数 ok：打印通过项并累加通过计数
 ok()   { echo "  [OK]   $1"; pass=$((pass+1)); }
+# 函数 bad：打印失败项并累加失败计数
 bad()  { echo "  [FAIL] $1"; fail=$((fail+1)); }
 
 echo "== CareMate 系统改造自检 =="

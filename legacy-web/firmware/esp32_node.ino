@@ -45,6 +45,7 @@ void setLed(int r, int g, int b) {
   analogWrite(PIN_LED, (r + g + b) / 3);
 }
 
+// 函数 onMessage：收到 MQTT 消息：按语义表点灯/蜂鸣
 void onMessage(char* topic, byte* payload, unsigned int len) {
   StaticJsonDocument<512> doc;
   if (deserializeJson(doc, payload, len)) return;
@@ -67,6 +68,7 @@ void onMessage(char* topic, byte* payload, unsigned int len) {
   }
 }
 
+// 函数 reconnect：断线重连并订阅 alarm / reminder 两个 topic
 void reconnect() {
   while (!mqtt.connected()) {
     String cid = String("esp32-") + ELDER_ID;
@@ -80,6 +82,7 @@ void reconnect() {
   }
 }
 
+// 函数 publishPresence：把雷达状态以 JSON 发布到 home/sensor/presence
 void publishPresence(bool present) {
   StaticJsonDocument<192> doc;
   doc["elder_id"] = ELDER_ID;
@@ -91,6 +94,7 @@ void publishPresence(bool present) {
   mqtt.publish(TOPIC_PRESENCE, buf);
 }
 
+// 函数 setup：初始化串口、雷达、WiFi、MQTT 订阅
 void setup() {
   Serial.begin(115200);
   pinMode(PIN_LED, OUTPUT);
@@ -109,6 +113,7 @@ void setup() {
   mqtt.setBufferSize(512);
 }
 
+// 函数 loop：主循环：重连、读雷达、状态变化才上报
 void loop() {
   if (!mqtt.connected()) reconnect();
   mqtt.loop();
