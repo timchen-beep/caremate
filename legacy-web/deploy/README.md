@@ -1,3 +1,4 @@
+<!-- 作用：部署说明：反代终止 TLS、应用单进程的原因与步骤 -->
 # CareMate 部署（反向代理 + 自动 TLS + 单 worker）
 
 对应《Opening Report 4.2.6》最后一段：**反向代理终止 TLS，应用只跑一个进程**（SQLite 单写，多 worker 会互相踩）。
@@ -99,3 +100,4 @@ python3 test_accept.py
 1. **把演示令牌换掉**：直接改 `init_db()` 里的 `token`，或只用配对码换来的会话令牌。
 2. **数据库口令/路径**：`CAREMATE_DB` 指向挂载盘；换 PostgreSQL 时只需重写 `connect()`。
 3. **备份**：`sqlite3 caremate.db ".backup /backup/caremate-$(date +%F).db"` 放进 cron，每天一次。
+
