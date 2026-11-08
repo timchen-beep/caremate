@@ -114,3 +114,4 @@ ESP32 只需要订阅两个：`home/alarm/{user}` 和 `home/reminder/{user}/stat
 **Q：能不能让 ESP32 直接调 HTTP 接口？**
 可以（`POST /api/v1/sensor/presence`），但那样每台设备都要配令牌；MQTT 更适合多设备。桥就是干这个转换的。
 
+<!-- 文件：legacy-web/docs/HARDWARE.md -->
