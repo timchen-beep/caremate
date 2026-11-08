@@ -2,23 +2,23 @@
 
 > 由各文件头部的 `作用：` 注释自动提取；改代码时改注释，重跑生成脚本即可。
 
-共 118 个文件。
+共 126 个文件。
 
 | 目录 | 文件数 | 说明 |
 |---|---|---|
-| `server` | 29 | 后端与页面 |
+| `server` | 30 | 后端与页面 |
 | `.github` | 2 | CI |
-| `app` | 36 | Flutter 老人端 |
-| `device` | 3 | 刷机与回滚 |
-| `docs` | 7 | 文档 |
-| `magisk-module` | 6 | Magisk 定制层 |
+| `app` | 37 | Flutter 老人端 |
+| `device` | 4 | 刷机与回滚 |
+| `docs` | 8 | 文档 |
+| `magisk-module` | 7 | Magisk 定制层 |
 | `pi` | 6 | 树莓派 / 香橙派部署 |
 | `qt` | 15 | Qt/QML 老人端骨架 |
-| `scripts` | 5 | 系统改造脚本 |
-| `tools` | 1 | 辅助工具 |
-| `（根目录）` | 8 | 仓库根 |
+| `scripts` | 6 | 系统改造脚本 |
+| `tools` | 2 | 辅助工具 |
+| `（根目录）` | 9 | 仓库根 |
 
-## 后端与页面（29）
+## 后端与页面（30）
 
 | 文件 | 作用 |
 |---|---|
@@ -42,9 +42,10 @@
 | `server/test_p2.py` | 令牌与权限 9 项：配对换令牌、越权访问、一次性规则、角色边界 |
 | `server/test_steps.py` | 交互 7 项：呼救、5 秒撤销、记录撤销留痕、久未活动、专注模式页 |
 | `server/test_v06.py` | 工程性 7 项：派发延迟、限流 429、磁盘水位 507、备份、单实例保护 |
+| `server/web/README.md` | 服务端页面的说明：三个页面各给谁用、各自的关键函数 |
 | `server/web/app.html` | 老人端网页/PWA：大字高对比、语音播报、长按呼救、确认/稍后、记录与自检 |
 | `server/web/apple-touch-icon.png` | iOS 主屏图标 |
-| `server/web/dashboard.html` | 家属看板：5 秒刷新进度、长轮询收告警弹红条、计划/记录/告警/统计/云端五个分区 |
+| `server/web/dashboard.html` | 家属看板：5 秒刷新今日进度、长轮询收告警弹红条、计划/记录/告警/统计/云端五个分区 |
 | `server/web/icon-192.png` | PWA 图标 192×192 |
 | `server/web/icon-512.png` | PWA 图标 512×512 |
 | `server/web/index.html` | 落地页：项目介绍与三个入口（/app、/dashboard、/kiosk） |
@@ -59,7 +60,7 @@
 | `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑七套验收（固定 Asia/Shanghai，失败项转注解） |
 | `.github/workflows/flutter-build.yml` | 手动触发的 APK 构建（release/debug 可选，产物上传为 artifact） |
 
-## Flutter 老人端（36）
+## Flutter 老人端（37）
 
 | 文件 | 作用 |
 |---|---|
@@ -89,6 +90,7 @@
 | `app/android/gradlew` | Gradle wrapper（Unix 脚本），构建入口之一 |
 | `app/android/gradlew.bat` | Gradle wrapper（Windows），Flutter 构建入口 |
 | `app/android/settings.gradle` | Gradle 设置：加载 Flutter 插件、声明依赖仓库（FAIL_ON_PROJECT_REPOS） |
+| `app/lib/README.md` | Flutter 端源码的说明：文件分工与数据流 |
 | `app/lib/api.dart` | HTTP 客户端：Bearer 令牌、JSON 编解码、错误码到中文提示的映射 |
 | `app/lib/main.dart` | App 入口：初始化状态与本地通知，挂三个 tab（今天/记录/我的） |
 | `app/lib/models.dart` | 数据模型：Occurrence / Plan / AppEvent，字段与契约 v0.1 一一对应 |
@@ -100,18 +102,20 @@
 | `app/pubspec.lock` | 依赖版本锁定文件，保证不同机器装到同一批依赖 |
 | `app/pubspec.yaml` | Flutter 依赖：flutter_local_notifications、timezone、shared_preferences、http |
 
-## 刷机与回滚（3）
+## 刷机与回滚（4）
 
 | 文件 | 作用 |
 |---|---|
+| `device/README.md` | 刷机方向的说明：选什么机型、怎么刷、怎么回滚、风险在哪 |
 | `device/flash-lineage.sh` | 刷机骨架：校验机型、备份 boot/dtbo/vbmeta、解锁、刷官方 LineageOS |
 | `device/rollback.sh` | 回滚：解除 kiosk、禁用 Magisk 模块、按需卸载 App、重启验证 |
 | `device/机型对照.md` | 选机标准与 LineageOS 官方支持机型对照，含小米解锁等 7 天时延提示 |
 
-## 文档（7）
+## 文档（8）
 
 | 文件 | 作用 |
 |---|---|
+| `docs/README.md` | 文档目录的说明：每份文档解决什么问题、什么时候看 |
 | `docs/topics.md` | MQTT topic 与 payload 约定，含发布方/订阅方与频率说明 |
 | `docs/云部署.md` | 上云部署步骤：买机、换令牌、systemd、Caddy、验证、备份（约 40 分钟） |
 | `docs/契约_手机端对接_v0.1.md` | 手机端与后端的接口契约回执：七条接口逐条确认与差异说明 |
@@ -120,10 +124,11 @@
 | `docs/路线对照_R1-R8.md` | 需求编号 R1–R8 → 落地位置与状态（已有实现/骨架/未做） |
 | `docs/验收清单.md` | 验收清单：后端七套、App 真机、硬件、系统改造四类检查项 |
 
-## Magisk 定制层（6）
+## Magisk 定制层（7）
 
 | 文件 | 作用 |
 |---|---|
+| `magisk-module/README.md` | Magisk 定制层的说明：模块结构、安装方式、为什么能一键回滚 |
 | `magisk-module/customize.sh` | Magisk 安装时执行：检查 APK 是否就位、设置 priv-app 权限 |
 | `magisk-module/module.prop` | Magisk 模块元信息（id、名称、版本、描述） |
 | `magisk-module/post-fs-data.sh` | 开机早期：修正 priv-app 目录权限（部分 ROM 会校验 SELinux 上下文） |
@@ -162,7 +167,7 @@
 | `qt/pages/SosButton.qml` | Qt 呼救按钮：按住 3 秒才触发，松手取消 |
 | `qt/pages/TodayPage.qml` | Qt 今天页：到点卡片 + 三个 84 高的大按钮 |
 
-## 系统改造脚本（5）
+## 系统改造脚本（6）
 
 | 文件 | 作用 |
 |---|---|
@@ -171,14 +176,16 @@
 | `scripts/30-kiosk-off.sh` | 一键恢复：还原桌面、状态栏、常亮与自动时间（演示前必须先演这一条） |
 | `scripts/40-chaos.sh` | 四种异常一键复现：断网 / 重启 / 改时间 / 连点，用于验收 |
 | `scripts/50-verify-system.sh` | 系统改造 8 项自检：priv-app、精确闹钟、通知、Doze、默认桌面、状态栏、进程、AlarmManager |
+| `scripts/README.md` | Android 系统级改造脚本的说明：每个脚本做什么、按什么顺序执行、怎么回滚 |
 
-## 辅助工具（1）
+## 辅助工具（2）
 
 | 文件 | 作用 |
 |---|---|
+| `tools/README.md` | 辅助工具的说明：怎么跑七套验收并生成一份证据文件 |
 | `tools/collect_evidence.py` | 跑七套验收并把结果汇总成一份 markdown 证据文件 |
 
-## 仓库根（8）
+## 仓库根（9）
 
 | 文件 | 作用 |
 |---|---|
@@ -186,6 +193,7 @@
 | `.gitignore` | 忽略规则：数据库、签名私钥、构建产物、APK、CI 临时文件 |
 | `FILES.md` | 文件索引：每个文件一行说明（由各文件头部注释生成） |
 | `FUNCTIONS.md` | 函数索引：每个函数一行说明（由代码注释生成） |
+| `GUIDE.md` | 给第一次看这个仓库的人：项目是什么、代码怎么跑、从哪读起、改功能改哪里 |
 | `LICENSE` | MIT 许可证（内容为标准文本，未加注释） |
 | `PUSH.md` | 推送到 GitHub 的 3 条命令、常见报错与仓库内容边界 |
 | `README.md` | 项目总览：架构图、目录、两份索引入口、快速开始、验收命令、设计取舍、已知限制 |
