@@ -11,11 +11,13 @@ ReminderModel::ReminderModel(QObject *parent) : QObject(parent)
     m_tick.start();
 }
 
+// 函数 isoLocal：datetime → 'yyyy-MM-dd HH:mm'，实例的唯一时刻身份
 QString ReminderModel::isoLocal(const QDateTime &dt)
 {
     return dt.toString(QStringLiteral("yyyy-MM-dd HH:mm"));
 }
 
+// 函数 loadDemo：写入演示规则（用药/喝水/散步）
 void ReminderModel::loadDemo()
 {
     m_rules.clear();
@@ -27,10 +29,12 @@ void ReminderModel::loadDemo()
     s.times = {"16:00"}; s.kindRule = "interval"; s.intervalN = 2;
     s.startDate = QDate::currentDate().toString(Qt::ISODate);
     m_rules << a << w << s;
+    // 函数 rebuild：规则 → 未来三天实例列表
     rebuild();
     emit changed();
 }
 
+// 函数 matches：判断某条规则在某天是否生效（每天/每周/间隔/一次）
 bool ReminderModel::matches(const Rule &r, const QDate &d) const
 {
     if (r.kindRule == "daily") return true;
@@ -44,6 +48,7 @@ bool ReminderModel::matches(const Rule &r, const QDate &d) const
     return true;
 }
 
+// 函数 rebuild：规则 → 未来三天实例列表
 void ReminderModel::rebuild()
 {
     m_occs.clear();
@@ -78,40 +83,49 @@ ReminderModel::Occ *ReminderModel::find(const QString &occId)
     return nullptr;
 }
 
+// 函数 setState：改实例状态并发出变更信号
 void ReminderModel::setState(Occ &o, const QString &state)
 {
     o.state = state;
     emit changed();
 }
 
+// 函数 confirm：确认完成（对应后端 confirmed）
 void ReminderModel::confirm(const QString &occId)
 {
     if (Occ *o = find(occId)) setState(*o, QStringLiteral("confirmed"));
     // TODO(联调)：POST /api/v1/occurrences/{id}/events {action:"confirmed", event_id, client_ts}
+    // 函数 recompute：按当前时间算出到期列表与今日列表
     recompute();
 }
 
+// 函数 snooze：稍后再提醒，超过次数记为未确认
 void ReminderModel::snooze(const QString &occId)
 {
     if (Occ *o = find(occId)) {
         if (o->snoozeLeft <= 0) setState(*o, QStringLiteral("missed"));
         else { o->snoozeLeft--; setState(*o, QStringLiteral("snoozed")); }
     }
+    // 函数 recompute：按当前时间算出到期列表与今日列表
     recompute();
 }
 
+// 函数 missed：标记这次没做（对应后端 missed）
 void ReminderModel::missed(const QString &occId)
 {
     if (Occ *o = find(occId)) setState(*o, QStringLiteral("missed"));
+    // 函数 recompute：按当前时间算出到期列表与今日列表
     recompute();
 }
 
+// 函数 sos：触发呼救（由界面层发出请求）
 void ReminderModel::sos()
 {
     // 后端接口：POST /api/v1/sos {device, note}
     emit sosTriggered();
 }
 
+// 函数 doneCount：今日已完成条数
 int ReminderModel::doneCount() const
 {
     int n = 0;
@@ -121,6 +135,7 @@ int ReminderModel::doneCount() const
     return n;
 }
 
+// 函数 recompute：按当前时间算出到期列表与今日列表
 void ReminderModel::recompute()
 {
     const QDateTime now = QDateTime::currentDateTime();
@@ -144,8 +159,10 @@ void ReminderModel::recompute()
     emit changed();
 }
 
+// 函数 refresh：30 秒定时重算（与后端调度节奏一致）
 void ReminderModel::refresh()
 {
     // 到期判断每 30 秒用本地时钟重算一次；真正的状态仍以服务端返回为准
+    // 函数 recompute：按当前时间算出到期列表与今日列表
     recompute();
 }
