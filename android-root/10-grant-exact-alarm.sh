@@ -11,3 +11,4 @@ echo "通知权限（Android 13+）"
 adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS || true
 echo "验证："
 adb shell dumpsys alarm | grep -A3 $PKG | head -20 || true
+
