@@ -99,7 +99,7 @@ dependencies {
 }
 ```
 
-**③ iOS（仅开发期）**：`ios/Runner/Info.plist` 允许明文 HTTP
+**③ iOS（仅开发期）**：`android/app/src/main/AndroidManifest.xml` 允许明文 HTTP
 
 ```xml
 <key>NSAppTransportSecurity</key>
