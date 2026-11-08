@@ -1,3 +1,4 @@
+<!-- 作用：部署说明：Caddy + systemd 的单机方案 -->
 # CareMate 部署（反向代理 + 自动 TLS + 单 worker）
 
 对应《Opening Report 4.2.6》最后一段：**反向代理终止 TLS，应用只跑一个进程**（SQLite 单写，多 worker 会互相踩）。

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 作用：开启专注模式：设为默认桌面、隐藏状态栏导航栏、屏幕常亮
 # 开启 kiosk：桌面替换 + 状态栏隐藏 + 常亮
 # 注意：先跑 30-kiosk-off 确认能恢复，再上演示
 set -uo pipefail

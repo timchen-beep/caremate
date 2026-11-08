@@ -1,3 +1,4 @@
+@REM 作用：Windows 本地启动器：ASCII 输出，避免中文代码页乱码
 @echo off
 setlocal enabledelayedexpansion
 cd /d "%~dp0"

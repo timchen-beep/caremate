@@ -1,3 +1,4 @@
+<!-- 作用：七套验收的汇总证据（由 tools/collect_evidence.py 生成） --> -->
 # CareMate 验收汇总（2026-11-05）
 
 后端：`server.py` v0.9.1 ｜ 生成方式：`python collect_evidence.py`

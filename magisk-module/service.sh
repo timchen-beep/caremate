@@ -1,4 +1,5 @@
 #!/system/bin/sh
+# 作用：开机后：Doze 白名单、精确闹钟 appops、免打扰、沉浸式，逐条失败不影响开机
 # 开机后执行（Magisk late_start service）：把 kiosk 相关设置固化下来
 # 任何一步失败都不影响开机，逐条 || true
 

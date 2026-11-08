@@ -1,3 +1,4 @@
+<!-- 作用：Manifest 补丁说明：加 HOME（默认桌面）与通知策略权限 -->
 # AndroidManifest 补丁（刷机/Launcher 方向）
 
 现有 `caremate_app/android/app/src/main/AndroidManifest.xml` 需要加两处；**只在做"唯一桌面"时才加 HOME**。
