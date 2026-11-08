@@ -53,6 +53,22 @@
 | [`v2-qt`](../../tree/v2-qt) | 65 | Qt/QML 老人端 + 树莓派 broker + ESP32 雷达 + root 安卓 | 对照课程文档的 Qt 技术路线 |
 | [`v3-flash`](../../tree/v3-flash) | 56 | LineageOS + Magisk kiosk 定制层 + 8 项系统自检 | 需要"只有这一个 App"的设备级演示 |
 
+### 每条分支里有什么（找不到文件时看这张表）
+
+| 想看什么 | 去哪个分支的哪个目录 |
+|---|---|
+| 后端服务 + 家属看板 | 任意分支的 `server/`（v1 里叫 `caremate-cloud/`，v2/v3 里叫 `legacy-web/`） |
+| Flutter 老人端 | `main` 的 `app/`、`v1-web` 的 `caremate_app/` |
+| Qt 老人端骨架 | `main` 的 `qt/`、`v2-qt` / `v2-qt-core` 的 `app-qt/` |
+| 树莓派 / 香橙派部署 | `main`、`v2-qt`、`v2-qt-core` 的 `pi/` |
+| 雷达固件 | `main` 的 `server/firmware/`、`v2-qt` 的 `esp32/` |
+| 系统改造脚本（priv-app/kiosk） | `main`、`v3-flash`、`v3-flash-core` 的 `scripts/` |
+| Magisk 定制层 | `main`、`v3-flash`、`v3-flash-core` 的 `magisk-module/` |
+| 刷机与回滚 | `main`、`v3-flash`、`v3-flash-core` 的 `device/` |
+| 文档 | `main` 的 `docs/`；各分支根目录的 `README.md`/`MANIFEST.md` |
+
+> 每条分支根部的 `README.md`（v1-web 是 `MANIFEST.md`）末尾都有"分支地图"，写明该分支实际包含哪些目录、缺的目录去哪个分支找。
+
 ### 核心版（只看实现代码）
 
 每条归档分支都有对应的 `-core` 版本：**只保留实现功能的代码**，去掉文档、证据、APK、测试产物。适合"想读代码"或"想复用某一块"的时候。
