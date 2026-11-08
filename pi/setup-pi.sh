@@ -30,3 +30,4 @@ echo "== 5/5 自检"
 curl -s http://127.0.0.1:8000/api/v1/health || echo "（服务没起来，看 journalctl -u caremate-server）"
 echo
 echo "订阅一条看看： mosquitto_sub -h 127.0.0.1 -t 'home/#' -v"
+
