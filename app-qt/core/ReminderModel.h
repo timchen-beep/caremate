@@ -63,3 +63,4 @@ private:
     void setState(Occ &o, const QString &state);
     static QString isoLocal(const QDateTime &dt);
 };
+
