@@ -62,3 +62,4 @@ CareMate_路线版_<日期>/
 └── legacy-web/               已跑通的 Python + Web 实现（参考/回退）
 ```
 
+<!-- 文件：README.md -->
