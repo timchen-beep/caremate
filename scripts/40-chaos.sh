@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 作用：四种异常一键复现：断网 / 重启 / 改时间 / 连点，用于验收
 # 四种异常一键复现（验收用）
 set -uo pipefail
 CASE="${1:-offline}"

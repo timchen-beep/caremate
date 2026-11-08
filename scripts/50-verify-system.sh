@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 作用：系统改造 8 项自检：priv-app、精确闹钟、通知、Doze、默认桌面、状态栏、进程、AlarmManager
 # 系统改造自检：8 项逐条打勾
 set -uo pipefail
 PKG=com.caremate.caremate
