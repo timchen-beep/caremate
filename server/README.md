@@ -6,7 +6,7 @@
 | 文档条目 | 实现 |
 |---|---|
 | occurrence 落表 | `occurrences` 表：`due_at`(UTC)、`state`、`level`、`snooze_count`、`notified_at/confirmed_at/missed_at`，`UNIQUE(plan_id,due_at)` |
-| 调度器在服务内 | 后台线程每 30 s 扫描，2/5/15 分钟阈值 → `notified / escalated / missed`，并写 `alarms`（level 1–3）；`CAREMATE_SCHEDULER=0` 可关 |
+| 调度器在服务内 | 后台线程每 30 s 扫描：**到点即 `notified`**，迟到 `THRESHOLD_1`（默认 2 分钟）`escalated`（通知家属），`THRESHOLD_3`（默认 15 分钟）`missed`；`CAREMATE_SCHEDULER=0` 可关 |
 | 唯一状态入口 | `transition(occ, action, actor, now)`：写 event 与改 state 在同一事务 |
 | UTC + 时区 | 库内 UTC（带 Z），`users.tz` 决定展示，API 同时给 `due_at_utc` 与 `due_at_local` |
 | 审计 | `events.actor` 记具体账号；看板代确认写 `u-family`，调度器写 `scheduler` |
@@ -52,7 +52,7 @@ python server.py --port 8000
 |---|---|
 | plan 与 occurrence 分离，改计划不污染历史 | `plans` 表 + `occurrences()` 物化，状态由 `events` 推导 |
 | 7 种重复规则 | `plans.rule` JSON：daily / weekly / interval / monthly / course / mealOffset（餐前餐后按饮食记录推导） |
-| 状态机 pending→notified→escalated→confirmed/missed | `occurrence_state()`；阈值 `CAREMATE_THRESHOLD_1/2/3`（默认 2/5/15 分钟） |
+| 状态机 pending→notified→escalated→confirmed/missed | `occurrence_state()`；阈值 `CAREMATE_THRESHOLD_1`（升级家属，默认 2 分钟）与 `THRESHOLD_3`（记未确认，默认 15 分钟） |
 | 稍后最多 3 次 | `record_event()`：第 4 次强制转 missed，并写 `snooze_limit` 告警 |
 | 记录可纠错、可撤销、留痕 | `records.created_by/updated_by/revision/deleted`；`PATCH` 更正、`DELETE` 逻辑删除 |
 | 统计口径要写清 | `stats().caliber`：自然日、分母=已到期实例、漏记算缺失、超时 15 分钟 |
