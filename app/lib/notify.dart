@@ -102,6 +102,26 @@ class Notifier {
     }
   }
 
+  // 函数 showReminder：端上调度器到点时弹一条提醒（不依赖服务器）
+  static Future<void> showReminder(int id, String title, String body) async {
+    await _plugin.show(
+      id,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: '按计划提醒用药、饮水与活动',
+          importance: Importance.max,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.reminder,
+          fullScreenIntent: true,
+        ),
+        iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true),
+      ),
+    );
+  }
   /// 设置页的"测试通知"
   static Future<void> showTest() async {
     await _plugin.show(
