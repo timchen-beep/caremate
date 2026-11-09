@@ -144,6 +144,42 @@ def check_syntax():
     record("Shell 语法", not bad, "；".join(bad[:3]))
 
 
+# ---------------------------------------------------------------- 产物卫生
+def check_artifacts():
+    """跑完测试后，仓库里不应出现"可以被提交"的测试产物。
+
+    为什么需要：`test_accept.py` 会在 server/ 下建 caremate.db，若 .gitignore 漏了规则、
+    或分支从别的仓库拷来时没带 .gitignore，`git add -A` 就会把测试库一起提交——
+    本仓库历史上已经发生过三次（六条归档分支各一次）。这里提前拦住。
+    """
+    try:
+        tracked = subprocess.run(["git", "-C", ROOT, "-c", "core.quotepath=false", "ls-files"],
+                                 capture_output=True, text=True, encoding="utf-8").stdout.splitlines()
+        status = subprocess.run(["git", "-C", ROOT, "-c", "core.quotepath=false", "status", "--porcelain"],
+                                capture_output=True, text=True, encoding="utf-8").stdout.splitlines()
+    except OSError:
+        record("产物卫生", True, "非 git 目录，跳过")
+        return
+
+    bad_tracked = [p for p in tracked
+                   if p.endswith((".db", ".db-wal", ".db-shm", ".pyc")) or "__pycache__/" in p]
+    stray = []
+    for line in status:
+        if not line.startswith("??"):
+            continue
+        p = line[3:].strip().strip('"')
+        if p.endswith((".db", ".db-wal", ".db-shm")) or "__pycache__" in p:
+            stray.append(p)
+
+    detail = ""
+    if bad_tracked:
+        detail += "已入库：%s " % ", ".join(bad_tracked[:3])
+    if stray:
+        detail += "待提交产物：%s" % ", ".join(stray[:3])
+    record("产物卫生（无 .db / __pycache__ 可入库）", not bad_tracked and not stray,
+           detail or "干净")
+
+
 # ---------------------------------------------------------------- 3) 服务与七套
 def wait_health(timeout=30):
     for _ in range(timeout * 2):
@@ -231,6 +267,7 @@ def main():
     proc, db = run_server()
     try:
         run_suites()
+        check_artifacts()
         check_pages()
     finally:
         proc.terminate()
