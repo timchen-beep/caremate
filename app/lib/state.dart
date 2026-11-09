@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'local_db.dart';
 import 'models.dart';
 
 /// 应用状态：本地队列优先（契约 §5），状态以云端为准（契约 §4）
@@ -38,7 +39,20 @@ class AppState extends ChangeNotifier {
     userId = _prefs.getString('userId') ?? 'u-elder';
     baseUrl = _prefs.getString('baseUrl') ?? baseUrl;
     token = _prefs.getString('token') ?? token;
-    events = _readList('events').map((e) => AppEvent.fromJson(e)).toList();
+
+    // ① 冷启动先读本地主副本（4.1 架构图第 3 层）：断网也能看到今天的计划
+    try {
+      await LocalDb.open();
+      final local = await LocalDb.occurrencesForDate(dateOf(DateTime.now()));
+      if (local.isNotEmpty) occurrences = local;
+      final cached = await LocalDb.loadPlans();
+      if (cached.isNotEmpty) plans = cached;
+      events = await LocalDb.pendingEvents();
+    } catch (_) {
+      // 本地库不可用（如首次运行权限问题）时退回旧路径，不让 App 起不来
+      events = _readList('events').map((e) => AppEvent.fromJson(e)).toList();
+    }
+
     recomputeDue();
     notifyListeners();
   }
@@ -102,6 +116,9 @@ class AppState extends ChangeNotifier {
       ),
     );
     await _persist();
+    try {
+      await LocalDb.queueEvent(events.first);
+    } catch (_) {}
     notifyListeners();
     await pushPending();
   }
@@ -110,6 +127,41 @@ class AppState extends ChangeNotifier {
   Future<void> pushPending() async {
     final pending = events.where((e) => !e.synced).toList();
     if (pending.isEmpty) return;
+
+    // 优先走批量上行（4.1 架构图第 5 层）：一次请求补传整条队列
+    try {
+      final payload = pending
+          .map((e) => {
+                'occurrence_id': e.occurrenceId,
+                'action': e.action,
+                'client_ts': e.clientTs,
+                'event_id': e.eventId,
+              })
+          .toList();
+      final res = await api.pushEventsBatch(payload);
+      final rejected = (res['rejected'] as List?) ?? const [];
+      final okCount = (res['accepted'] as int? ?? 0) + (res['duplicates'] as int? ?? 0);
+      if (okCount > 0) {
+        final rejectedIds = <String>{};
+        for (final r in rejected) {
+          final idx = (r['index'] as int?) ?? -1;
+          if (idx >= 0 && idx < pending.length) rejectedIds.add(pending[idx].eventId);
+        }
+        for (final e in pending) {
+          if (!rejectedIds.contains(e.eventId)) e.synced = true;
+        }
+        try {
+          await LocalDb.markEventsSynced(
+              pending.where((e) => e.synced).map((e) => e.eventId).toList());
+        } catch (_) {}
+        await _persist();
+        notifyListeners();
+        if (rejectedIds.isEmpty) return;
+      }
+    } catch (_) {
+      // 批量失败就退回逐条（老路径），保证弱网也能补传
+    }
+
     for (final e in pending) {
       try {
         await api.pushEvent(
@@ -138,9 +190,36 @@ class AppState extends ChangeNotifier {
     lastError = null;
     notifyListeners();
     try {
+      // ① 先回灌：按游标拉服务端变化（4.1 架构图第 5 层下行）
+      final cursor = await LocalDb.getCursor();
+      final state = await api.fetchStateSince(cursor);
+      final remoteOcc = ((state['occurrences'] as List?) ?? const [])
+          .map((e) => Occurrence.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      if (remoteOcc.isNotEmpty) {
+        await LocalDb.saveOccurrences(remoteOcc);
+        await LocalDb.setCursor((state['next_since'] ?? '').toString());
+      }
+
+      // ② 再取整包（兼容旧服务端），并用「本地优先 + 云端覆盖」合并
       final b = await api.fetchBundle();
-      if (b.plans.isNotEmpty) plans = b.plans;
-      occurrences = b.occurrences;
+      if (b.plans.isNotEmpty) {
+        plans = b.plans;
+        try {
+          await LocalDb.savePlans(b.plans);
+        } catch (_) {}
+      }
+      final merged = <String, Occurrence>{};
+      for (final o in occurrences) {
+        merged[o.id] = o; // 本地已有（可能是端上 tick 改过的 notified）
+      }
+      for (final o in b.occurrences) {
+        merged[o.id] = o; // 云端为准（云端才有 escalated / missed）
+      }
+      occurrences = merged.values.toList();
+      try {
+        await LocalDb.saveOccurrences(occurrences);
+      } catch (_) {}
       recomputeDue();
       lastSyncAt = DateTime.now().toString().substring(11, 16);
       await _persist();
