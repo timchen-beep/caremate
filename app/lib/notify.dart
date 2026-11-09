@@ -1,4 +1,4 @@
-// 作用：本地通知：通知渠道、按计划重排精确闹钟（setExactAndAllowWhileIdle）、开机重排
+// 作用：本地通知：通知渠道、按计划重排精确闹钟（setExactAndAllowWhileIdle）、开机重排、端上 tick 到点弹提醒（showReminder）
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
