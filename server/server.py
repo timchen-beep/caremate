@@ -1200,6 +1200,74 @@ def save_plan(user_id, body, plan_id=None):
     return {"id": pid}
 
 
+# ================================================================ 端云同步（4.1 架构图第 5 层）
+# 函数 sync_events_up：手机端批量上行本地事件队列；每条复用 transition()（不传连接，避免嵌套锁）
+def sync_events_up(user_id, events):
+    """POST /v1/events —— 断网期间攒下的事件按 client_ts 顺序补传。"""
+    accepted, duplicates, rejected = 0, 0, []
+    for idx, item in enumerate(events or []):
+        item = item or {}
+        oid = item.get("occurrence_id") or ""
+        action = item.get("action") or ""
+        if action not in ("confirmed", "snoozed", "missed"):
+            rejected.append({"index": idx, "occurrence_id": oid,
+                             "reason": "action 不受理（只接受 confirmed/snoozed/missed）"})
+            continue
+        if not oid:
+            rejected.append({"index": idx, "occurrence_id": "", "reason": "缺少 occurrence_id"})
+            continue
+        with connect() as c:
+            occ = occ_row(c, oid)
+        if not occ:
+            rejected.append({"index": idx, "occurrence_id": oid, "reason": "实例不存在"})
+            continue
+        if occ["user_id"] != user_id:
+            rejected.append({"index": idx, "occurrence_id": oid, "reason": "越权：实例不属于该老人"})
+            continue
+        try:
+            res = transition(oid, action, actor=user_id, source="app-sync",
+                             client_ts=item.get("client_ts") or "",
+                             payload={"event_id": item.get("event_id") or ""})
+        except Exception as exc:  # noqa: BLE001
+            rejected.append({"index": idx, "occurrence_id": oid, "reason": str(exc)})
+            continue
+        if isinstance(res, dict) and res.get("duplicate"):
+            duplicates += 1
+        else:
+            accepted += 1
+    return {"accepted": accepted, "duplicates": duplicates, "rejected": rejected,
+            "server_ts": iso(utc_now())}
+
+
+# 函数 sync_state_down：按游标回灌服务端状态（换机/重装/家属代确认后对齐）
+def sync_state_down(user_id, since="", limit=500):
+    """GET /v1/state?since= —— since 之后变化的实例与记录，带 next_since。"""
+    with connect() as conn:
+        occ_rows = conn.execute(
+            "SELECT * FROM occurrences WHERE user_id=? AND updated_at>? ORDER BY updated_at LIMIT ?",
+            (user_id, since or "", int(limit))).fetchall()
+        rec_rows = conn.execute(
+            "SELECT * FROM records WHERE user_id=? AND created_at>? ORDER BY created_at LIMIT ?",
+            (user_id, since or "", int(limit))).fetchall()
+        max_occ = max([r["updated_at"] for r in occ_rows], default="")
+        max_rec = max([r["created_at"] for r in rec_rows], default="")
+    return {
+        "occurrences": [occ_view(r) for r in occ_rows],
+        "records": [{"id": r["id"], "type": r["type"], "value": r["value"], "unit": r["unit"],
+                     "occurred_at": r["occurred_at"], "created_at": r["created_at"],
+                     "revision": r["revision"], "deleted": bool(r["deleted"])} for r in rec_rows],
+        "next_since": max(max_occ, max_rec, since or ""),
+        "server_ts": iso(utc_now()),
+    }
+
+
+# 函数 sync_alarm_up：端侧直接上报告警（呼救），不等调度器
+def sync_alarm_up(user_id, kind="sos", note="", device=""):
+    """POST /v1/alarm —— 立即落库并推给家属端。"""
+    row = sos(user_id, user_id, note=note, device=device) if kind == "sos" else raise_alarm(
+        user_id, kind, 3, "", note or kind)
+    return {"alarm": row, "server_ts": iso(utc_now())}
+
 # ================================================================ HTTP
 class Handler(BaseHTTPRequestHandler):
     server_version = "CareMateCloud/" + VERSION
@@ -1574,6 +1642,9 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/v1/sensor/presence":
             return self.json(201, ingest_presence(target, True, source=q.get("source", "sensor")))
 
+        if p == "/api/v1/state":
+            return self.json(200, sync_state_down(target, q.get("since", "")))
+
         if p == "/api/v1/preview":
             days = int(q.get("days") or 7)
             day = None
@@ -1728,6 +1799,16 @@ class Handler(BaseHTTPRequestHandler):
                     (user["id"],)).fetchone()
             target = row["elder_id"] if row else None
         target = target or user["id"]
+
+        if p == "/api/v1/events":
+            # body 已在 _post 开头解析过，必须复用；再调 body_json() 会等新字节挂住
+            events = body.get("events") if isinstance(body, dict) else body
+            return self.json(200, sync_events_up(target, events or []))
+
+        if p == "/api/v1/alarm":
+            return self.json(201, sync_alarm_up(target, body.get("kind") or "sos",
+                                                body.get("note", ""), body.get("device", "")))
+
 
         parts = p.strip("/").split("/")
         if len(parts) == 5 and parts[:3] == ["api", "v1", "occurrences"] and parts[4] == "events":

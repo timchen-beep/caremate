@@ -126,7 +126,7 @@ def run_server():
 
 
 SUITES = ["test_contract.py", "test_p2.py", "test_align.py", "test_steps.py",
-          "test_v06.py", "test_extra.py", "test_accept.py"]
+          "test_v06.py", "test_extra.py", "test_sync.py", "test_accept.py"]
 
 
 def run_suites():
