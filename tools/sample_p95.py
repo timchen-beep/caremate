@@ -77,13 +77,11 @@ def main():
         due = (now + timedelta(seconds=90)).replace(second=0, microsecond=0)
         slot = due.strftime("%H:%M")
         # 通知要等「迟到 >= th1」才触发（默认 2 分钟），所以必须等够 th1 + 一拍
-        h = call(base, "/api/v1/health")
-        th1 = int(h.get("threshold_1") or 2)
-        wait = int((due - now).total_seconds()) + th1 * 60 + 45
+        # 方案 B 之后：到点即 notified，只需等到期 + 一拍调度（TICK=30 s）
+        wait = int((due - now).total_seconds()) + 45
         print("端口 %d，临时库 %s" % (port, os.path.basename(db)))
-        print("现在 %s，建 %s 的计划（距到期 %d 秒）；通知阈值为迟到 %d 分钟，"
-              "故等待 %d 秒" % (now.strftime("%H:%M:%S"), slot,
-                                int((due - now).total_seconds()), th1, wait))
+        print("现在 %s，建 %s 的计划（距到期 %d 秒），等待 %d 秒让调度器在到点后派发"
+              % (now.strftime("%H:%M:%S"), slot, int((due - now).total_seconds()), wait))
         call(base, "/api/v1/plans", TOKEN, {
             "user_id": "u-elder", "title": "P95 采样", "kind": "medication",
             "times": [slot], "dose": "1 片", "rule": {"kind": "daily"},
