@@ -1,4 +1,4 @@
-// 作用：全局状态与动作：拉计划、点确认/稍后、离线队列落盘、联网补传、同步
+// 作用：全局状态与动作：冷启动读本地主副本、点确认/稍后、事件入本地库、批量上行、按游标回灌合并
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -96,7 +96,7 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- 动作
-  /// 契约 §4/§5：本地只入队一条事件，状态等云端返回
+  /// 契约 §4/§5：本地入队一条事件（写 prefs + 本地库 events 表），状态等云端返回
   Future<void> record(Occurrence occ, String action) async {
     final clientTs = isoNow();
     final id = AppEvent.buildEventId(occ.id, action, clientTs);
@@ -123,7 +123,8 @@ class AppState extends ChangeNotifier {
     await pushPending();
   }
 
-  /// 逐条上行；client_ts 保持原样，duplicate=true 也算成功（契约 §5）
+  /// 优先批量上行（POST /events），按 rejected 索引只重发被拒条目；批量失败退回逐条；
+  /// client_ts 保持原样，duplicate=true 也算成功（契约 §5）
   Future<void> pushPending() async {
     final pending = events.where((e) => !e.synced).toList();
     if (pending.isEmpty) return;
@@ -185,6 +186,8 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- 同步
+  /// 先按游标回灌（GET /state?since=）写本地，再取整包合并：
+  /// 本地已有的（端上 tick 改过的 notified）与云端返回的取并集，云端字段优先（云端才有 escalated/missed）
   Future<void> sync() async {
     syncing = true;
     lastError = null;
