@@ -2,7 +2,7 @@
 
 <!-- 作用：函数索引：每个函数一行说明，由代码里的注释自动生成 -->
 
-> 由代码里的 `函数 X：说明` 注释提取；共 155 个函数。
+> 由代码里的 `函数 X：说明` 注释提取；共 158 个函数。
 
 ## `app/lib/api.dart`
 
@@ -10,6 +10,8 @@
 |---|---|
 | `_get` | GET 封装：带 Bearer、超时、错误码映射 |
 | `_send` | 写操作封装（POST/PATCH）：序列化 + 错误处理 |
+| `fetchStateSince` | 按游标回灌服务端状态（4.1 架构图第 5 层下行） |
+| `pushEventsBatch` | 批量上行本地事件队列（4.1 架构图第 5 层上行） |
 
 ## `app/lib/main.dart`
 
@@ -18,6 +20,12 @@
 | `build` | 构建界面（App 外层 / 首页外壳） |
 | `dispose` | 释放控制器与计时器 |
 | `initState` | 启动时初始化状态与本地通知 |
+
+## `app/lib/notify.dart`
+
+| 函数 | 作用 |
+|---|---|
+| `showReminder` | 端上调度器到点时弹一条提醒（不依赖服务器） |
 
 ## `app/lib/screens/records.dart`
 
