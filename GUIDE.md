@@ -118,7 +118,7 @@ pending ──通知──▶ notified ──确认──▶ confirmed
 | 3 | `slots_on()` | 规则怎么变成"今天的提醒" |
 | 4 | `ensure_occurrences()` | 什么时候把提醒写进库 |
 | 5 | **`transition()`** | 状态怎么变、为什么只能从这里变 |
-| 6 | `scheduler_tick()` | 2/5/15 分钟升级链怎么跑 |
+| 6 | `scheduler_tick()` | 升级链怎么跑：到点 notified → 2 分钟 escalated（通知家属）→ 15 分钟 missed |
 | 7 | `app/lib/state.dart` 的 `record()` → `pushPending()` | 手机端怎么提交、断网怎么补 |
 | 8 | `server/web/dashboard.html` 的 `watchAlarms()` | 家属端为什么能 1 秒内看到 |
 
@@ -131,7 +131,7 @@ pending ──通知──▶ notified ──确认──▶ confirmed
 | 你想做的事 | 改这里 |
 |---|---|
 | 改提醒时间怎么算（加规则类型） | `server.py` 的 `slots_on()` |
-| 改升级节奏 2/5/15 分钟 | 环境变量 `CAREMATE_THRESHOLD_1/2/3`，逻辑在 `scheduler_tick()` |
+| 改升级节奏（默认 2/15 分钟） | 环境变量 `CAREMATE_THRESHOLD_1/3`，逻辑在 `scheduler_tick()` |
 | 改"稍后"次数上限 | `transition()` |
 | 改统计口径（按天算还是 24h） | `stats()` |
 | 加一个接口 | `server.py` 路由表（搜 `"/api/v1/`） + 对应处理函数 |
