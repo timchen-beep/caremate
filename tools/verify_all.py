@@ -180,6 +180,43 @@ def check_artifacts():
            detail or "干净")
 
 
+# ---------------------------------------------------------------- 文档数字一致
+CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6,
+          "七": 7, "八": 8, "九": 9, "十": 10}
+
+DOC_FILES = ["README.md", "GUIDE.md", "CONTRIBUTING.md",
+             "tools/README.md", "docs/验收清单.md", "docs/评审答复_4.2.md"]
+
+
+def check_doc_counts():
+    """文档里写的「N 套验收」「verify_all 是 N 项」必须与实际一致。
+
+    为什么需要：加了 test_sync 之后，全仓 12 处还写着「七套」，是人工扫出来的；
+    这类数字对不上没法靠读代码发现，只能在这里比对。
+    """
+    problems = []
+    expected_suites = len(SUITES)
+    expected_items = len(RESULTS) + 1        # +1：本项守卫自身
+    for rel in DOC_FILES:
+        p = os.path.join(ROOT, rel.replace("/", os.sep))
+        if not os.path.isfile(p):
+            continue
+        with io.open(p, encoding="utf-8", errors="replace") as f:
+            for no, line in enumerate(f, 1):
+                if "分支" in line:          # 分支说明里的套数不受 main 影响
+                    continue
+                for m in re.finditer(r"([一二三四五六七八九十\d]+)\s*套验收", line):
+                    raw = m.group(1)
+                    n = int(raw) if raw.isdigit() else CN_NUM.get(raw, -1)
+                    if n != expected_suites:
+                        problems.append("%s:%d 写 %s 套（应 %d）" % (rel, no, raw, expected_suites))
+                for m in re.finditer(r"verify_all[^（\n]*（(\d+)\s*项", line):
+                    n = int(m.group(1))
+                    if n != expected_items:
+                        problems.append("%s:%d 写 %d 项（应 %d）" % (rel, no, n, expected_items))
+    record("文档数字一致（套数/项数）", not problems, "；".join(problems[:3]) or "一致")
+
+
 # ---------------------------------------------------------------- 3) 服务与八套
 def wait_health(timeout=30):
     for _ in range(timeout * 2):
@@ -281,6 +318,7 @@ def main():
                 os.remove(p)
     if USE_FLUTTER:
         check_flutter()
+    check_doc_counts()
 
     print("-" * 78)
     passed = sum(1 for _, ok, _ in RESULTS if ok)
