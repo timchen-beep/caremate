@@ -4,15 +4,15 @@
 
 > 由各文件头部的 `作用：` 注释自动提取；改代码时改注释，重跑生成脚本即可。
 
-共 132 个文件。
+共 134 个文件。
 
 | 目录 | 文件数 | 说明 |
 |---|---|---|
-| `server` | 30 | 后端与页面 |
+| `server` | 31 | 后端与页面 |
 | `.github` | 2 | CI |
 | `app` | 37 | Flutter 老人端 |
 | `device` | 4 | 刷机与回滚 |
-| `docs` | 11 | 文档 |
+| `docs` | 12 | 文档 |
 | `magisk-module` | 7 | Magisk 定制层 |
 | `pi` | 6 | 树莓派 / 香橙派部署 |
 | `qt` | 15 | Qt/QML 老人端骨架 |
@@ -20,7 +20,7 @@
 | `tools` | 4 | 辅助工具 |
 | `（根目录）` | 10 | 仓库根 |
 
-## 后端与页面（30）
+## 后端与页面（31）
 
 | 文件 | 作用 |
 |---|---|
@@ -43,6 +43,7 @@
 | `server/test_extra.py` | 新增能力 7 项：七天预览、传感器事件、通知通道、专注模式、--demo/--preview |
 | `server/test_p2.py` | 令牌与权限 9 项：配对换令牌、越权访问、一次性规则、角色边界 |
 | `server/test_steps.py` | 交互 7 项：呼救、5 秒撤销、记录撤销留痕、久未活动、专注模式页 |
+| `server/test_sync.py` | 端云同步验收 5 项：批量上行、幂等去重、越权拒绝、回灌游标、端侧告警 |
 | `server/test_v06.py` | 工程性 7 项：派发延迟、限流 429、磁盘水位 507、备份、单实例保护 |
 | `server/web/README.md` | 服务端页面的说明：三个页面各给谁用、各自的关键函数 |
 | `server/web/app.html` | 老人端网页/PWA：大字高对比、语音播报、长按呼救、确认/稍后、记录与自检 |
@@ -88,9 +89,9 @@
 | `app/android/build.gradle` | Android 构建根配置：AGP 与 Kotlin 插件版本、仓库 |
 | `app/android/gradle.properties` | Gradle 运行参数：JVM 内存、AndroidX 开关 |
 | `app/android/gradle/wrapper/gradle-wrapper.jar` | Gradle wrapper 可执行 jar（缺了无法构建） |
-| `app/android/gradle/wrapper/gradle-wrapper.properties` | Gradle 版本与分发地址（国内配了腾讯镜像，CI 里换回官方源） |
+| `app/android/gradle/wrapper/gradle-wrapper.properties` | Gradle 版本与分发地址（CI 里换回官方源） |
 | `app/android/gradlew` | Gradle wrapper（Unix 脚本），构建入口之一 |
-| `app/android/gradlew.bat` | Gradle wrapper（Windows），Flutter 构建入口 |
+| `app/android/gradlew.bat` | Gradle wrapper（Windows 脚本），构建入口之一 |
 | `app/android/settings.gradle` | Gradle 设置：加载 Flutter 插件、声明依赖仓库（FAIL_ON_PROJECT_REPOS） |
 | `app/lib/README.md` | Flutter 端源码的说明：文件分工与数据流 |
 | `app/lib/api.dart` | HTTP 客户端：Bearer 令牌、JSON 编解码、错误码到中文提示的映射 |
@@ -102,7 +103,7 @@
 | `app/lib/screens/today.dart` | 今天页：到点卡片 + 吃了/等会儿/没做 三个大按钮 |
 | `app/lib/state.dart` | 全局状态与动作：拉计划、点确认/稍后、离线队列落盘、联网补传、同步 |
 | `app/pubspec.lock` | 依赖版本锁定文件，保证不同机器装到同一批依赖 |
-| `app/pubspec.yaml` | Flutter 依赖：flutter_local_notifications、timezone、shared_preferences、http |
+| `app/pubspec.yaml` | Flutter 依赖：本地库（sqflite）、本地通知、精确闹钟、离线设置 |
 
 ## 刷机与回滚（4）
 
@@ -113,7 +114,7 @@
 | `device/rollback.sh` | 回滚：解除 kiosk、禁用 Magisk 模块、按需卸载 App、重启验证 |
 | `device/机型对照.md` | 选机标准与 LineageOS 官方支持机型对照，含小米解锁等 7 天时延提示 |
 
-## 文档（11）
+## 文档（12）
 
 | 文件 | 作用 |
 |---|---|
@@ -125,6 +126,7 @@
 | `docs/接口与指标口径.md` | 接口与指标口径：前缀、两族划分、event_id 归属、时间双字段、格式约定、P95 口径与复现 |
 | `docs/演示脚本.md` | 8 分钟演示脚本：六段流程，换个人照纸条也能演完 |
 | `docs/硬件接入.md` | 硬件接入：香橙派/树莓派/ESP32 分工、接线、topic 表、没网怎么演示 |
+| `docs/端云同步接口.md` | 端云同步接口说明：三条接口的语义、请求/响应示例、与 4.1 架构图第 5 层的对应 |
 | `docs/评审答复_4.2.md` | 对 4.2 评审意见的答复：三条报告修改的结论、四个接口问题的取舍、方案 B 的实施与实测 |
 | `docs/路线对照_R1-R8.md` | 需求编号 R1–R8 → 落地位置与状态（已有实现/骨架/未做） |
 | `docs/验收清单.md` | 验收清单：后端七套、App 真机、硬件、系统改造四类检查项 |
