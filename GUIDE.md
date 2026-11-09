@@ -117,6 +117,7 @@ pending ──通知──▶ notified ──确认──▶ confirmed
 | 2 | `server/server.py` 里的 `init_db()` | 看数据表长什么样（业务全在这几张表里） |
 | 3 | `slots_on()` | 规则怎么变成"今天的提醒" |
 | 4 | `ensure_occurrences()` | 什么时候把提醒写进库 |
+| 4.5 | `app/lib/local_db.dart` / `device_scheduler.dart` | 手机端主副本三表与端上 30 秒 tick（断网也能提醒） |
 | 5 | **`transition()`** | 状态怎么变、为什么只能从这里变 |
 | 6 | `scheduler_tick()` | 升级链怎么跑：到点 notified → 2 分钟 escalated（通知家属）→ 15 分钟 missed |
 | 7 | `app/lib/state.dart` 的 `record()` → `pushPending()` | 手机端怎么提交、断网怎么补 |
