@@ -153,7 +153,7 @@ python3 test_accept.py                 # 可靠性 6 项（含 10 次重启、�
 python3 test_align.py                  # 一致性 9 项（改计划不改历史、换时区不新增）
 ```
 
-七套全过会打印 `总计：X/X 通过`。CI（`.github/workflows/ci.yml`）每次 push 都跑这七套。
+八套全过会打印 `总计：X/X 通过`。CI（`.github/workflows/ci.yml`）每次 push 都跑这八套。
 
 ---
 
