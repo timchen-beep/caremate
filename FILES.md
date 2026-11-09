@@ -195,7 +195,7 @@
 | `tools/README.md` | 辅助工具的说明：怎么跑七套验收并生成一份证据文件 |
 | `tools/collect_evidence.py` | 跑七套验收并把结果汇总成一份 markdown 证据文件 |
 | `tools/sample_p95.py` | 一键取 P95 真实样本：干净端口 + 临时库 → 建 40 秒后的计划 → 等调度器派发 → 打印派发延迟 |
-| `tools/verify_all.py` | 一键全量验证：完整性守卫 + 语法检查 + 七套验收 + 四个页面 HTTP 检查（可选 flutter analyze） |
+| `tools/verify_all.py` | 一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 八套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze） |
 
 ## 仓库根（10）
 
