@@ -2,7 +2,7 @@
 
 <!-- 作用：函数索引：每个函数一行说明，由代码里的注释自动生成 -->
 
-> 由代码里的 `函数 X：说明` 注释提取；共 158 个函数。
+> 由代码里的 `函数 X：说明` 注释提取；共 159 个函数。
 
 ## `app/lib/api.dart`
 
@@ -168,6 +168,7 @@
 | `publish` | 把事件写进 outbox（MQTT 桥和长轮询从这里取） |
 | `raise_alarm` | 生成一条告警：写库 + 入 outbox + 触发通知 |
 | `scheduler_loop` | 后台调度线程，按 TICK 周期跑 scheduler_tick |
+| `scheduler_tick` | 每 30 秒扫一次到期实例——到点置 notified，迟到 THRESHOLD_1 置 escalated（通知家属），迟到 THRESHOLD_3 置 missed；只有它能在无人操作时改状态 |
 | `send_body` | 统一响应输出：CORS 头、内容类型、长度 |
 | `slots_on` | 某天某计划应产生的全部提醒时刻（含餐前偏移、间隔/每周/一次性规则） |
 | `sos` | 呼救：建告警 + 立即推给家属端（<1 秒到达） |
