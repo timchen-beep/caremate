@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-# 作用：CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度、统计、备份、页面路由（零第三方依赖）
+# 作用：CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度（到点 notified→2 分钟 escalated→15 分钟 missed）、统计、备份、页面路由、端云同步三接口（零第三方依赖）
 """CareMate 云端 v0.5 —— 按《Opening Report 4.2》对齐的实现。
 
 对齐的六条（文档 4.2.3–4.2.6）：
 1) occurrence 落表，状态持久化（pending / notified / snoozed / confirmed / missed / escalated）
-2) 调度器在服务进程内，每 30 s 扫一次到期实例；升级链 2/5/15 min 由 job 产生，不依赖任何页面
+2) 调度器放两处：手机端 30 s tick 保证离线也到点提醒；服务端 30 s tick 兜底升级（到点 notified，迟到 THRESHOLD_1 置 escalated，迟到 THRESHOLD_3 置 missed），不依赖任何页面
 3) 唯一状态入口 transition(occ, action, actor, now)；任何接口都不直接写 state 列
 4) 幂等：occurrence.id = uuid5(plan_id + due_at)；event_id = uuid5(occurrence_id, action, client_ts)，唯一索引
 5) 时间统一 UTC 存储（带 Z），另有 tz 字段用于本地展示
@@ -788,6 +788,7 @@ def raise_alarm(user_id, kind, level, occurrence, message):
 
 
 # ================================================================ 调度器（文档 4.2.3）
+# 函数 scheduler_tick：每 30 秒扫一次到期实例——到点置 notified，迟到 THRESHOLD_1 置 escalated（通知家属），迟到 THRESHOLD_3 置 missed；只有它能在无人操作时改状态
 def scheduler_tick(now=None):
     now = now or utc_now()
     stats = {"scanned": 0, "notified": 0, "escalated": 0, "missed": 0}
