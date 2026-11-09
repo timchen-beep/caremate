@@ -139,10 +139,16 @@ def test_restart(n=10):
 
     oc0 = len(before["occurrences"])
     bad = 0
+    proc = None          # 第一轮还没有自己的子进程
     for i in range(n):
-        subprocess.run(["taskkill", "/F", "/IM", "python.exe", "/FI", "WINDOWTITLE eq n/a"],
-                       capture_output=True)
-        # 直接杀占用 8400 的进程
+        # 只杀"我们自己的"和"占用测试端口的"进程；
+        # 不要用 taskkill /IM python.exe —— 那会误伤同机其他 python（别人的服务、编辑器插件）
+        if proc is not None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                proc.kill()
         out = subprocess.run(["powershell", "-NoProfile", "-Command",
                               "(Get-NetTCPConnection -LocalPort %d -State Listen -ErrorAction SilentlyContinue)"
                               ".OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force }" % PORT],
