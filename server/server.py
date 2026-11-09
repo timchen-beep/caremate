@@ -1087,7 +1087,11 @@ def dispatch_stats(days=7):
     def pct(p):
         return round(delays[min(len(delays) - 1, int(len(delays) * p))], 2) if delays else None
 
-    return {"samples": len(delays), "backfill_excluded": backfill, "p50": pct(0.50), "p95": pct(0.95),
+    note = ""
+    if not delays:
+        note = ("no_samples：还没有派发记录。跑一次 python test_v06.py，或在演示中让提醒到点，再看本接口即有数字；此时 p50/p95 为 null 表示「无样本」，不是「测不出来」。")
+    return {"samples": len(delays), "backfill_excluded": backfill, "note": note,
+            "p50": pct(0.50), "p95": pct(0.95),
             "max": round(delays[-1], 2) if delays else None,
             "tick_seconds": int(interval["v"]) if interval else TICK,
             "threshold_seconds": TICK,
