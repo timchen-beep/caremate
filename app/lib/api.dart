@@ -1,4 +1,4 @@
-// 作用：HTTP 客户端：Bearer 令牌、JSON 编解码、错误码到中文提示的映射
+// 作用：HTTP 客户端：Bearer 令牌、JSON 编解码、错误码映射，含端云同步两条（/state?since= 回灌、/events 批量上行）
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
