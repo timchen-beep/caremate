@@ -119,7 +119,7 @@ pending ──通知──▶ notified ──确认──▶ confirmed
 | 4 | `ensure_occurrences()` | 什么时候把提醒写进库 |
 | 4.5 | `app/lib/local_db.dart` / `device_scheduler.dart` | 手机端主副本三表与端上 30 秒 tick（断网也能提醒） |
 | 5 | **`transition()`** | 状态怎么变、为什么只能从这里变 |
-| 6 | `scheduler_tick()` | 升级链怎么跑：到点 notified → 2 分钟 escalated（通知家属）→ 15 分钟 missed |
+| 6 | `scheduler_tick()` | 升级链怎么跑：到点 notified → 2 分钟 escalated（通知家属）→ 5 分钟再发一条 level 3 告警 → 15 分钟 missed |
 | 7 | `app/lib/state.dart` 的 `record()` → `pushPending()` | 手机端怎么提交、断网怎么补 |
 | 8 | `server/web/dashboard.html` 的 `watchAlarms()` | 家属端为什么能 1 秒内看到 |
 
