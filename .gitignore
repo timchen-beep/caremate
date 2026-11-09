@@ -1,0 +1,7 @@
+
+# 测试与运行时产物（跑 test_accept / 本地起服务会产生）
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+backups/
