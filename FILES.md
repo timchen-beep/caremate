@@ -4,15 +4,15 @@
 
 > 由各文件头部的 `作用：` 注释自动提取；改代码时改注释，重跑生成脚本即可。
 
-共 134 个文件。
+共 137 个文件。
 
 | 目录 | 文件数 | 说明 |
 |---|---|---|
 | `server` | 31 | 后端与页面 |
 | `.github` | 2 | CI |
-| `app` | 37 | Flutter 老人端 |
+| `app` | 39 | Flutter 老人端 |
 | `device` | 4 | 刷机与回滚 |
-| `docs` | 12 | 文档 |
+| `docs` | 13 | 文档 |
 | `magisk-module` | 7 | Magisk 定制层 |
 | `pi` | 6 | 树莓派 / 香橙派部署 |
 | `qt` | 15 | Qt/QML 老人端骨架 |
@@ -63,7 +63,7 @@
 | `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 七套验收 + 页面检查 + 完整性守卫） |
 | `.github/workflows/flutter-build.yml` | 手动触发的 APK 构建（release/debug 可选，产物上传为 artifact） |
 
-## Flutter 老人端（37）
+## Flutter 老人端（39）
 
 | 文件 | 作用 |
 |---|---|
@@ -95,6 +95,8 @@
 | `app/android/settings.gradle` | Gradle 设置：加载 Flutter 插件、声明依赖仓库（FAIL_ON_PROJECT_REPOS） |
 | `app/lib/README.md` | Flutter 端源码的说明：文件分工与数据流 |
 | `app/lib/api.dart` | HTTP 客户端：Bearer 令牌、JSON 编解码、错误码到中文提示的映射 |
+| `app/lib/device_scheduler.dart` | 端上 30 秒 tick（4.1 架构图第 3 层）：到点把本地实例置 notified 并触发本机通知；升级与告警仍由云端兜底 |
+| `app/lib/local_db.dart` | 手机端本地库（4.1 架构图第 3 层）：plans / occurrences / events 三表 + 同步游标，冷启动先读这里 |
 | `app/lib/main.dart` | App 入口：初始化状态与本地通知，挂三个 tab（今天/记录/我的） |
 | `app/lib/models.dart` | 数据模型：Occurrence / Plan / AppEvent，字段与契约 v0.1 一一对应 |
 | `app/lib/notify.dart` | 本地通知：通知渠道、按计划重排精确闹钟（setExactAndAllowWhileIdle）、开机重排 |
@@ -114,10 +116,11 @@
 | `device/rollback.sh` | 回滚：解除 kiosk、禁用 Magisk 模块、按需卸载 App、重启验证 |
 | `device/机型对照.md` | 选机标准与 LineageOS 官方支持机型对照，含小米解锁等 7 天时延提示 |
 
-## 文档（12）
+## 文档（13）
 
 | 文件 | 作用 |
 |---|---|
+| `docs/Opening_Report_Web_Cloud_修订版_v3.docx` | （未标注） |
 | `docs/README.md` | 文档目录的说明：每份文档解决什么问题、什么时候看 |
 | `docs/topics.md` | MQTT topic 与 payload 约定，含发布方/订阅方与频率说明 |
 | `docs/云部署.md` | 上云部署步骤：买机、换令牌、systemd、Caddy、验证、备份（约 40 分钟） |

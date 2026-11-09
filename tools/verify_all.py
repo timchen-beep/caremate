@@ -63,6 +63,51 @@ def check_truncation():
     record("完整性守卫（文件没被截断）", not bad, "；".join(bad[:3]))
 
 
+# ---------------------------------------------------------------- 二进制完整性
+BINARY_MAGIC = {
+    ".png": b"\x89PNG",
+    ".jpg": b"\xff\xd8",
+    ".jpeg": b"\xff\xd8",
+    ".jar": b"PK",
+    ".apk": b"PK",
+    ".aab": b"PK",
+    ".ico": b"\x00\x00\x01\x00",
+    ".db": b"SQLite format 3",
+}
+
+
+def check_binaries():
+    """二进制文件必须以正确魔数开头。
+
+    为什么需要这条：早期一个批量脚本用 encoding="utf-8", errors="replace" 读写**所有**文件，
+    把 PNG 与 gradle-wrapper.jar 一并当文本处理，魔数被替换字符（efbfbd）覆盖——文件还在、
+    大小也正常，但 AAPT 与 Gradle 直接失败。文本扫描发现不了，只有这里能发现。
+    """
+    try:
+        files = subprocess.run(["git", "-C", ROOT, "-c", "core.quotepath=false", "ls-files"],
+                               capture_output=True, text=True, encoding="utf-8").stdout.splitlines()
+    except OSError:
+        record("二进制完整性", True, "非 git 目录，跳过")
+        return
+    bad = []
+    for rel in files:
+        ext = os.path.splitext(rel)[1].lower()
+        magic = BINARY_MAGIC.get(ext)
+        if not magic:
+            continue
+        p = os.path.join(ROOT, rel.replace("/", os.sep))
+        if not os.path.isfile(p):
+            continue
+        try:
+            with open(p, "rb") as f:
+                head = f.read(16)
+        except OSError:
+            continue
+        if not head.startswith(magic):
+            bad.append("%s（头 %s）" % (rel, head[:4].hex()))
+    record("二进制完整性（PNG/JAR/APK 魔数）", not bad, "；".join(bad[:3]))
+
+
 # ---------------------------------------------------------------- 2) 语法
 def check_syntax():
     bad = []
@@ -181,6 +226,7 @@ def main():
     print("CareMate 全量验证")
     print("=" * 78)
     check_truncation()
+    check_binaries()
     check_syntax()
     proc, db = run_server()
     try:

@@ -26,6 +26,20 @@ open(p, "w").write(text)
 
 判断标准：脚本里出现 `read(N)`、`readline()`、`truncate()`、`fileinput` 时，先停下来想清楚。
 
+**二进制文件必须用 `"rb"` / `"wb"`**，绝不能经过 `encoding=` 的文本读写：
+
+```python
+# ✅ 图片/JAR/APK/数据库
+raw = open(p, "rb").read()
+open(p, "wb").write(raw)
+
+# ❌ 会把 PNG 头 \x89PNG 变成替换字符 efbfbd，文件大小还正常，AAPT 直接失败
+text = open(p, encoding="utf-8", errors="replace").read()
+open(p, "w").write(text)
+```
+
+**真实事故**：一次批量加注释的脚本对目录下所有文件用 `errors="replace"` 读写，把 5 个 `ic_launcher.png`、3 个 PWA 图标和 `gradle-wrapper.jar` 一起写坏——表现为 `AAPT: file failed to compile` 与 `ClassNotFoundException: GradleWrapperMain`，而 `git status` 看不出任何异常。
+
 ---
 
 ## 铁律二：改完必须验证，而且是"跑起来验证"
@@ -35,7 +49,7 @@ open(p, "w").write(text)
 | 级别 | 什么时候做 | 命令 |
 |---|---|---|
 | L1 语法 | 每次改完 | `python -m py_compile`、`bash -n`、`flutter analyze` |
-| L2 全量验收 | 每次改后端/页面/测试 | **`python tools/verify_all.py`**（七套 + 三个页面 HTTP 检查） |
+| L2 全量验收 | 每次改后端/页面/测试 | **`python tools/verify_all.py`**（17 项：截断守卫 + 二进制魔数 + 语法 + 服务 + 八套验收 + 四个页面） |
 | L3 真机 | 交付前 | 见 `docs/验收清单.md` |
 
 一键：
@@ -90,6 +104,7 @@ GitHub 文件列表的 "Last commit message" 列取的是**最后一次改动该
 | 坑 | 现象 | 正确做法 |
 |---|---|---|
 | 截断回写 | 大文件变小，页面还在但功能没了 | 完整读写；跑 `verify_all.py` |
+| 文本方式读写二进制 | PNG/JAR 头被替换字符覆盖，构建期才报错 | 二进制用 `"rb"`/`"wb"`；`verify_all.py` 已加魔数守卫 |
 | Windows 控制台 GBK | 中文输出乱码、`UnicodeDecodeError` | 脚本内 `encoding="utf-8", errors="replace"`；输出写文件再读 |
 | UTF-8 BOM | Dart 报 `Illegal character '65279'` | 写文件用 `utf-8` 且**不加 BOM** |
 | CRLF/LF | git 反复提示"文件已修改"但内容没变 | 仓库统一 LF；`.gitattributes` 里 `*.bat eol=crlf` |
