@@ -191,11 +191,16 @@ def test_scheduler():
     }
     alarms = items_of(call("/api/v1/alarms?user_id=u-elder", FAM))
     hits = [a for a in alarms if by_plan.get(p_missed, {}).get("id") == a["occurrence"]]
+    # th2 档（5 分钟）应再发一条 level 3 告警
+    esc_id = by_plan.get(p_escalated, {}).get("id")
+    esc_alarms = [a for a in alarms if a.get("occurrence") == esc_id]
+    levels = sorted({int(a.get("level") or 0) for a in esc_alarms})
+    th2_ok = levels == [2, 3]
 
     ok = (got["notified"] == "notified" and got["escalated"] == "escalated"
-          and got["missed"] == "missed" and len(hits) >= 1)
-    RESULTS.append(("30 s 调度产生升级", "1 分钟→%s、6 分钟→%s、16 分钟→%s，告警 %d 条"
-                    % (got["notified"], got["escalated"], got["missed"], len(hits)), ok))
+          and got["missed"] == "missed" and len(hits) >= 1 and th2_ok)
+    RESULTS.append(("30 s 调度产生升级", "1 分钟→%s、6 分钟→%s（告警 level %s）、16 分钟→%s，missed 告警 %d 条"
+                    % (got["notified"], got["escalated"], levels, got["missed"], len(hits)), ok))
     RESULTS.append(("tick 扫描统计", json.dumps(tick, ensure_ascii=False), True))
     return ok
 
