@@ -119,8 +119,9 @@ def test_offline_queue():
         r = call("/api/v1/occurrences/%s/events" % oid, APP, item)
         dup += 1 if r.get("duplicate") else 0
 
+    # 只数客户端提交的动作（方案 B 后到点会多一条调度器 notified 事件）
     events = [e for e in items_of(call("/api/v1/events?user_id=u-elder&limit=200", FAM))
-              if e["occurrence_id"] == oid]
+              if e["occurrence_id"] == oid and e.get("action") in ("snoozed", "confirmed", "missed")]
     exactly3 = len(events) == 3
     RESULTS.append(("断网 3 条回补", "库里 %d 条（应 3），重复提交被识别 %d 次" % (len(events), dup),
                     exactly3 and dup == 3))
@@ -174,7 +175,7 @@ def test_forbidden():
 
 # ---------------------------------------------------------------- 5) 调度与升级
 def test_scheduler():
-    p_notified, _ = plan_at(3, "调度测试-通知")
+    p_notified, _ = plan_at(1, "调度测试-通知")
     p_escalated, _ = plan_at(6, "调度测试-升级")
     p_missed, _ = plan_at(16, "调度测试-未确认")
     call("/api/v1/overview?user_id=u-elder&days=1", FAM)   # 物化
@@ -193,7 +194,7 @@ def test_scheduler():
 
     ok = (got["notified"] == "notified" and got["escalated"] == "escalated"
           and got["missed"] == "missed" and len(hits) >= 1)
-    RESULTS.append(("30 s 调度产生升级", "3 分钟→%s、6 分钟→%s、16 分钟→%s，告警 %d 条"
+    RESULTS.append(("30 s 调度产生升级", "1 分钟→%s、6 分钟→%s、16 分钟→%s，告警 %d 条"
                     % (got["notified"], got["escalated"], got["missed"], len(hits)), ok))
     RESULTS.append(("tick 扫描统计", json.dumps(tick, ensure_ascii=False), True))
     return ok
