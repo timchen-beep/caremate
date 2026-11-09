@@ -71,7 +71,9 @@ python server.py --port 8000
 | GET | `/api/v1/overview?date=&days=` | 一次拿全：实例 + 计划 + 记录 + 告警 + 统计（看板全用它） |
 | GET/POST | `/api/v1/plans`；`PUT/DELETE /api/v1/plans/{id}` | 计划 CRUD；`{"active":0}` 停用，`{"paused_until":"…"}` 暂停 |
 | POST | `/api/v1/occurrences/action` | `{plan_id, slot, action: confirmed\|snoozed\|missed}` |
-| POST | `/api/v1/events` | 旧接口，语义同上（App 端继续可用） |
+| POST | `/api/v1/events` | **批量上行**：`{events:[{occurrence_id,action,client_ts,event_id}]}`，逐条返回 accepted/duplicates/rejected（4.1 图第 5 层） |
+| GET | `/api/v1/state?since=` | **按游标回灌**：since 之后变化的实例与记录，返回 `next_since`（换机/重装/家属代确认后对齐） |
+| POST | `/api/v1/alarm` | **端侧主动告警**：`{kind:sos,note,device}`，立即落库并推给家属端 |
 | GET/POST | `/api/v1/records`；`PATCH/DELETE /api/v1/records/{id}` | 记录增改撤 |
 | GET | `/api/v1/stats?days=7` | 完成率、连续天数、按日分布、口径说明 |
 | GET | `/api/v1/alarms`；`POST /api/v1/alarms/ack` | 告警与已读 |
