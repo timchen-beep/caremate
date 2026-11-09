@@ -55,7 +55,7 @@ open(p, "w").write(text)
 一键：
 
 ```bash
-python tools/verify_all.py            # 七套验收 + 页面检查 + 语法检查
+python tools/verify_all.py            # 八套验收 + 页面检查 + 语法检查
 python tools/verify_all.py --flutter  # 额外跑 flutter analyze
 ```
 
