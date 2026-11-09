@@ -49,7 +49,7 @@ open(p, "w").write(text)
 | 级别 | 什么时候做 | 命令 |
 |---|---|---|
 | L1 语法 | 每次改完 | `python -m py_compile`、`bash -n`、`flutter analyze` |
-| L2 全量验收 | 每次改后端/页面/测试 | **`python tools/verify_all.py`**（18 项：截断守卫 + 二进制魔数 + 语法 + 服务 + 八套验收 + 产物卫生 + 四个页面） |
+| L2 全量验收 | 每次改后端/页面/测试 | **`python tools/verify_all.py`**（19 项：截断守卫 + 二进制魔数 + 语法 + 服务 + 八套验收 + 产物卫生 + 四个页面 + 文档数字一致） |
 | L3 真机 | 交付前 | 见 `docs/验收清单.md` |
 
 一键：
