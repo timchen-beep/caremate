@@ -34,7 +34,7 @@
 | `server/docs/HARDWARE.md` | 硬件接入：香橙派/树莓派/ESP32 分工、接线、topic 表 |
 | `server/evidence-验收汇总.md` | 七套验收的汇总证据：命令、时间、通过数（由 tools/collect_evidence.py 生成） |
 | `server/firmware/esp32_node.ino` | ESP32 传感器节点：读 LD2410C 雷达并上报 presence，收告警按语义表点灯/蜂鸣（不含业务判断） |
-| `server/server.py` | CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度、统计、备份、页面路由（零第三方依赖） |
+| `server/server.py` | CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度（到点 notified→2 分钟 escalated→15 分钟 missed）、统计、备份、页面路由、端云同步三接口（零第三方依赖） |
 | `server/start.bat` | Windows 本地启动器：ASCII 输出，避免中文代码页乱码 |
 | `server/test_accept.py` | 可靠性验收 6 项：P95 派发、断网补传、越权 403、升级链自驱、10 次重启不丢不重 |
 | `server/test_align.py` | 一致性 9 项：from/to 反序 400、改计划历史不变、换时区不新增行、单入口检查 |
@@ -94,16 +94,16 @@
 | `app/android/gradlew.bat` | Gradle wrapper（Windows 脚本），构建入口之一 |
 | `app/android/settings.gradle` | Gradle 设置：加载 Flutter 插件、声明依赖仓库（FAIL_ON_PROJECT_REPOS） |
 | `app/lib/README.md` | Flutter 端源码的说明：文件分工与数据流 |
-| `app/lib/api.dart` | HTTP 客户端：Bearer 令牌、JSON 编解码、错误码到中文提示的映射 |
+| `app/lib/api.dart` | HTTP 客户端：Bearer 令牌、JSON 编解码、错误码映射，含端云同步两条（/state?since= 回灌、/events 批量上行） |
 | `app/lib/device_scheduler.dart` | 端上 30 秒 tick（4.1 架构图第 3 层）：到点把本地实例置 notified 并触发本机通知；升级与告警仍由云端兜底 |
 | `app/lib/local_db.dart` | 手机端本地库（4.1 架构图第 3 层）：plans / occurrences / events 三表 + 同步游标，冷启动先读这里 |
 | `app/lib/main.dart` | App 入口：初始化状态与本地通知，挂三个 tab（今天/记录/我的） |
 | `app/lib/models.dart` | 数据模型：Occurrence / Plan / AppEvent，字段与契约 v0.1 一一对应 |
-| `app/lib/notify.dart` | 本地通知：通知渠道、按计划重排精确闹钟（setExactAndAllowWhileIdle）、开机重排 |
+| `app/lib/notify.dart` | 本地通知：通知渠道、按计划重排精确闹钟（setExactAndAllowWhileIdle）、开机重排、端上 tick 到点弹提醒（showReminder） |
 | `app/lib/screens/records.dart` | 记录页：今日统计、今天要做的事、已提交动作（含未同步标记） |
 | `app/lib/screens/settings.dart` | 我的页：服务器地址与令牌、配对码、通知自检、同步状态 |
 | `app/lib/screens/today.dart` | 今天页：到点卡片 + 吃了/等会儿/没做 三个大按钮 |
-| `app/lib/state.dart` | 全局状态与动作：拉计划、点确认/稍后、离线队列落盘、联网补传、同步 |
+| `app/lib/state.dart` | 全局状态与动作：冷启动读本地主副本、点确认/稍后、事件入本地库、批量上行、按游标回灌合并 |
 | `app/pubspec.lock` | 依赖版本锁定文件，保证不同机器装到同一批依赖 |
 | `app/pubspec.yaml` | Flutter 依赖：本地库（sqflite）、本地通知、精确闹钟、离线设置 |
 
