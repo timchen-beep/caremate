@@ -809,21 +809,23 @@ def scheduler_tick(now=None):
                 transition(row["id"], "notified", actor="scheduler", source="scheduler")
                 stats["notified"] += 1
             continue
-        # 补齐链条：越过某级时先把 sent 记录补上，保证日志能解释"为什么升级"
-        if late >= CONFIG["th2"] and not row["notified_at"]:
+        # 方案 B 的升级链：到点即 notified（不能等 th1，否则老人迟到 2 分钟才收到提醒）
+        #   到点            → notified（本机提醒）
+        #   迟到 th1 分钟   → escalated（通知家属），同时保证 notified 记录已存在
+        #   迟到 th3 分钟   → missed（记未确认）
+        if not row["notified_at"]:
             transition(row["id"], "notified", actor="scheduler", source="scheduler")
             stats["notified"] += 1
             row = dict(row)
             row["notified_at"] = iso(now)
         if late >= CONFIG["th3"]:
-            transition(row["id"], "missed", actor="scheduler", source="scheduler")
-            stats["missed"] += 1
-        elif late >= CONFIG["th2"] and row["state"] != "escalated":
-            transition(row["id"], "escalated", actor="scheduler", source="scheduler")
-            stats["escalated"] += 1
-        elif late >= CONFIG["th1"] and row["state"] == "pending":
-            transition(row["id"], "notified", actor="scheduler", source="scheduler")
-            stats["notified"] += 1
+            if row["state"] != "missed":
+                transition(row["id"], "missed", actor="scheduler", source="scheduler")
+                stats["missed"] += 1
+        elif late >= CONFIG["th1"]:
+            if row["state"] not in ("escalated", "missed", "confirmed"):
+                transition(row["id"], "escalated", actor="scheduler", source="scheduler")
+                stats["escalated"] += 1
     try:
         stats["inactivity"] = inactivity_check(now)
     except Exception as exc:  # noqa: BLE001
