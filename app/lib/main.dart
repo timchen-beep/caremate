@@ -1,6 +1,7 @@
 // 作用：App 入口：初始化状态与本地通知，挂三个 tab（今天/记录/我的）
 import 'package:flutter/material.dart';
 
+import 'device_scheduler.dart';
 import 'notify.dart';
 import 'screens/records.dart';
 import 'screens/settings.dart';
@@ -13,6 +14,8 @@ void main() async {
   await state.init();
   await Notifier.init();
   await Notifier.rescheduleAll(state.plans, due: state.due);
+  // 端上调度器：每 30 秒把到点的本地实例置 notified 并弹本机通知（4.1 架构图第 3 层）
+  DeviceScheduler(onChanged: state.recomputeDue).start();
   runApp(CareMateApp(state: state));
 }
 
