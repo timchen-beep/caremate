@@ -4,7 +4,7 @@
 
 对齐的六条（文档 4.2.3–4.2.6）：
 1) occurrence 落表，状态持久化（pending / notified / snoozed / confirmed / missed / escalated）
-2) 调度器在服务进程内，每 30 s 扫一次到期实例；升级链 2/5/15 min 由 job 产生，不依赖任何页面
+2) 调度器放两处：手机端 30 s tick 保证离线也到点提醒；服务端 30 s tick 兜底升级（到点 notified，迟到 THRESHOLD_1 置 escalated，迟到 THRESHOLD_2 再提醒家属一次，迟到 THRESHOLD_3 置 missed），不依赖任何页面
 3) 唯一状态入口 transition(occ, action, actor, now)；任何接口都不直接写 state 列
 4) 幂等：occurrence.id = uuid5(plan_id + due_at)；event_id = uuid5(occurrence_id, action, client_ts)，唯一索引
 5) 时间统一 UTC 存储（带 Z），另有 tz 字段用于本地展示
@@ -809,9 +809,10 @@ def scheduler_tick(now=None):
                 transition(row["id"], "notified", actor="scheduler", source="scheduler")
                 stats["notified"] += 1
             continue
-        # 方案 B 的升级链：到点即 notified（不能等 th1，否则老人迟到 2 分钟才收到提醒）
+        # 升级链（三档，阈值为 2/5/15 分钟，可用环境变量覆盖）：
         #   到点            → notified（本机提醒）
-        #   迟到 th1 分钟   → escalated（通知家属），同时保证 notified 记录已存在
+        #   迟到 th1 分钟   → escalated（通知家属，告警 level 2）
+        #   迟到 th2 分钟   → 再提醒家属一次（告警 level 3，状态仍是 escalated）
         #   迟到 th3 分钟   → missed（记未确认）
         if not row["notified_at"]:
             transition(row["id"], "notified", actor="scheduler", source="scheduler")
@@ -822,10 +823,18 @@ def scheduler_tick(now=None):
             if row["state"] != "missed":
                 transition(row["id"], "missed", actor="scheduler", source="scheduler")
                 stats["missed"] += 1
-        elif late >= CONFIG["th1"]:
-            if row["state"] not in ("escalated", "missed", "confirmed"):
+        else:
+            if late >= CONFIG["th1"] and row["state"] not in ("escalated", "missed", "confirmed"):
                 transition(row["id"], "escalated", actor="scheduler", source="scheduler")
                 stats["escalated"] += 1
+                row = dict(row)
+                row["state"] = "escalated"
+            # th2：第二次提醒家属（只发告警，不改状态；_alarm_once 按 kind+occurrence+level 去重）
+            if late >= CONFIG["th2"] and row["state"] == "escalated":
+                aid = raise_alarm(row["user_id"], "escalated", 3, row["id"],
+                                  "仍未确认：%s（已过 %d 分钟）" % (row["title_snap"] or "", int(late)))
+                if aid:
+                    stats["escalated"] += 1
     try:
         stats["inactivity"] = inactivity_check(now)
     except Exception as exc:  # noqa: BLE001
