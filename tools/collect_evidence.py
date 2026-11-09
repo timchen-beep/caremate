@@ -82,7 +82,7 @@ lines.append("python server.py --port 8000")
 lines.append("python collect_evidence.py")
 lines.append("```")
 lines.append("")
-lines.append("> 验收用默认阈值 2/15（2 分钟没确认 → 通知家属，15 分钟 → 记未确认）；`--demo` 会把阈值设成 1/3/10、等会儿 5 分钟，**只用于演示**（口径不同，别混用）。")
+lines.append("> 验收用默认阈值 2/5/15（2 分钟没确认 → 通知家属，5 分钟 → 再提醒一次，15 分钟 → 记未确认）；`--demo` 会把阈值设成 1/3/10、等会儿 5 分钟，**只用于演示**（口径不同，别混用）。")
 
 outdir = os.path.join(BASE, "evidence")
 os.makedirs(outdir, exist_ok=True)
