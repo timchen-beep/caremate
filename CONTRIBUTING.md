@@ -49,7 +49,7 @@ open(p, "w").write(text)
 | 级别 | 什么时候做 | 命令 |
 |---|---|---|
 | L1 语法 | 每次改完 | `python -m py_compile`、`bash -n`、`flutter analyze` |
-| L2 全量验收 | 每次改后端/页面/测试 | **`python tools/verify_all.py`**（17 项：截断守卫 + 二进制魔数 + 语法 + 服务 + 八套验收 + 四个页面） |
+| L2 全量验收 | 每次改后端/页面/测试 | **`python tools/verify_all.py`**（18 项：截断守卫 + 二进制魔数 + 语法 + 服务 + 八套验收 + 产物卫生 + 四个页面） |
 | L3 真机 | 交付前 | 见 `docs/验收清单.md` |
 
 一键：
@@ -105,6 +105,7 @@ GitHub 文件列表的 "Last commit message" 列取的是**最后一次改动该
 |---|---|---|
 | 截断回写 | 大文件变小，页面还在但功能没了 | 完整读写；跑 `verify_all.py` |
 | 文本方式读写二进制 | PNG/JAR 头被替换字符覆盖，构建期才报错 | 二进制用 `"rb"`/`"wb"`；`verify_all.py` 已加魔数守卫 |
+| 测试产物入库 | `*.db` / `__pycache__` 被 `git add -A` 一起提交（本仓库发生过 3 次） | 跑完测试后 `verify_all.py` 的「产物卫生」会拦；分支必须有 `.gitignore` |
 | Windows 控制台 GBK | 中文输出乱码、`UnicodeDecodeError` | 脚本内 `encoding="utf-8", errors="replace"`；输出写文件再读 |
 | UTF-8 BOM | Dart 报 `Illegal character '65279'` | 写文件用 `utf-8` 且**不加 BOM** |
 | CRLF/LF | git 反复提示"文件已修改"但内容没变 | 仓库统一 LF；`.gitattributes` 里 `*.bat eol=crlf` |
