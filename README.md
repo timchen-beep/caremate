@@ -34,7 +34,7 @@
 
 | 目录 | 内容 |
 |---|---|
-| `server/` | Python 后端、老人端网页预览、家属看板、部署脚本、MQTT 桥、ESP32 固件、七套验收脚本 |
+| `server/` | Python 后端、老人端网页预览、家属看板、部署脚本、MQTT 桥、ESP32 固件、八套验收脚本 |
 | `app/` | **Flutter 老人端（正式交付）**，已能 `flutter build apk` |
 | `qt/` | Qt/QML 老人端（B4 路线，骨架，未编译）——契约相同，可平替 `app/` |
 | `pi/` | 树莓派/香橙派部署：mosquitto 配置、systemd、零依赖 MQTT 桥 |
@@ -49,10 +49,10 @@
 
 | 分支 | 文件数 | 是什么 | 什么时候看它 |
 |---|---|---|---|
-| [`main`](../../tree/main) | 125 | 整合版：Flutter + Qt 骨架 + 树莓派 + 系统改造脚本 | 默认；交付与答辩用这个 |
-| [`v1-web`](../../tree/v1-web) | 59 | Python 后端 + Web 看板 + PWA，七套验收 56/56 | 想复现最早那版"纯 Web"实现 |
-| [`v2-qt`](../../tree/v2-qt) | 65 | Qt/QML 老人端 + 树莓派 broker + ESP32 雷达 + root 安卓 | 对照课程文档的 Qt 技术路线 |
-| [`v3-flash`](../../tree/v3-flash) | 56 | LineageOS + Magisk kiosk 定制层 + 8 项系统自检 | 需要"只有这一个 App"的设备级演示 |
+| [`main`](../../tree/main) | 137 | 整合版：Flutter + Qt 骨架 + 树莓派 + 系统改造脚本 | 默认；交付与答辩用这个 |
+| [`v1-web`](../../tree/v1-web) | 62 | Python 后端 + Web 看板 + PWA，七套验收 56/56（该分支没有端云同步，共七套） | 想复现最早那版"纯 Web"实现 |
+| [`v2-qt`](../../tree/v2-qt) | 68 | Qt/QML 老人端 + 树莓派 broker + ESP32 雷达 + root 安卓 | 对照课程文档的 Qt 技术路线 |
+| [`v3-flash`](../../tree/v3-flash) | 59 | LineageOS + Magisk kiosk 定制层 + 8 项系统自检 | 需要"只有这一个 App"的设备级演示 |
 
 ### 每条分支里有什么（找不到文件时看这张表）
 
@@ -76,9 +76,9 @@
 
 | 分支 | 文件数 | 里面只有什么 |
 |---|---|---|
-| [`v1-web-core`](../../tree/v1-web-core) | 35 | `server.py`（业务与状态机）+ 老人端/看板 HTML + Flutter 源码 + 七套测试 |
-| [`v2-qt-core`](../../tree/v2-qt-core) | 46 | QML 页面 + `ReminderModel` + Android 精确闹钟 JNI + 树莓派部署 + 雷达固件 |
-| [`v3-flash-core`](../../tree/v3-flash-core) | 39 | 系统改造脚本 + Magisk 模块 + 刷机/回滚脚本 |
+| [`v1-web-core`](../../tree/v1-web-core) | 39 | `server.py`（业务与状态机）+ 老人端/看板 HTML + Flutter 源码 + 八套测试 |
+| [`v2-qt-core`](../../tree/v2-qt-core) | 49 | QML 页面 + `ReminderModel` + Android 精确闹钟 JNI + 树莓派部署 + 雷达固件 |
+| [`v3-flash-core`](../../tree/v3-flash-core) | 42 | 系统改造脚本 + Magisk 模块 + 刷机/回滚脚本 |
 
 每个 `-core` 分支根部都有 `README.md`，写了核心文件速览、怎么跑、以及哪些部分尚未验证。
 
