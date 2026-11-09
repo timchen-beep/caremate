@@ -94,7 +94,7 @@
 python tools/verify_all.py --flutter
 ```
 
-它会做：截断守卫 → 二进制魔数 → 语法 → 起服务 → 八套验收 → 产物卫生 → 四个页面 HTTP 检查 →（可选）Flutter analyze，全过才打印 `总计：18/18 通过`。
+它会做：截断守卫 → 二进制魔数 → 语法 → 起服务 → 八套验收 → 产物卫生 → 四个页面 HTTP 检查 →（可选）Flutter analyze，全过才打印 `总计：X/X 通过`。
 
 ## 代码怎么看
 
