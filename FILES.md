@@ -4,7 +4,7 @@
 
 > 由各文件头部的 `作用：` 注释自动提取；改代码时改注释，重跑生成脚本即可。
 
-共 137 个文件。
+共 136 个文件。
 
 | 目录 | 文件数 | 说明 |
 |---|---|---|
@@ -12,7 +12,7 @@
 | `.github` | 2 | CI |
 | `app` | 39 | Flutter 老人端 |
 | `device` | 4 | 刷机与回滚 |
-| `docs` | 13 | 文档 |
+| `docs` | 12 | 文档 |
 | `magisk-module` | 7 | Magisk 定制层 |
 | `pi` | 6 | 树莓派 / 香橙派部署 |
 | `qt` | 15 | Qt/QML 老人端骨架 |
@@ -34,7 +34,7 @@
 | `server/docs/HARDWARE.md` | 硬件接入：香橙派/树莓派/ESP32 分工、接线、topic 表 |
 | `server/evidence-验收汇总.md` | 七套验收的汇总证据：命令、时间、通过数（由 tools/collect_evidence.py 生成） |
 | `server/firmware/esp32_node.ino` | ESP32 传感器节点：读 LD2410C 雷达并上报 presence，收告警按语义表点灯/蜂鸣（不含业务判断） |
-| `server/server.py` | CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度（到点 notified→2 分钟 escalated→15 分钟 missed）、统计、备份、页面路由、端云同步三接口（零第三方依赖） |
+| `server/server.py` | CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度（到点 notified→2 分钟 escalated→5 分钟再提醒家属→15 分钟 missed）、统计、备份、页面路由、端云同步三接口（零第三方依赖） |
 | `server/start.bat` | Windows 本地启动器：ASCII 输出，避免中文代码页乱码 |
 | `server/test_accept.py` | 可靠性验收 6 项：P95 派发、断网补传、越权 403、升级链自驱、10 次重启不丢不重 |
 | `server/test_align.py` | 一致性 9 项：from/to 反序 400、改计划历史不变、换时区不新增行、单入口检查 |
@@ -116,11 +116,10 @@
 | `device/rollback.sh` | 回滚：解除 kiosk、禁用 Magisk 模块、按需卸载 App、重启验证 |
 | `device/机型对照.md` | 选机标准与 LineageOS 官方支持机型对照，含小米解锁等 7 天时延提示 |
 
-## 文档（13）
+## 文档（12）
 
 | 文件 | 作用 |
 |---|---|
-| `docs/Opening_Report_Web_Cloud_修订版_v3.docx` | 报告 4.2 正文（v3）：接口前缀/两族、双时间字段、P95 实测、调度器端上为主 |
 | `docs/README.md` | 文档目录的说明：每份文档解决什么问题、什么时候看 |
 | `docs/topics.md` | MQTT topic 与 payload 约定，含发布方/订阅方与频率说明 |
 | `docs/云部署.md` | 上云部署步骤：买机、换令牌、systemd、Caddy、验证、备份（约 40 分钟） |
