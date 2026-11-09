@@ -162,5 +162,16 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> me() async => await _get('/api/v1/me') as Map<String, dynamic>;
+  // 函数 fetchStateSince：按游标回灌服务端状态（4.1 架构图第 5 层下行）
+  Future<Map<String, dynamic>> fetchStateSince(String since) async {
+    final j = await _get('/api/v1/state', {'since': since}) as Map<String, dynamic>;
+    return j;
+  }
+
+  // 函数 pushEventsBatch：批量上行本地事件队列（4.1 架构图第 5 层上行）
+  Future<Map<String, dynamic>> pushEventsBatch(List<Map<String, dynamic>> events) async {
+    final j = await _send('POST', '/api/v1/events', {'events': events}) as Map<String, dynamic>;
+    return j;
+  }
 }
 
