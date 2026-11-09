@@ -32,7 +32,7 @@
 | `server/deploy/caremate.service` | systemd 单元：以单进程跑后端（多进程会有两个调度循环） |
 | `server/deploy/setup.sh` | 服务器一键部署：装 Python/tzdata、建 systemd 单元、起服务并用 curl 自检 |
 | `server/docs/HARDWARE.md` | 硬件接入：香橙派/树莓派/ESP32 分工、接线、topic 表 |
-| `server/evidence-验收汇总.md` | 七套验收的汇总证据：命令、时间、通过数（由 tools/collect_evidence.py 生成） |
+| `server/evidence-验收汇总.md` | 八套验收的汇总证据：命令、时间、通过数（由 tools/collect_evidence.py 生成） |
 | `server/firmware/esp32_node.ino` | ESP32 传感器节点：读 LD2410C 雷达并上报 presence，收告警按语义表点灯/蜂鸣（不含业务判断） |
 | `server/server.py` | CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度（到点 notified→2 分钟 escalated→5 分钟再提醒家属→15 分钟 missed）、统计、备份、页面路由、端云同步三接口（零第三方依赖） |
 | `server/start.bat` | Windows 本地启动器：ASCII 输出，避免中文代码页乱码 |
@@ -60,7 +60,7 @@
 
 | 文件 | 作用 |
 |---|---|
-| `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 七套验收 + 页面检查 + 完整性守卫） |
+| `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 八套验收 + 页面检查 + 完整性守卫） |
 | `.github/workflows/flutter-build.yml` | 手动触发的 APK 构建（release/debug 可选，产物上传为 artifact） |
 
 ## Flutter 老人端（39）
@@ -132,7 +132,7 @@
 | `docs/端云同步接口.md` | 端云同步接口说明：三条接口的语义、请求/响应示例、与 4.1 架构图第 5 层的对应 |
 | `docs/评审答复_4.2.md` | 对 4.2 评审意见的答复：三条报告修改的结论、四个接口问题的取舍、方案 B 的实施与实测 |
 | `docs/路线对照_R1-R8.md` | 需求编号 R1–R8 → 落地位置与状态（已有实现/骨架/未做） |
-| `docs/验收清单.md` | 验收清单：后端七套、App 真机、硬件、系统改造四类检查项 |
+| `docs/验收清单.md` | 验收清单：后端八套、App 真机、硬件、系统改造四类检查项 |
 
 ## Magisk 定制层（7）
 
@@ -192,8 +192,8 @@
 
 | 文件 | 作用 |
 |---|---|
-| `tools/README.md` | 辅助工具的说明：怎么跑七套验收并生成一份证据文件 |
-| `tools/collect_evidence.py` | 跑七套验收并把结果汇总成一份 markdown 证据文件 |
+| `tools/README.md` | 辅助工具的说明：怎么跑八套验收并生成一份证据文件 |
+| `tools/collect_evidence.py` | 跑八套验收并把结果汇总成一份 markdown 证据文件 |
 | `tools/sample_p95.py` | 一键取 P95 真实样本：干净端口 + 临时库 → 建 40 秒后的计划 → 等调度器派发 → 打印派发延迟 |
 | `tools/verify_all.py` | 一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 八套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze） |
 
