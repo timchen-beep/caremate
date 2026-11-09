@@ -120,7 +120,7 @@
 
 | 文件 | 作用 |
 |---|---|
-| `docs/Opening_Report_Web_Cloud_修订版_v3.docx` | （未标注） |
+| `docs/Opening_Report_Web_Cloud_修订版_v3.docx` | 报告 4.2 正文（v3）：接口前缀/两族、双时间字段、P95 实测、调度器端上为主 |
 | `docs/README.md` | 文档目录的说明：每份文档解决什么问题、什么时候看 |
 | `docs/topics.md` | MQTT topic 与 payload 约定，含发布方/订阅方与频率说明 |
 | `docs/云部署.md` | 上云部署步骤：买机、换令牌、systemd、Caddy、验证、备份（约 40 分钟） |
