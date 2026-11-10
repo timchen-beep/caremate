@@ -5,6 +5,7 @@
 #include <QQuickStyle>
 
 #include "core/ReminderModel.h"
+#include "net/SyncPuller.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,7 +17,12 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle(QStringLiteral("Material"));
 
     ReminderModel model;
-    model.loadDemo();          // 首次启动写入演示计划；正式版改为从 MQTT/HTTP 拉取
+    model.loadDemo();          // 先给一屏演示数据，联网后会被服务端覆盖
+
+    // 与云端对接：拉 /v1/plans 与 /v1/state；设 CAREMATE_OFFLINE=1 可只看离线演示
+    SyncPuller sync(&model);
+    if (!qEnvironmentVariableIsSet("CAREMATE_OFFLINE"))
+        sync.start();
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("caremate"), &model);
