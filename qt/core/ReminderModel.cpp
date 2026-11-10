@@ -1,6 +1,8 @@
 // 作用：Qt 规则模型的实现：七种规则展开、30 秒刷新到期判断（对照后端 slots_on/transition）
 #include "ReminderModel.h"
 
+#include "LocalStore.h"
+
 #include <QDebug>
 #include <QSet>
 #include <QUuid>
@@ -87,6 +89,7 @@ ReminderModel::Occ *ReminderModel::find(const QString &occId)
 // 函数 setState：改实例状态并发出变更信号
 void ReminderModel::setState(Occ &o, const QString &state)
 {
+    touchPersist();
     o.state = state;
     emit changed();
 }
@@ -167,7 +170,21 @@ void ReminderModel::recompute()
 // 函数 refresh：30 秒定时重算（与后端调度节奏一致）
 void ReminderModel::refresh()
 {
-    // 到期判断每 30 秒用本地时钟重算一次；真正的状态仍以服务端返回为准
+    // 端上 tick：到点把 pending 置 notified（本机提醒），升级与 missed 仍由云端兜底
+    const QDateTime now = QDateTime::currentDateTime();
+    bool changedState = false;
+    for (Occ &o : m_occs) {
+        if (o.state != QLatin1String("pending") || !o.due.isValid())
+            continue;
+        if (o.due <= now) {
+            o.state = QStringLiteral("notified");
+            changedState = true;
+        }
+    }
+    if (changedState) {
+        touchPersist();
+        emit changed();
+    }
     recompute();
 }
 
@@ -175,6 +192,7 @@ void ReminderModel::refresh()
 // 函数 queueEvent：把一次动作记进待上传队列（eventId 固定，重试不变）
 void ReminderModel::queueEvent(const QString &occId, const QString &action, const QString &reason)
 {
+    touchPersist();
     PendingEvent event;
     event.occId = occId;
     event.action = action;
@@ -210,6 +228,7 @@ QVariantList ReminderModel::pendingEvents() const
 // 函数 markEventsSent：把服务端回执的 server_seq 写回本地事件
 void ReminderModel::markEventsSent(const QVariantList &acks)
 {
+    touchPersist();
     for (const QVariant &entry : acks) {
         const QVariantMap ack = entry.toMap();
         const QString eventId = ack.value(QStringLiteral("eventId")).toString();
@@ -235,6 +254,7 @@ void ReminderModel::setSyncState(const QString &state)
 // 函数 applyRemotePlans：/v1/plans 的 rule（四种）→ 内部 Rule，再重建实例列表
 void ReminderModel::applyRemotePlans(const QVariantList &plans)
 {
+    touchPersist();
     if (plans.isEmpty())
         return;
     m_rules.clear();
@@ -265,6 +285,7 @@ void ReminderModel::applyRemotePlans(const QVariantList &plans)
 // 函数 applyRemoteOccurrences：/v1/state 的实例直接替换本地清单（服务端为准）
 void ReminderModel::applyRemoteOccurrences(const QVariantList &occurrences)
 {
+    touchPersist();
     if (occurrences.isEmpty())
         return;
     QList<Occ> incoming;
@@ -288,3 +309,127 @@ void ReminderModel::applyRemoteOccurrences(const QVariantList &occurrences)
     });
     recompute();
 }
+
+  // ---------------------------------------------------------------- 本地主副本
+  // 函数 loadFromStoreOrDemo：冷启动读库；库里没数据才写演示规则
+  void ReminderModel::loadFromStoreOrDemo()
+  {
+      QString error;
+      QVariantList storedRules, storedOccs, storedEvents;
+      qint64 cursor = 0;
+      if (m_store->open(&error)
+          && m_store->load(&storedRules, &storedOccs, &storedEvents, &cursor)) {
+          m_rules.clear();
+          for (const QVariant &entry : storedRules) {
+              const QVariantMap map = entry.toMap();
+              Rule r;
+              r.id = map.value(QStringLiteral("id")).toString();
+              r.title = map.value(QStringLiteral("title")).toString();
+              r.kind = map.value(QStringLiteral("kind")).toString();
+              r.kindRule = map.value(QStringLiteral("kindRule")).toString();
+              r.dose = map.value(QStringLiteral("dose")).toString();
+              for (const QVariant &time : map.value(QStringLiteral("times")).toList())
+                  r.times << time.toString();
+              for (const QVariant &day : map.value(QStringLiteral("weekdays")).toList())
+                  r.weekdays << day.toInt();
+              m_rules << r;
+          }
+          m_occs.clear();
+          for (const QVariant &entry : storedOccs) {
+              const QVariantMap map = entry.toMap();
+              Occ o;
+              o.id = map.value(QStringLiteral("id")).toString();
+              o.planId = map.value(QStringLiteral("planId")).toString();
+              o.title = map.value(QStringLiteral("title")).toString();
+              o.slotLocal = map.value(QStringLiteral("slotLocal")).toString();
+              o.state = map.value(QStringLiteral("state")).toString();
+              o.due = QDateTime::fromString(o.slotLocal, QStringLiteral("yyyy-MM-dd HH:mm"));
+              o.snoozeLeft = map.value(QStringLiteral("snoozeLeft")).toInt();
+              m_occs << o;
+          }
+          m_events.clear();
+          for (const QVariant &entry : storedEvents) {
+              const QVariantMap map = entry.toMap();
+              PendingEvent event;
+              event.eventId = map.value(QStringLiteral("eventId")).toString();
+              event.occId = map.value(QStringLiteral("occurrenceId")).toString();
+              event.action = map.value(QStringLiteral("action")).toString();
+              event.ts = map.value(QStringLiteral("ts")).toLongLong();
+              event.serverSeq = map.value(QStringLiteral("serverSeq")).toLongLong();
+              event.reason = map.value(QStringLiteral("reason")).toString();
+              m_events << event;
+          }
+          Q_UNUSED(cursor)
+          recompute();
+          return;
+      }
+      loadDemo();
+  }
+
+  // 函数 touchPersist：变更后 1 秒防抖落盘
+  void ReminderModel::touchPersist()
+  {
+      if (m_store && m_store->isOpen() && !m_saveTimer.isActive())
+          m_saveTimer.start();
+  }
+
+  // 函数 persistNow：把规则/实例/事件整表写进 SQLite（单事务）
+  void ReminderModel::persistNow()
+  {
+      if (!m_store || !m_store->isOpen())
+          return;
+      QVariantList rules, occs, events;
+      for (const Rule &r : m_rules) {
+          QVariantMap map;
+          map[QStringLiteral("id")] = r.id;
+          map[QStringLiteral("title")] = r.title;
+          map[QStringLiteral("kind")] = r.kind;
+          map[QStringLiteral("kindRule")] = r.kindRule;
+          map[QStringLiteral("dose")] = r.dose;
+          map[QStringLiteral("times")] = r.times;
+          QVariantList weekdays;
+          for (int day : r.weekdays)
+              weekdays << day;
+          map[QStringLiteral("weekdays")] = weekdays;
+          rules << map;
+      }
+      for (const Occ &o : m_occs) {
+          QVariantMap map;
+          map[QStringLiteral("id")] = o.id;
+          map[QStringLiteral("planId")] = o.planId;
+          map[QStringLiteral("title")] = o.title;
+          map[QStringLiteral("slotLocal")] = o.slotLocal;
+          map[QStringLiteral("state")] = o.state;
+          map[QStringLiteral("snoozeLeft")] = o.snoozeLeft;
+          occs << map;
+      }
+      for (const PendingEvent &event : m_events) {
+          QVariantMap map;
+          map[QStringLiteral("eventId")] = event.eventId;
+          map[QStringLiteral("occurrenceId")] = event.occId;
+          map[QStringLiteral("action")] = event.action;
+          map[QStringLiteral("ts")] = event.ts;
+          map[QStringLiteral("serverSeq")] = event.serverSeq;
+          map[QStringLiteral("reason")] = event.reason;
+          events << map;
+      }
+      m_store->save(rules, occs, events);
+  }
+
+  // 函数 serverCursor / setServerCursor：/v1/state 的增量游标
+  qint64 ReminderModel::serverCursor() const
+  {
+      return m_store ? m_store->cursor() : 0;
+  }
+
+  void ReminderModel::setServerCursor(qint64 seq)
+  {
+      if (m_store)
+          m_store->setCursor(seq);
+  }
+
+  // 函数 localDbPath：本地库路径（设置页/排障用）
+  QString ReminderModel::localDbPath() const
+  {
+      return m_store ? m_store->path() : QString();
+  }
