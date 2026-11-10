@@ -72,7 +72,7 @@
 | `docs/路线对照_R1-R8.md` | 需求编号 R1–R8 → 落地位置与状态（已有实现/骨架/未做） |
 | `docs/验收清单.md` | 验收清单：后端九套、App 真机、硬件、系统改造四类检查项 |
 | `integration/yiban_client/README.md` | 把颐伴手机端（fspro7967/yiban_android_app）接到本后端的改动包：补丁、说明、应用方法 |
-| `integration/yiban_client/对接后端.patch` | 未标注 |
+| `integration/yiban_client/对接后端.patch` | 给颐伴手机端仓库的补丁（git am 可用）：真 HTTP 传输 + 同步引擎 + 端上灌入入口 |
 | `integration/yiban_client/对接后端_改动说明.md` | 对接 CareMate 后端（本次改动说明） |
 | `magisk-module/README.md` | Magisk 定制层的说明：模块结构、安装方式、为什么能一键回滚 |
 | `magisk-module/customize.sh` | Magisk 安装时执行：检查 APK 是否就位、设置 priv-app 权限 |

@@ -10,6 +10,7 @@ SKIP_EXT = {".png", ".jpg", ".jpeg", ".jar", ".apk", ".ico", ".db", ".zip", ".do
 FIXED_DESC = {
     "LICENSE": "开源许可：MIT（作业演示用，引用第三方库见 third_party 许可）",
     "server/web/manifest.webmanifest": "PWA 清单：应用名、图标、显示模式（装到桌面像原生 App）",
+    "integration/yiban_client/对接后端.patch": "给颐伴手机端仓库的补丁（git am 可用）：真 HTTP 传输 + 同步引擎 + 端上灌入入口",
 }
 
 def tracked():
