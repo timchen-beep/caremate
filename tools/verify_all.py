@@ -1,6 +1,6 @@
-# 作用：一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 八套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze）
+# 作用：一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 九套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze）
 # -*- coding: utf-8 -*-
-"""一键全量验证：语法检查 + 八套验收 + 三个页面 HTTP 检查 + 完整性守卫。
+"""一键全量验证：语法检查 + 九套验收 + 三个页面 HTTP 检查 + 完整性守卫。
 
 用法:
     python tools/verify_all.py              # 标准验证
@@ -191,7 +191,7 @@ DOC_FILES = ["README.md", "GUIDE.md", "CONTRIBUTING.md",
 def check_doc_counts():
     """文档里写的「N 套验收」「verify_all 是 N 项」必须与实际一致。
 
-    为什么需要：加了 test_sync 之后，全仓 12 处还写着「七套」，是人工扫出来的；
+    为什么需要：加了 test_sync 之后，全仓 12 处还写着「九套」，是人工扫出来的；
     这类数字对不上没法靠读代码发现，只能在这里比对。
     """
     problems = []
@@ -217,7 +217,7 @@ def check_doc_counts():
     record("文档数字一致（套数/项数）", not problems, "；".join(problems[:3]) or "一致")
 
 
-# ---------------------------------------------------------------- 3) 服务与八套
+# ---------------------------------------------------------------- 3) 服务与九套
 def wait_health(timeout=30):
     for _ in range(timeout * 2):
         try:
@@ -244,7 +244,7 @@ def run_server():
 
 
 SUITES = ["test_contract.py", "test_p2.py", "test_align.py", "test_steps.py",
-          "test_v06.py", "test_extra.py", "test_sync.py", "test_accept.py"]
+          "test_v06.py", "test_extra.py", "test_sync.py", "test_v1.py", "test_accept.py"]
 
 
 def run_suites():
