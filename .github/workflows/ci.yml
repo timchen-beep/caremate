@@ -1,4 +1,4 @@
-# 作用：CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 八套验收 + 页面检查 + 完整性守卫）
+# 作用：CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 九套验收 + 页面检查 + 完整性守卫）
 name: acceptance
 
 on:
