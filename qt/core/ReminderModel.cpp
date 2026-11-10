@@ -2,6 +2,8 @@
 #include "ReminderModel.h"
 
 #include <QDebug>
+#include <QSet>
+#include <QUuid>
 
 ReminderModel::ReminderModel(QObject *parent) : QObject(parent)
 {
@@ -93,7 +95,7 @@ void ReminderModel::setState(Occ &o, const QString &state)
 void ReminderModel::confirm(const QString &occId)
 {
     if (Occ *o = find(occId)) setState(*o, QStringLiteral("confirmed"));
-    // TODO(联调)：POST /api/v1/occurrences/{id}/events {action:"confirmed", event_id, client_ts}
+    queueEvent(occId, QStringLiteral("confirm"));   // 由 SyncPuller 批量 POST /v1/events
     recompute();
 }
 
@@ -102,7 +104,11 @@ void ReminderModel::snooze(const QString &occId)
 {
     if (Occ *o = find(occId)) {
         if (o->snoozeLeft <= 0) setState(*o, QStringLiteral("missed"));
-        else { o->snoozeLeft--; setState(*o, QStringLiteral("snoozed")); }
+        else {
+            o->snoozeLeft--;
+            setState(*o, QStringLiteral("snoozed"));
+            queueEvent(occId, QStringLiteral("snooze"));
+        }
     }
     recompute();
 }
@@ -110,14 +116,17 @@ void ReminderModel::snooze(const QString &occId)
 // 函数 missed：标记这次没做（对应后端 missed）
 void ReminderModel::missed(const QString &occId)
 {
-    if (Occ *o = find(occId)) setState(*o, QStringLiteral("missed"));
+    if (Occ *o = find(occId)) {
+        setState(*o, QStringLiteral("missed"));
+        queueEvent(occId, QStringLiteral("miss"));
+    }
     recompute();
 }
 
 // 函数 sos：触发呼救（由界面层发出请求）
 void ReminderModel::sos()
 {
-    // 后端接口：POST /api/v1/sos {device, note}
+    // 交给 SyncPuller → POST /v1/alarm {source:"manual", level:3}
     emit sosTriggered();
 }
 
@@ -162,3 +171,120 @@ void ReminderModel::refresh()
     recompute();
 }
 
+// ---------------------------------------------------------------- 远端同步
+// 函数 queueEvent：把一次动作记进待上传队列（eventId 固定，重试不变）
+void ReminderModel::queueEvent(const QString &occId, const QString &action, const QString &reason)
+{
+    PendingEvent event;
+    event.occId = occId;
+    event.action = action;
+    event.ts = QDateTime::currentMSecsSinceEpoch();
+    event.reason = reason;
+    // 与后端一致：uuid5(namespace, "occurrenceId|action|client_ts")
+    static const QUuid ns(QStringLiteral("7b0f7d3e-3c2a-4a55-9f0e-6b1a2c8d4e11"));
+    event.eventId = QUuid::createUuidV5(
+                        ns, QStringLiteral("%1|%2|%3").arg(occId, action, QString::number(event.ts)))
+                        .toString(QUuid::WithoutBraces);
+    m_events.append(event);
+    emit eventQueued();
+}
+
+// 函数 pendingEvents：还没拿到 server_seq 的事件
+QVariantList ReminderModel::pendingEvents() const
+{
+    QVariantList out;
+    for (const PendingEvent &event : m_events) {
+        if (event.serverSeq > 0)
+            continue;
+        QVariantMap map;
+        map[QStringLiteral("eventId")] = event.eventId;
+        map[QStringLiteral("occurrenceId")] = event.occId;
+        map[QStringLiteral("action")] = event.action;
+        map[QStringLiteral("ts")] = event.ts;
+        map[QStringLiteral("reason")] = event.reason;
+        out.append(map);
+    }
+    return out;
+}
+
+// 函数 markEventsSent：把服务端回执的 server_seq 写回本地事件
+void ReminderModel::markEventsSent(const QVariantList &acks)
+{
+    for (const QVariant &entry : acks) {
+        const QVariantMap ack = entry.toMap();
+        const QString eventId = ack.value(QStringLiteral("eventId")).toString();
+        const qint64 seq = ack.value(QStringLiteral("serverSeq")).toLongLong();
+        for (PendingEvent &event : m_events) {
+            if (event.eventId == eventId) {
+                event.serverSeq = seq;
+                break;
+            }
+        }
+    }
+}
+
+// 函数 setSyncState：同步状态透给界面（offline / idle / syncing / error）
+void ReminderModel::setSyncState(const QString &state)
+{
+    if (m_syncState == state)
+        return;
+    m_syncState = state;
+    emit changed();
+}
+
+// 函数 applyRemotePlans：/v1/plans 的 rule（四种）→ 内部 Rule，再重建实例列表
+void ReminderModel::applyRemotePlans(const QVariantList &plans)
+{
+    if (plans.isEmpty())
+        return;
+    m_rules.clear();
+    for (const QVariant &entry : plans) {
+        const QVariantMap src = entry.toMap();
+        if (src.value(QStringLiteral("deleted")).toBool())
+            continue;
+        const QVariantMap rule = src.value(QStringLiteral("rule")).toMap();
+        Rule r;
+        r.id = QString::number(static_cast<qint64>(src.value(QStringLiteral("plan_id")).toDouble()));
+        r.title = src.value(QStringLiteral("title")).toString();
+        r.dose = src.value(QStringLiteral("dose")).toString();
+        const QString kind = rule.value(QStringLiteral("kind")).toString();
+        r.kindRule = kind.isEmpty() ? QStringLiteral("daily") : kind;
+        if (r.kindRule == QLatin1String("monthly"))
+            r.kindRule = QStringLiteral("daily");   // 端上骨架暂不支持每月，按每天显示
+        for (const QVariant &time : rule.value(QStringLiteral("times")).toList())
+            r.times << time.toString();
+        for (const QVariant &day : rule.value(QStringLiteral("weekdays")).toList())
+            r.weekdays << day.toInt();
+        r.kind = src.value(QStringLiteral("kind")).toString();
+        m_rules << r;
+    }
+    rebuild();
+    emit changed();
+}
+
+// 函数 applyRemoteOccurrences：/v1/state 的实例直接替换本地清单（服务端为准）
+void ReminderModel::applyRemoteOccurrences(const QVariantList &occurrences)
+{
+    if (occurrences.isEmpty())
+        return;
+    QList<Occ> incoming;
+    for (const QVariant &entry : occurrences) {
+        const QVariantMap src = entry.toMap();
+        Occ o;
+        o.id = QString::number(static_cast<qint64>(src.value(QStringLiteral("occurrence_id")).toDouble()));
+        o.planId = QString::number(static_cast<qint64>(src.value(QStringLiteral("plan_id")).toDouble()));
+        o.title = src.value(QStringLiteral("title")).toString();
+        o.dose = src.value(QStringLiteral("dose")).toString();
+        o.state = src.value(QStringLiteral("state")).toString();
+        o.due = QDateTime::fromMSecsSinceEpoch(
+            static_cast<qint64>(src.value(QStringLiteral("due_ts")).toDouble()));
+        o.slotLocal = isoLocal(o.due);
+        o.snoozeLeft = qMax(0, 3 - src.value(QStringLiteral("snooze_count")).toInt());
+        incoming << o;
+    }
+    m_occs = incoming;
+    std::sort(m_occs.begin(), m_occs.end(), [](const Occ &a, const Occ &b) {
+        return a.due < b.due;
+    });
+    recompute();
+}
