@@ -1,7 +1,7 @@
 ﻿From 18ac9ef44064e2b4d3331aa57d79d2c554fd9797 Mon Sep 17 00:00:00 2001
 From: CareMate <caremate@example.com>
 Date: Tue, 10 Nov 2026 16:29:14 +0800
-Subject: [PATCH 1/2] =?UTF-8?q?feat:=20=E5=AF=B9=E6=8E=A5=20CareMate=20?=
+Subject: [PATCH 1/3] =?UTF-8?q?feat:=20=E5=AF=B9=E6=8E=A5=20CareMate=20?=
  =?UTF-8?q?=E5=90=8E=E7=AB=AF=20/v1/*=EF=BC=88=E7=9C=9F=20HTTP=20=E4=BC=A0?=
  =?UTF-8?q?=E8=BE=93=20+=20=E5=90=8C=E6=AD=A5=E5=BC=95=E6=93=8E=20+=20?=
  =?UTF-8?q?=E7=AB=AF=E4=B8=8A=E7=81=8C=E5=85=A5=E5=85=A5=E5=8F=A3=EF=BC=89?=
@@ -918,7 +918,7 @@ index 9d43701..d594c02 100644
 From c029b0bc024137e6946142092d045ddc445684d3 Mon Sep 17 00:00:00 2001
 From: CareMate <caremate@example.com>
 Date: Tue, 10 Nov 2026 16:29:44 +0800
-Subject: [PATCH 2/2] =?UTF-8?q?fix:=20=E4=BF=AE=E6=AD=A3=20include=20?=
+Subject: [PATCH 2/3] =?UTF-8?q?fix:=20=E4=BF=AE=E6=AD=A3=20include=20?=
  =?UTF-8?q?=E8=B7=AF=E5=BE=84=EF=BC=88app=5Fcore.h=20/=20http=5Fclient.h?=
  =?UTF-8?q?=20=E6=8C=89=20CMake=20include=20dir=EF=BC=89=E4=B8=8E=20<utili?=
  =?UTF-8?q?ty>?=
@@ -959,6 +959,492 @@ index 02a5392..cb4d0b5 100644
  
  SyncVM::SyncVM(QObject *parent)
      : QObject(parent)
+-- 
+2.56.0.windows.4
+
+
+From 8c41381640d94efa6086f12298093383b45ae546 Mon Sep 17 00:00:00 2001
+From: CareMate <caremate@example.com>
+Date: Tue, 10 Nov 2026 19:14:17 +0800
+Subject: [PATCH 3/3] =?UTF-8?q?feat:=20=E7=AB=AF=E4=B8=8A=E6=9C=AC?=
+ =?UTF-8?q?=E5=9C=B0=E4=B8=BB=E5=89=AF=E6=9C=AC=EF=BC=88SQLite=20=E5=9B=9B?=
+ =?UTF-8?q?=E8=A1=A8=20+=20=E6=B8=B8=E6=A0=87=EF=BC=89=E2=80=94=E2=80=94?=
+ =?UTF-8?q?=E5=86=B7=E5=90=AF=E5=8A=A8=E8=AF=BB=E6=9C=AC=E5=9C=B0=E3=80=81?=
+ =?UTF-8?q?=E5=8F=98=E6=9B=B4=E9=98=B2=E6=8A=96=E8=90=BD=E7=9B=98=E3=80=81?=
+ =?UTF-8?q?=E9=87=8D=E5=90=AF=E4=B8=8D=E4=B8=A2=E9=98=9F=E5=88=97?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ CMakeLists.txt           |   2 +
+ src/comm/sync_engine.cpp |   7 +-
+ src/vm/app_core.cpp      |  56 +++++++++++-
+ src/vm/app_core.h        |   8 ++
+ src/vm/local_store.cpp   | 179 +++++++++++++++++++++++++++++++++++++++
+ src/vm/local_store.h     |  41 +++++++++
+ 6 files changed, 291 insertions(+), 2 deletions(-)
+ create mode 100644 src/vm/local_store.cpp
+ create mode 100644 src/vm/local_store.h
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index ba1d534..3939f8c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -102,6 +102,8 @@ set(VM_SOURCES
+         src/vm/app_core.h
+         src/vm/app_core.cpp
+         src/vm/reminder_vm.h
++  src/vm/local_store.h
++  src/vm/local_store.cpp
+         src/vm/reminder_vm.cpp
+         src/vm/plan_vm.h
+         src/vm/plan_vm.cpp
+diff --git a/src/comm/sync_engine.cpp b/src/comm/sync_engine.cpp
+index 2540777..56d2441 100644
+--- a/src/comm/sync_engine.cpp
++++ b/src/comm/sync_engine.cpp
+@@ -104,6 +104,9 @@ void SyncEngine::pullState()
+     m_busy = true;
+     setState(QStringLiteral("syncing"));
+     QUrlQuery query;
++    // 启动时从本地库恢复游标，避免每次重启都全量拉
++    if (m_cursor == 0)
++        m_cursor = AppCore::instance()->serverCursor();
+     query.addQueryItem(QStringLiteral("since"), QString::number(m_cursor));
+     m_http->getJson(QStringLiteral("/v1/state"), query);
+ }
+@@ -222,8 +225,10 @@ void SyncEngine::onReply(quint64 requestId, int status, const QJsonObject &body)
+             list.append(value.toObject().toVariantMap());
+         AppCore::instance()->applyRemoteOccurrences(list);
+         const qint64 nextSeq = static_cast<qint64>(body.value(QStringLiteral("next_seq")).toDouble());
+-        if (nextSeq > m_cursor)
++        if (nextSeq > m_cursor) {
+             m_cursor = nextSeq;
++            AppCore::instance()->setServerCursor(m_cursor);   // 游标落本地库，重启不倒退
++        }
+         m_lastSyncTs = QDateTime::currentMSecsSinceEpoch();
+         setState(QStringLiteral("idle"));
+         if (pendingCount() > 0)
+diff --git a/src/vm/app_core.cpp b/src/vm/app_core.cpp
+index 719311f..8216fd2 100644
+--- a/src/vm/app_core.cpp
++++ b/src/vm/app_core.cpp
+@@ -1,5 +1,7 @@
+ #include "app_core.h"
+ 
++#include "local_store.h"
++
+ #include <QDateTime>
+ #include <QHash>
+ #include <QSet>
+@@ -84,7 +86,21 @@ AppCore::AppCore(QObject *parent)
+     connect(&m_tick, &QTimer::timeout, this, &AppCore::onTick);
+     m_tick.start();
+ 
+-    seedDemo();
++    // 本地主副本：有本地库就读库（杀进程不丢队列），没有才播种演示数据
++    m_store = new LocalStore(this);
++    m_saveTimer.setSingleShot(true);
++    m_saveTimer.setInterval(1000);
++    connect(&m_saveTimer, &QTimer::timeout, this, &AppCore::persistNow);
++    
++    QString dbError;
++    qint64 cursor = 0;
++    if (m_store->open(&dbError)
++        && m_store->load(&m_plans, &m_occurrences, &m_records, &m_events, &cursor)) {
++        Q_UNUSED(cursor)
++        rebuildToday();
++    } else {
++        seedDemo();
++    }
+ }
+ 
+ AppCore *AppCore::instance()
+@@ -509,6 +525,7 @@ void AppCore::fireDue(qint64 occurrenceId)
+ 
+ void AppCore::appendEvent(qint64 occurrenceId, const QString &action, const QString &reason)
+ {
++    touchPersist();
+     const qint64 ts = m_nowMs;
+     const QString key = QStringLiteral("%1:%2:%3:%4")
+                             .arg(occurrenceId)
+@@ -720,6 +737,7 @@ QVariantList AppCore::plans() const
+ 
+ qint64 AppCore::createPlan(const QVariantMap &plan, QString *error)
+ {
++    touchPersist();
+     const QString title = plan.value(QStringLiteral("title")).toString().trimmed();
+     const QVariantMap rule = plan.value(QStringLiteral("rule")).toMap();
+     if (title.isEmpty()) {
+@@ -763,6 +781,7 @@ qint64 AppCore::createPlan(const QVariantMap &plan, QString *error)
+ 
+ bool AppCore::updatePlan(qint64 planId, const QVariantMap &plan, QString *error)
+ {
++    touchPersist();
+     const int index = indexOfPlan(planId);
+     if (index < 0) {
+         if (error)
+@@ -784,6 +803,7 @@ bool AppCore::updatePlan(qint64 planId, const QVariantMap &plan, QString *error)
+ 
+ bool AppCore::deletePlan(qint64 planId, QString *error)
+ {
++    touchPersist();
+     const int index = indexOfPlan(planId);
+     if (index < 0) {
+         if (error)
+@@ -809,6 +829,7 @@ bool AppCore::deletePlan(qint64 planId, QString *error)
+ 
+ qint64 AppCore::addRecord(const QString &type, double value, const QString &unit)
+ {
++    touchPersist();
+     QVariantMap rec;
+     rec[QStringLiteral("recordId")] = m_nextRecordId++;
+     rec[QStringLiteral("type")] = type;
+@@ -823,6 +844,7 @@ qint64 AppCore::addRecord(const QString &type, double value, const QString &unit
+ 
+ bool AppCore::correctRecord(qint64 recordId, const QVariantMap &patch, QString *error)
+ {
++    touchPersist();
+     for (int i = 0; i < m_records.size(); ++i) {
+         QVariantMap rec = m_records.at(i).toMap();
+         if (rec.value(QStringLiteral("recordId")).toLongLong() != recordId)
+@@ -844,6 +866,7 @@ bool AppCore::correctRecord(qint64 recordId, const QVariantMap &patch, QString *
+ 
+ bool AppCore::removeRecord(qint64 recordId)
+ {
++    touchPersist();
+     for (int i = 0; i < m_records.size(); ++i) {
+         if (m_records.at(i).toMap().value(QStringLiteral("recordId")).toLongLong() != recordId)
+             continue;
+@@ -1014,6 +1037,7 @@ QVariantMap AppCore::occurrenceById(qint64 id) const
+ 
+ void AppCore::setAutoReminders(bool on)
+ {
++    touchPersist();
+     if (m_autoReminders == on)
+         return;
+     m_autoReminders = on;
+@@ -1029,6 +1053,7 @@ void AppCore::resetDemo()
+ // 函数 applyRemotePlans：把 /v1/plans 的 snake_case 计划合并进内存计划表
+ void AppCore::applyRemotePlans(const QVariantList &remote)
+ {
++    touchPersist();
+     if (remote.isEmpty())
+         return;
+     for (const QVariant &entry : remote) {
+@@ -1064,6 +1089,7 @@ void AppCore::applyRemotePlans(const QVariantList &remote)
+ // 函数 applyRemoteOccurrences：把 /v1/state 的实例合并进今天清单（替换同 id，追加新 id）
+ void AppCore::applyRemoteOccurrences(const QVariantList &remote)
+ {
++    touchPersist();
+     if (remote.isEmpty())
+         return;
+     QHash<qint64, QVariantMap> incoming;
+@@ -1130,6 +1156,7 @@ QVariantList AppCore::pendingEvents() const
+ // 函数 markEventsUploaded：把服务端回执的 server_seq 写回本地事件
+ void AppCore::markEventsUploaded(const QVariantList &accepted)
+ {
++    touchPersist();
+     for (const QVariant &entry : accepted) {
+         const QVariantMap ack = entry.toMap();
+         const QString eventId = ack.value(QStringLiteral("eventId")).toString();
+@@ -1144,3 +1171,30 @@ void AppCore::markEventsUploaded(const QVariantList &accepted)
+         }
+     }
+ }
++
++// ---------------------------------------------------------------- 本地持久化
++// 函数 touchPersist：状态变了就排一次落盘（1 秒防抖，避免每帧写盘）
++void AppCore::touchPersist()
++{
++    if (m_store && !m_saveTimer.isActive())
++        m_saveTimer.start();
++}
++
++// 函数 persistNow：把四张表的快照写进 SQLite（单事务）
++void AppCore::persistNow()
++{
++    if (m_store)
++        m_store->save(m_plans, m_occurrences, m_records, m_events);
++}
++
++// 函数 serverCursor / setServerCursor：`GET /v1/state?since=` 的游标（存 meta 表）
++qint64 AppCore::serverCursor() const
++{
++    return m_store ? m_store->cursor() : 0;
++}
++
++void AppCore::setServerCursor(qint64 seq)
++{
++    if (m_store)
++        m_store->setCursor(seq);
++}
+diff --git a/src/vm/app_core.h b/src/vm/app_core.h
+index 9e52636..137a4ba 100644
+--- a/src/vm/app_core.h
++++ b/src/vm/app_core.h
+@@ -4,6 +4,8 @@
+ #include <QObject>
+ #include <QStringList>
+ #include <QTimer>
++
++class LocalStore;
+ #include <QVariantList>
+ #include <QVariantMap>
+ 
+@@ -83,6 +85,8 @@ public:
+     QVariantList pendingEvents() const;                     // serverSeq == 0 的那些
+     void markEventsUploaded(const QVariantList &accepted);  // [{eventId, serverSeq}]
+     void setDeviceId(const QString &deviceId) { m_deviceId = deviceId; }
++    qint64 serverCursor() const;
++    void setServerCursor(qint64 seq);
+     void requestPair(const QString &code) { emit pairRequested(code); }
+     QString deviceId() const { return m_deviceId; }
+ 
+@@ -126,6 +130,10 @@ private:
+     QVariantList m_events;
+ 
+     QTimer m_tick;
++    QTimer m_saveTimer;          // 1 秒防抖：把快照写进本地库
++    LocalStore *m_store = nullptr;
++    void persistNow();
++    void touchPersist();
+     QDate m_day;
+     qint64 m_nowMs = 0;
+     qint64 m_nextPlanId = 1;
+diff --git a/src/vm/local_store.cpp b/src/vm/local_store.cpp
+new file mode 100644
+index 0000000..0c92437
+--- /dev/null
++++ b/src/vm/local_store.cpp
+@@ -0,0 +1,179 @@
++#include "local_store.h"
++
++#include <QDir>
++#include <QJsonDocument>
++#include <QJsonObject>
++#include <QSqlDatabase>
++#include <QSqlError>
++#include <QSqlQuery>
++#include <QStandardPaths>
++#include <QVariant>
++
++namespace {
++const char *kConnection = "caremate_local";
++
++QString toJson(const QVariantMap &map)
++{
++    return QString::fromUtf8(QJsonDocument(QJsonObject::fromVariantMap(map)).toJson(QJsonDocument::Compact));
++}
++
++QVariantMap fromJson(const QString &text)
++{
++    const QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
++    return doc.isObject() ? doc.object().toVariantMap() : QVariantMap();
++}
++} // namespace
++
++LocalStore::LocalStore(QObject *parent)
++    : QObject(parent)
++{
++}
++
++bool LocalStore::open(QString *error)
++{
++    QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
++    if (dir.isEmpty())
++        dir = QStringLiteral(".");
++    QDir().mkpath(dir);
++    m_path = dir + QStringLiteral("/caremate.db");
++
++    QSqlDatabase db = QSqlDatabase::contains(QString::fromLatin1(kConnection))
++                          ? QSqlDatabase::database(QString::fromLatin1(kConnection))
++                          : QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QString::fromLatin1(kConnection));
++    db.setDatabaseName(m_path);
++    if (!db.open()) {
++        if (error)
++            *error = db.lastError().text();
++        return false;
++    }
++    QSqlQuery pragma(db);
++    pragma.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
++    return ensureSchema();
++}
++
++bool LocalStore::ensureSchema()
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    QSqlQuery query(db);
++    const QStringList statements = {
++        QStringLiteral("CREATE TABLE IF NOT EXISTS plans(id TEXT PRIMARY KEY, json TEXT NOT NULL)"),
++        QStringLiteral("CREATE TABLE IF NOT EXISTS occurrences(id TEXT PRIMARY KEY, json TEXT NOT NULL)"),
++        QStringLiteral("CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, json TEXT NOT NULL)"),
++        QStringLiteral("CREATE TABLE IF NOT EXISTS events(event_id TEXT PRIMARY KEY, json TEXT NOT NULL,"
++                       " server_seq INTEGER NOT NULL DEFAULT 0)"),
++        QStringLiteral("CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)"),
++    };
++    for (const QString &sql : statements) {
++        if (!query.exec(sql))
++            return false;
++    }
++    return true;
++}
++
++bool LocalStore::load(QVariantList *plans, QVariantList *occurrences, QVariantList *records,
++                      QVariantList *events, qint64 *cursor)
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    if (!db.isOpen())
++        return false;
++
++    auto readAll = [&db](const QString &table) {
++        QVariantList out;
++        QSqlQuery query(db);
++        if (!query.exec(QStringLiteral("SELECT json FROM %1").arg(table)))
++            return out;
++        while (query.next())
++            out.append(fromJson(query.value(0).toString()));
++        return out;
++    };
++
++    if (plans)
++        *plans = readAll(QStringLiteral("plans"));
++    if (occurrences)
++        *occurrences = readAll(QStringLiteral("occurrences"));
++    if (records)
++        *records = readAll(QStringLiteral("records"));
++    if (events)
++        *events = readAll(QStringLiteral("events"));
++    if (cursor)
++        *cursor = this->cursor();
++
++    return plans && !plans->isEmpty();
++}
++
++bool LocalStore::save(const QVariantList &plans, const QVariantList &occurrences,
++                      const QVariantList &records, const QVariantList &events)
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    if (!db.isOpen())
++        return false;
++
++    db.transaction();
++    auto rewrite = [&db](const QString &table, const QVariantList &list, const QString &keyField) {
++        QSqlQuery del(db);
++        if (!del.exec(QStringLiteral("DELETE FROM %1").arg(table)))
++            return false;
++        QSqlQuery ins(db);
++        ins.prepare(QStringLiteral("INSERT OR REPLACE INTO %1(%2, json) VALUES (?, ?)")
++                        .arg(table, keyField));
++        for (const QVariant &entry : list) {
++            const QVariantMap map = entry.toMap();
++            ins.addBindValue(map.value(keyField).toString());
++            ins.addBindValue(toJson(map));
++            if (!ins.exec())
++                return false;
++        }
++        return true;
++    };
++
++    bool ok = rewrite(QStringLiteral("plans"), plans, QStringLiteral("planId"))
++        && rewrite(QStringLiteral("occurrences"), occurrences, QStringLiteral("occurrenceId"))
++        && rewrite(QStringLiteral("records"), records, QStringLiteral("recordId"));
++
++    if (ok) {
++        QSqlQuery del(db);
++        del.exec(QStringLiteral("DELETE FROM events"));
++        QSqlQuery ins(db);
++        ins.prepare(QStringLiteral("INSERT OR REPLACE INTO events(event_id, json, server_seq)"
++                                  " VALUES (?, ?, ?)"));
++        for (const QVariant &entry : events) {
++            const QVariantMap map = entry.toMap();
++            ins.addBindValue(map.value(QStringLiteral("eventId")).toString());
++            ins.addBindValue(toJson(map));
++            ins.addBindValue(map.value(QStringLiteral("serverSeq")).toLongLong());
++            if (!ins.exec()) {
++                ok = false;
++                break;
++            }
++        }
++    }
++
++    if (ok)
++        db.commit();
++    else
++        db.rollback();
++    return ok;
++}
++
++qint64 LocalStore::cursor() const
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    if (!db.isOpen())
++        return 0;
++    QSqlQuery query(db);
++    query.prepare(QStringLiteral("SELECT v FROM meta WHERE k='server_seq'"));
++    if (!query.exec() || !query.next())
++        return 0;
++    return query.value(0).toLongLong();
++}
++
++void LocalStore::setCursor(qint64 value)
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    if (!db.isOpen())
++        return;
++    QSqlQuery query(db);
++    query.prepare(QStringLiteral("INSERT OR REPLACE INTO meta(k, v) VALUES ('server_seq', ?)"));
++    query.addBindValue(QString::number(value));
++    query.exec();
++}
+diff --git a/src/vm/local_store.h b/src/vm/local_store.h
+new file mode 100644
+index 0000000..28be881
+--- /dev/null
++++ b/src/vm/local_store.h
+@@ -0,0 +1,41 @@
++#pragma once
++
++#include <QObject>
++#include <QString>
++#include <QVariantList>
++
++/// 端上本地库（QtSql / SQLite）：四张表 + 同步游标。
++///
++/// 为什么需要：`AppCore` 原本是纯内存 demo，App 一被杀进程，待上传的事件就没了，
++/// 冷启动也必须等网络才看得到提醒。这里把"本地主副本"落成 SQLite：
++///
++///   plans / occurrences / records / events(event_id PK, json, server_seq) / meta(k,v)
++///
++/// 用法（AppCore 里）：
++///   - 启动：open() 成功且 load() 拿到非空数据 → 用本地数据；否则 seedDemo()
++///   - 每次状态变化：save(...)（AppCore 内部做了 1 秒防抖，不会每帧写盘）
++///   - 游标：setCursor()/cursor() 存 meta 表，供 `GET /v1/state?since=` 增量拉取
++class LocalStore : public QObject
++{
++    Q_OBJECT
++
++public:
++    explicit LocalStore(QObject *parent = nullptr);
++
++    bool open(QString *error = nullptr);
++
++    /// 读出全部快照；库里没有数据时返回 false（首次启动）。
++    bool load(QVariantList *plans, QVariantList *occurrences, QVariantList *records,
++              QVariantList *events, qint64 *cursor);
++
++    /// 覆盖写入全部快照（单事务）。
++    bool save(const QVariantList &plans, const QVariantList &occurrences,
++              const QVariantList &records, const QVariantList &events);
++
++    qint64 cursor() const;
++    void setCursor(qint64 value);
++
++private:
++    bool ensureSchema();
++    QString m_path;
++};
 -- 
 2.56.0.windows.4
 

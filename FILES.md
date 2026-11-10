@@ -1,5 +1,5 @@
 <!-- 作用：文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->
-# 文件索引（144 个）
+# 文件索引（147 个）
 
 | 文件 | 作用 |
 |---|---|
@@ -62,6 +62,7 @@
 | `docs/topics.md` | MQTT topic 与 payload 约定，含发布方/订阅方与频率说明 |
 | `docs/云部署.md` | 上云部署步骤：买机、换令牌、systemd、Caddy、验证、备份（约 40 分钟） |
 | `docs/契约_手机端对接_v0.1.md` | 手机端与后端的接口契约回执：七条接口逐条确认与差异说明 |
+| `docs/客户端框架说明.md` | 回答"4.1 到底是 Flutter 还是 Qt"：章节归属、交付物、两套代码各自定位、以及为什么最终统一到 Qt |
 | `docs/按4.1架构改造计划.md` | 按 4.1 架构图（端上主副本 + 端上调度）改造的实施计划：目标、与现状的 5 处差异、分步清单、已踩的坑 |
 | `docs/接口与指标口径.md` | 接口与指标口径：前缀、两族划分、event_id 归属、时间双字段、格式约定、P95 口径与复现 |
 | `docs/演示脚本.md` | 8 分钟演示脚本：六段流程，换个人照纸条也能演完 |
@@ -95,6 +96,8 @@
 | `qt/android/jni/AlarmBridge.cpp` | 用 QJniObject 调 Java 侧的闹钟与通知渠道，桌面构建时打印模拟 |
 | `qt/android/jni/AlarmBridge.h` | Android 精确闹钟桥的 C++ 接口（schedule/cancel/canScheduleExactAlarms） |
 | `qt/android/src/com/caremate/app/AlarmBridge.java` | Java 侧：AlarmManager.setExactAndAllowWhileIdle + 通知渠道（普通/呼救两级） |
+| `qt/core/LocalStore.cpp` | Qt 端本地库实现：建表、快照读写、游标存取（SQLite / WAL） |
+| `qt/core/LocalStore.h` | Qt 端本地库（SQLite 四表 + 游标）：规则/实例/记录/事件与 server_seq 落盘，冷启动不丢 |
 | `qt/core/ReminderModel.cpp` | Qt 规则模型的实现：七种规则展开、30 秒刷新到期判断（对照后端 slots_on/transition） |
 | `qt/core/ReminderModel.h` | Qt 规则模型的接口：规则→实例、确认/稍后/未做、到期列表 |
 | `qt/main.cpp` | Qt 入口：注册 ReminderModel、加载 main.qml（Android 走 Qt for Android） |

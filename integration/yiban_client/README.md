@@ -23,6 +23,7 @@ git am /path/to/对接后端.patch          # 或 git apply --3way
 | `src/comm/http_client.{h,cpp}` | 新增 `QNetworkHttpClient`（真 `QNetworkAccessManager` 实现，`OfflineHttpClient` 保留） |
 | `src/comm/sync_engine.{h,cpp}` | **新增**：拉 `/v1/plans`、`/v1/state`，推 `/v1/events`，配对，指数退避 |
 | `src/vm/app_core.{h,cpp}` | 新增 4 个灌入方法：`applyRemotePlans` / `applyRemoteOccurrences` / `pendingEvents` / `markEventsUploaded` |
+| `src/vm/local_store.{h,cpp}` | **新增**：SQLite 本地主副本（四表 + 游标），冷启动读本地、变更防抖落盘 |
 | `src/vm/sync_vm.{h,cpp}` | `syncState` / `lastSyncTs` / `pendingCount` / `retrySync` 由引擎驱动 |
 | `src/vm/device_vm.cpp` | `pair()` 触发 `POST /v1/pair` |
 | `CMakeLists.txt` | 加入 `sync_engine` 两个源文件 |
