@@ -1,5 +1,5 @@
 <!-- 作用：文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->
-# 文件索引（141 个）
+# 文件索引（144 个）
 
 | 文件 | 作用 |
 |---|---|
@@ -71,6 +71,9 @@
 | `docs/评审答复_4.2.md` | 对 4.2 评审意见的答复：三条报告修改的结论、四个接口问题的取舍、方案 B 的实施与实测 |
 | `docs/路线对照_R1-R8.md` | 需求编号 R1–R8 → 落地位置与状态（已有实现/骨架/未做） |
 | `docs/验收清单.md` | 验收清单：后端九套、App 真机、硬件、系统改造四类检查项 |
+| `integration/yiban_client/README.md` | 把颐伴手机端（fspro7967/yiban_android_app）接到本后端的改动包：补丁、说明、应用方法 |
+| `integration/yiban_client/对接后端.patch` | 未标注 |
+| `integration/yiban_client/对接后端_改动说明.md` | 对接 CareMate 后端（本次改动说明） |
 | `magisk-module/README.md` | Magisk 定制层的说明：模块结构、安装方式、为什么能一键回滚 |
 | `magisk-module/customize.sh` | Magisk 安装时执行：检查 APK 是否就位、设置 priv-app 权限 |
 | `magisk-module/module.prop` | Magisk 模块元信息（id、名称、版本、描述），安装器据此识别本模块 |
@@ -86,7 +89,7 @@
 | `pi/setup-pi.sh` | 板子一键安装：apt 装 mosquitto、放 broker 配置、装两个 systemd、起服务并自检 |
 | `push-all.bat` | 一次推送 main 与三条归档分支（本地辅助脚本） |
 | `qt/CMakeLists.txt` | Qt 工程构建：QML 模块声明、Android 包源码目录 |
-| `qt/README.md` | Qt 骨架说明：为什么保留、目录结构、怎么编译、哪些还没验证 |
+| `qt/README.md` | Qt 端骨架说明：它是什么、怎么连后端、与新契约 /v1/* 的对应、验证边界 |
 | `qt/android/AndroidManifest.xml` | Qt 端清单：精确闹钟、通知、开机重排、前台服务权限 |
 | `qt/android/build.gradle` | Qt for Android 的 Gradle 配置（AGP 8.1、compileSdk 34） |
 | `qt/android/jni/AlarmBridge.cpp` | 用 QJniObject 调 Java 侧的闹钟与通知渠道，桌面构建时打印模拟 |
