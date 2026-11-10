@@ -10,7 +10,8 @@
 | 路径 | 作用 |
 |---|---|
 | `main.cpp` | 入口：注册 `ReminderModel`、启动 `SyncPuller` |
-| `core/ReminderModel.*` | 规则 → 实例、状态、事件队列（对应后端 `slots_on` / `transition`） |
+| `core/ReminderModel.*` | 规则 → 实例、状态、事件队列、**端上 30 秒 tick**（到点置 notified） |
+| `core/LocalStore.*` | **本地主副本（SQLite）**：plans / occurrences / events / meta(游标)，1 秒防抖落盘 |
 | `net/HttpClient.*` | 唯一 HTTP 出口（`/v1/*`，令牌与地址解析） |
 | `net/SyncPuller.*` | 拉计划/状态、推事件、呼救上报、离线退避 |
 | `pages/*.qml` | 今日、记录、家人、SOS 四个页面 |
@@ -35,6 +36,8 @@ CAREMATE_OFFLINE=1 ./appCareMate
 | 每 15 秒 | 有待传事件先 `POST /v1/events`，否则拉状态 |
 | 点确认/推迟/未做 | 本地入队（`eventId` 固定）→ 立即上传 → 回执写回 |
 | 呼救 | `POST /v1/alarm`（`source=manual`、`level=3`） |
+| 冷启动 | 先读本地 SQLite（断网也能看到今天的计划），再拉增量 |
+| 到点 | 端上 tick 置 `notified` 并落盘；`escalated` / `missed` 由云端产生 |
 
 ## 验证边界（如实说明）
 
