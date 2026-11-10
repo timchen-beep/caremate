@@ -19,6 +19,7 @@ import argparse
 import csv
 import io
 import json
+import v1_adapter
 import os
 import re
 import secrets
@@ -1427,6 +1428,10 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         p, q = u.path, {k: v[0] for k, v in parse_qs(u.query).items()}
 
+        # 颐伴手机端（Qt/QML）的 /v1/* 契约由适配层处理（见 v1_adapter.py）
+        if v1_adapter.handle_get(self, p, q):
+            return
+
         if p in ("/", "/index.html"):
             return self.static("index.html")
         if p in ("/app", "/app/"):
@@ -1762,6 +1767,10 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self.json(400, {"error": "请求体不是合法 JSON"})
 
+        # 颐伴手机端 /v1/* 的写接口（body 已在上面解析，直接传下去）
+        if v1_adapter.handle_body(self, p, body, "POST"):
+            return
+
         if p in ("/api/v1/auth/pair", "/api/v1/bind"):
             # 配对码 → 会话令牌（文档 4.2.7：不发账号密码；4 位码靠限速防枚举）
             ip = (self.headers.get("X-Forwarded-For") or self.client_address[0] or "").split(",")[0].strip()
@@ -1954,15 +1963,21 @@ class Handler(BaseHTTPRequestHandler):
         user = self.me()
         if not user:
             return self.json(401, {"error": "令牌无效"})
+        try:
+            _body = self.body_json()
+        except ValueError:
+            return self.json(400, {"error": "请求体不是合法 JSON"})
+        if v1_adapter.handle_body(self, "/" + "/".join(parts), _body, "PATCH"):
+            return
         if len(parts) == 4 and parts[:3] == ["api", "v1", "records"]:
             try:
-                r = correct_record(parts[3], self.body_json(), user["id"])
+                r = correct_record(parts[3], _body, user["id"])
                 return self.json(200, self._record_view(r["id"]))
             except ValueError as e:
                 return self.json(422, {"error": str(e)})
         if len(parts) == 4 and parts[:3] == ["api", "v1", "plans"]:
             try:
-                body = self.body_json()
+                body = _body
                 target = body.get("elder_id") or body.get("user_id") or user.get("paired_elder") or user["id"]
                 save_plan(target, body, plan_id=parts[3])
                 return self.json(200, self._plan_view(target, parts[3]))
@@ -1976,6 +1991,8 @@ class Handler(BaseHTTPRequestHandler):
         user = self.me()
         if not user:
             return self.json(401, {"error": "令牌无效"})
+        if v1_adapter.handle_body(self, "/" + "/".join(parts), {}, "DELETE"):
+            return
         if len(parts) == 4 and parts[:3] == ["api", "v1", "records"]:
             try:
                 return self.json(200, delete_record(parts[3], user["id"]))
