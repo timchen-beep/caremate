@@ -217,6 +217,58 @@ def check_doc_counts():
     record("文档数字一致（套数/项数）", not problems, "；".join(problems[:3]) or "一致")
 
 
+# ---------------------------------------------------------------- 构建引用一致
+SRC_EXT = (".cpp", ".cc", ".c", ".h", ".hpp", ".qml", ".ui", ".rc", ".dart")
+
+
+def check_build_refs():
+    """CMakeLists / pubspec 里引用的源文件必须存在，而且必须已被 git 追踪。
+
+    为什么需要：有一次新增了 `qt/net/` 四个文件，本地能编译、`git status` 显示
+    `?? qt/net/`（目录），逐文件提交脚本把它跳过了——远端仓库因此缺文件，
+    但 CI 只跑 Python 测试，看不出来。这条守卫把"引用即必须入库"变成硬检查。
+    """
+    tracked = set(subprocess.run(
+        ["git", "-C", ROOT, "-c", "core.quotepath=false", "ls-files"],
+        capture_output=True, text=True, encoding="utf-8").stdout.splitlines())
+
+    problems = []
+    checked = 0
+    for cmake in sorted(f for f in tracked if f.endswith("CMakeLists.txt")):
+        base = os.path.dirname(os.path.join(ROOT, cmake.replace("/", os.sep)))
+        try:
+            text = io.open(os.path.join(base, "CMakeLists.txt"), encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        for m in re.finditer(r"[\w./-]+\.(?:cpp|cc|c|h|hpp|qml|ui|rc)\b", text):
+            ref = m.group(0)
+            if ref.startswith("/") or "$" in ref:
+                continue
+            target = os.path.normpath(os.path.join(base, ref))
+            rel = os.path.relpath(target, ROOT).replace(os.sep, "/")
+            checked += 1
+            if not os.path.isfile(target):
+                problems.append("%s 引用不存在的 %s" % (cmake, ref))
+            elif rel not in tracked:
+                problems.append("%s 引用的 %s 未入库" % (cmake, ref))
+
+    # Flutter：pubspec 声明的目录下的 .dart 必须都在库里
+    if "app/pubspec.yaml" in tracked:
+        lib_dir = os.path.join(ROOT, "app", "lib")
+        if os.path.isdir(lib_dir):
+            for dirpath, _dirs, files in os.walk(lib_dir):
+                for name in files:
+                    if not name.endswith(".dart"):
+                        continue
+                    rel = os.path.relpath(os.path.join(dirpath, name), ROOT).replace(os.sep, "/")
+                    checked += 1
+                    if rel not in tracked:
+                        problems.append("%s 未入库" % rel)
+
+    record("构建引用一致（源文件存在且已入库）", not problems,
+           "；".join(problems[:3]) or "检查 %d 处引用" % checked)
+
+
 # ---------------------------------------------------------------- 3) 服务与九套
 def wait_health(timeout=30):
     for _ in range(timeout * 2):
@@ -305,6 +357,7 @@ def main():
     try:
         run_suites()
         check_artifacts()
+        check_build_refs()
         check_pages()
     finally:
         proc.terminate()
