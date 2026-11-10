@@ -39,7 +39,7 @@ Item {
                     text: parent.text; color: host.accent; font: parent.font
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                 }
-                // 真接口：POST /api/v1/records {elder_id, type, value, unit, at(ISO)}
+                // 真接口：POST /v1/records {type, value, unit, at(毫秒)}（由 net/SyncPuller 转发）
                 onClicked: toast.show(qsTr("已记下：%1").arg(modelData.t))
             }
         }
