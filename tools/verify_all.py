@@ -162,13 +162,14 @@ def check_artifacts():
         return
 
     bad_tracked = [p for p in tracked
-                   if p.endswith((".db", ".db-wal", ".db-shm", ".pyc")) or "__pycache__/" in p]
+                   if p.endswith((".db", ".db-wal", ".db-shm", ".pyc", "acceptance.json"))
+                   or "__pycache__/" in p]
     stray = []
     for line in status:
         if not line.startswith("??"):
             continue
         p = line[3:].strip().strip('"')
-        if p.endswith((".db", ".db-wal", ".db-shm")) or "__pycache__" in p:
+        if p.endswith((".db", ".db-wal", ".db-shm", "acceptance.json")) or "__pycache__" in p:
             stray.append(p)
 
     detail = ""
