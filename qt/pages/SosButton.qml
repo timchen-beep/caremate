@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// 呼救：按住 3 秒才触发（对应后端 POST /api/v1/sos）
+// 呼救：按住 3 秒才触发（对应后端 POST /v1/alarm，source=manual、level=3）
 Button {
     id: sos
     property var host
