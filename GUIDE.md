@@ -156,7 +156,8 @@ python3 test_align.py                  # 一致性 9 项（改计划不改历史
 一条命令跑全部（推荐）：
 
 ```bash
-python tools/verify_all.py --flutter
+python tools/verify_all.py --flutter   # 只验证
+python tools/publish.py                # 验证 + 逐文件提交 + 推送（改完用这条）
 ```
 
 它会依次做：截断守卫 → 二进制魔数 → 语法 → 起服务 → 九套验收 → 产物卫生 → 四个页面 HTTP 检查 → Flutter analyze → 文档数字一致，最后打印 `总计：X/X 通过`；任何一项失败就以非零退出码结束。CI 跑的是同一条命令。
