@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# 作用：CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度、统计、备份、页面路由（零第三方依赖）
+# 作用：CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度（到点 notified→2 分钟 escalated→5 分钟再提醒家属→15 分钟 missed）、统计、备份、页面路由、端云同步三接口（零第三方依赖）
 """CareMate 云端 v0.5 —— 按《Opening Report 4.2》对齐的实现。
 
 对齐的六条（文档 4.2.3–4.2.6）：
@@ -19,6 +19,7 @@ import argparse
 import csv
 import io
 import json
+import v1_adapter
 import os
 import re
 import secrets
@@ -788,6 +789,7 @@ def raise_alarm(user_id, kind, level, occurrence, message):
 
 
 # ================================================================ 调度器（文档 4.2.3）
+# 函数 scheduler_tick：每 30 秒扫一次到期实例——到点置 notified，迟到 THRESHOLD_1 置 escalated（通知家属），迟到 THRESHOLD_2 再发一条 level 3 告警，迟到 THRESHOLD_3 置 missed；只有它能在无人操作时改状态
 def scheduler_tick(now=None):
     now = now or utc_now()
     stats = {"scanned": 0, "notified": 0, "escalated": 0, "missed": 0}
@@ -1098,7 +1100,11 @@ def dispatch_stats(days=7):
     def pct(p):
         return round(delays[min(len(delays) - 1, int(len(delays) * p))], 2) if delays else None
 
-    return {"samples": len(delays), "backfill_excluded": backfill, "p50": pct(0.50), "p95": pct(0.95),
+    note = ""
+    if not delays:
+        note = ("no_samples：还没有派发记录。跑一次 python test_v06.py，或在演示中让提醒到点，再看本接口即有数字；此时 p50/p95 为 null 表示「无样本」，不是「测不出来」。")
+    return {"samples": len(delays), "backfill_excluded": backfill, "note": note,
+            "p50": pct(0.50), "p95": pct(0.95),
             "max": round(delays[-1], 2) if delays else None,
             "tick_seconds": int(interval["v"]) if interval else TICK,
             "threshold_seconds": TICK,
@@ -1204,6 +1210,74 @@ def save_plan(user_id, body, plan_id=None):
              iso(utc_now()), iso(utc_now())))
     return {"id": pid}
 
+
+# ================================================================ 端云同步（4.1 架构图第 5 层）
+# 函数 sync_events_up：手机端批量上行本地事件队列；每条复用 transition()（不传连接，避免嵌套锁）
+def sync_events_up(user_id, events):
+    """POST /v1/events —— 断网期间攒下的事件按 client_ts 顺序补传。"""
+    accepted, duplicates, rejected = 0, 0, []
+    for idx, item in enumerate(events or []):
+        item = item or {}
+        oid = item.get("occurrence_id") or ""
+        action = item.get("action") or ""
+        if action not in ("confirmed", "snoozed", "missed"):
+            rejected.append({"index": idx, "occurrence_id": oid,
+                             "reason": "action 不受理（只接受 confirmed/snoozed/missed）"})
+            continue
+        if not oid:
+            rejected.append({"index": idx, "occurrence_id": "", "reason": "缺少 occurrence_id"})
+            continue
+        with connect() as c:
+            occ = occ_row(c, oid)
+        if not occ:
+            rejected.append({"index": idx, "occurrence_id": oid, "reason": "实例不存在"})
+            continue
+        if occ["user_id"] != user_id:
+            rejected.append({"index": idx, "occurrence_id": oid, "reason": "越权：实例不属于该老人"})
+            continue
+        try:
+            res = transition(oid, action, actor=user_id, source="app-sync",
+                             client_ts=item.get("client_ts") or "",
+                             payload={"event_id": item.get("event_id") or ""})
+        except Exception as exc:  # noqa: BLE001
+            rejected.append({"index": idx, "occurrence_id": oid, "reason": str(exc)})
+            continue
+        if isinstance(res, dict) and res.get("duplicate"):
+            duplicates += 1
+        else:
+            accepted += 1
+    return {"accepted": accepted, "duplicates": duplicates, "rejected": rejected,
+            "server_ts": iso(utc_now())}
+
+
+# 函数 sync_state_down：按游标回灌服务端状态（换机/重装/家属代确认后对齐）
+def sync_state_down(user_id, since="", limit=500):
+    """GET /v1/state?since= —— since 之后变化的实例与记录，带 next_since。"""
+    with connect() as conn:
+        occ_rows = conn.execute(
+            "SELECT * FROM occurrences WHERE user_id=? AND updated_at>? ORDER BY updated_at LIMIT ?",
+            (user_id, since or "", int(limit))).fetchall()
+        rec_rows = conn.execute(
+            "SELECT * FROM records WHERE user_id=? AND created_at>? ORDER BY created_at LIMIT ?",
+            (user_id, since or "", int(limit))).fetchall()
+        max_occ = max([r["updated_at"] for r in occ_rows], default="")
+        max_rec = max([r["created_at"] for r in rec_rows], default="")
+    return {
+        "occurrences": [occ_view(r) for r in occ_rows],
+        "records": [{"id": r["id"], "type": r["type"], "value": r["value"], "unit": r["unit"],
+                     "occurred_at": r["occurred_at"], "created_at": r["created_at"],
+                     "revision": r["revision"], "deleted": bool(r["deleted"])} for r in rec_rows],
+        "next_since": max(max_occ, max_rec, since or ""),
+        "server_ts": iso(utc_now()),
+    }
+
+
+# 函数 sync_alarm_up：端侧直接上报告警（呼救），不等调度器
+def sync_alarm_up(user_id, kind="sos", note="", device=""):
+    """POST /v1/alarm —— 立即落库并推给家属端。"""
+    row = sos(user_id, user_id, note=note, device=device) if kind == "sos" else raise_alarm(
+        user_id, kind, 3, "", note or kind)
+    return {"alarm": row, "server_ts": iso(utc_now())}
 
 # ================================================================ HTTP
 class Handler(BaseHTTPRequestHandler):
@@ -1353,6 +1427,10 @@ class Handler(BaseHTTPRequestHandler):
     def _get(self):
         u = urlparse(self.path)
         p, q = u.path, {k: v[0] for k, v in parse_qs(u.query).items()}
+
+        # 颐伴手机端（Qt/QML）的 /v1/* 契约由适配层处理（见 v1_adapter.py）
+        if v1_adapter.handle_get(self, p, q):
+            return
 
         if p in ("/", "/index.html"):
             return self.static("index.html")
@@ -1579,6 +1657,9 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/v1/sensor/presence":
             return self.json(201, ingest_presence(target, True, source=q.get("source", "sensor")))
 
+        if p == "/api/v1/state":
+            return self.json(200, sync_state_down(target, q.get("since", "")))
+
         if p == "/api/v1/preview":
             days = int(q.get("days") or 7)
             day = None
@@ -1686,6 +1767,10 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self.json(400, {"error": "请求体不是合法 JSON"})
 
+        # 颐伴手机端 /v1/* 的写接口（body 已在上面解析，直接传下去）
+        if v1_adapter.handle_body(self, p, body, "POST"):
+            return
+
         if p in ("/api/v1/auth/pair", "/api/v1/bind"):
             # 配对码 → 会话令牌（文档 4.2.7：不发账号密码；4 位码靠限速防枚举）
             ip = (self.headers.get("X-Forwarded-For") or self.client_address[0] or "").split(",")[0].strip()
@@ -1733,6 +1818,16 @@ class Handler(BaseHTTPRequestHandler):
                     (user["id"],)).fetchone()
             target = row["elder_id"] if row else None
         target = target or user["id"]
+
+        if p == "/api/v1/events":
+            # body 已在 _post 开头解析过，必须复用；再调 body_json() 会等新字节挂住
+            events = body.get("events") if isinstance(body, dict) else body
+            return self.json(200, sync_events_up(target, events or []))
+
+        if p == "/api/v1/alarm":
+            return self.json(201, sync_alarm_up(target, body.get("kind") or "sos",
+                                                body.get("note", ""), body.get("device", "")))
+
 
         parts = p.strip("/").split("/")
         if len(parts) == 5 and parts[:3] == ["api", "v1", "occurrences"] and parts[4] == "events":
@@ -1868,15 +1963,21 @@ class Handler(BaseHTTPRequestHandler):
         user = self.me()
         if not user:
             return self.json(401, {"error": "令牌无效"})
+        try:
+            _body = self.body_json()
+        except ValueError:
+            return self.json(400, {"error": "请求体不是合法 JSON"})
+        if v1_adapter.handle_body(self, "/" + "/".join(parts), _body, "PATCH"):
+            return
         if len(parts) == 4 and parts[:3] == ["api", "v1", "records"]:
             try:
-                r = correct_record(parts[3], self.body_json(), user["id"])
+                r = correct_record(parts[3], _body, user["id"])
                 return self.json(200, self._record_view(r["id"]))
             except ValueError as e:
                 return self.json(422, {"error": str(e)})
         if len(parts) == 4 and parts[:3] == ["api", "v1", "plans"]:
             try:
-                body = self.body_json()
+                body = _body
                 target = body.get("elder_id") or body.get("user_id") or user.get("paired_elder") or user["id"]
                 save_plan(target, body, plan_id=parts[3])
                 return self.json(200, self._plan_view(target, parts[3]))
@@ -1890,6 +1991,8 @@ class Handler(BaseHTTPRequestHandler):
         user = self.me()
         if not user:
             return self.json(401, {"error": "令牌无效"})
+        if v1_adapter.handle_body(self, "/" + "/".join(parts), {}, "DELETE"):
+            return
         if len(parts) == 4 and parts[:3] == ["api", "v1", "records"]:
             try:
                 return self.json(200, delete_record(parts[3], user["id"]))
