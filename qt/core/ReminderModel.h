@@ -31,9 +31,17 @@ public:
     Q_INVOKABLE void missed(const QString &occId);
     Q_INVOKABLE void sos();
 
+    // ---- 远端同步（net/SyncPuller 调用；/v1/* 的 snake_case 在这里转换）----
+    void applyRemotePlans(const QVariantList &plans);
+    void applyRemoteOccurrences(const QVariantList &occurrences);
+    QVariantList pendingEvents() const;                   // serverSeq == 0 的事件
+    void markEventsSent(const QVariantList &acks);        // [{eventId, serverSeq}]
+    void setSyncState(const QString &state);
+
 signals:
     void changed();
     void sosTriggered();
+    void eventQueued();                                   // 有新事件待上传
 
 private:
     struct Rule {
@@ -56,11 +64,21 @@ private:
     QVariantList m_due, m_today;
     QTimer m_tick;
 
+    struct PendingEvent {
+        QString eventId, occId, action, reason;
+        qint64 ts = 0;
+        qint64 serverSeq = 0;
+    };
+    QList<PendingEvent> m_events;
+    QString m_syncState = QStringLiteral("offline");
+
     void rebuild();                      // 规则 → 未来 3 天实例
     bool matches(const Rule &r, const QDate &d) const;
     Occ *find(const QString &occId);
     void recompute();
     void setState(Occ &o, const QString &state);
+    void queueEvent(const QString &occId, const QString &action,
+                     const QString &reason = QString());
     static QString isoLocal(const QDateTime &dt);
 };
 
