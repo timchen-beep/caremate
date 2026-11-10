@@ -1,5 +1,7 @@
 <!-- 作用：Flutter 端源码的说明：文件分工与数据流 -->
-# 老人端源码（Flutter）
+# 老人端源码（Flutter，早期验证版）
+
+> 4.1 的手机端由 app 组用 Qt/QML 实现（见 `qt/` 与 `integration/yiban_client/` 里的补丁）。
 
 ## 文件分工
 
