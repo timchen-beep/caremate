@@ -24,7 +24,7 @@
 
 ```
 ┌────────────────────┐        ┌─────────────────────┐
-│  老人端（Flutter）  │        │  家属端（浏览器）    │
+│  老人端（Qt/QML）   │        │  家属端（浏览器）    │
 │  app/lib/*.dart    │        │  server/web/*.html  │
 └─────────┬──────────┘        └──────────┬──────────┘
           │  同一套 JSON 契约（Bearer 令牌）
@@ -75,7 +75,7 @@ pending ──通知──▶ notified ──确认──▶ confirmed
 
 | 步 | 文件 | 函数 | 干了什么 |
 |---|---|---|---|
-| 1 | `app/lib/screens/today.dart` | 按钮 `onPressed` | 调 `state.record(occ, 'confirmed')` |
+| 1 | `qt/pages/TodayPage.qml` | 按钮 `onClicked` | 调 `ReminderModel.confirm(occId)`（Flutter 版在 `app/`，仅参考） |
 | 2 | `app/lib/state.dart` | `record()` | 生成 `event_id`，写入本地队列 |
 | 3 | `app/lib/state.dart` | `_persist()` | 队列落盘，**断网也不丢** |
 | 4 | `app/lib/state.dart` | `pushPending()` | `POST /api/v1/occurrences/{id}/events` |
@@ -93,8 +93,8 @@ pending ──通知──▶ notified ──确认──▶ confirmed
 | 目录 | 一句话 | 先看哪个文件 |
 |---|---|---|
 | `server/` | 后端 + 老人端网页 + 家属看板 + 验收脚本 | **`server.py`** |
-| `app/` | Flutter 老人端（正式交付的 App） | `lib/state.dart` |
-| `qt/` | Qt/QML 老人端骨架（对照技术路线用，未编译） | `core/ReminderModel.cpp` |
+| `app/` | Flutter 老人端（**早期验证版，非交付物**） | `lib/state.dart` |
+| `qt/` | **Qt/QML 老人端（4.1 交付路线）**，`net/` 已接 `/v1/*` | `core/ReminderModel.cpp`、`net/SyncPuller.cpp` |
 | `pi/` | 树莓派 / 香橙派部署（mqtt broker + 服务） | `bridge.py` |
 | `scripts/` | Android 系统级改造（priv-app、kiosk、自检） | `50-verify-system.sh` |
 | `magisk-module/` | 可整模块回滚的 kiosk 定制层 | `service.sh` |
@@ -137,7 +137,7 @@ pending ──通知──▶ notified ──确认──▶ confirmed
 | 改统计口径（按天算还是 24h） | `stats()` |
 | 加一个接口 | `server.py` 路由表（搜 `"/api/v1/`） + 对应处理函数 |
 | 改家属看板样子 | `server/web/dashboard.html` |
-| 改手机端按钮/流程 | `app/lib/screens/*.dart` + `app/lib/state.dart` |
+| 改手机端按钮/流程 | `qt/pages/*.qml` + `qt/core/ReminderModel.cpp` |
 | 改本地通知文案/时间 | `app/lib/notify.dart` |
 | 让设备发消息给系统 | `bridge.py` + `publish()` |
 
