@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（138 个）
+# 函数索引（142 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -32,10 +32,13 @@
 | `qt/core/ReminderModel.cpp` | `doneCount` | 今日已完成条数 |
 | `qt/core/ReminderModel.cpp` | `isoLocal` | datetime → 'yyyy-MM-dd HH:mm'，实例的唯一时刻身份 |
 | `qt/core/ReminderModel.cpp` | `loadDemo` | 写入演示规则（用药/喝水/散步） |
+| `qt/core/ReminderModel.cpp` | `loadFromStoreOrDemo` | 冷启动读库；库里没数据才写演示规则 |
+| `qt/core/ReminderModel.cpp` | `localDbPath` | 本地库路径（设置页/排障用） |
 | `qt/core/ReminderModel.cpp` | `markEventsSent` | 把服务端回执的 server_seq 写回本地事件 |
 | `qt/core/ReminderModel.cpp` | `matches` | 判断某条规则在某天是否生效（每天/每周/间隔/一次） |
 | `qt/core/ReminderModel.cpp` | `missed` | 标记这次没做（对应后端 missed） |
 | `qt/core/ReminderModel.cpp` | `pendingEvents` | 还没拿到 server_seq 的事件 |
+| `qt/core/ReminderModel.cpp` | `persistNow` | 把规则/实例/事件整表写进 SQLite（单事务） |
 | `qt/core/ReminderModel.cpp` | `queueEvent` | 把一次动作记进待上传队列（eventId 固定，重试不变） |
 | `qt/core/ReminderModel.cpp` | `rebuild` | 规则 → 未来三天实例列表 |
 | `qt/core/ReminderModel.cpp` | `recompute` | 按当前时间算出到期列表与今日列表 |
@@ -44,6 +47,7 @@
 | `qt/core/ReminderModel.cpp` | `setSyncState` | 同步状态透给界面（offline / idle / syncing / error） |
 | `qt/core/ReminderModel.cpp` | `snooze` | 稍后再提醒，超过次数记为未确认 |
 | `qt/core/ReminderModel.cpp` | `sos` | 触发呼救（由界面层发出请求） |
+| `qt/core/ReminderModel.cpp` | `touchPersist` | 变更后 1 秒防抖落盘 |
 | `scripts/50-verify-system.sh` | `bad` | 打印失败项并累加失败计数 |
 | `scripts/50-verify-system.sh` | `ok` | 打印通过项并累加通过计数 |
 | `server/bridge.py` | `__init__` | 保存 broker 地址与 dry-run 标记 |
