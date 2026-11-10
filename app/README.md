@@ -1,5 +1,8 @@
 <!-- 作用：老人端 App 说明：老人端/看护端形态分工、权限、构建与安装步骤 -->
-# CareMate App（Flutter）—— 老人口袋里的那一端
+# CareMate App（Flutter）—— 早期验证版（非 4.1 交付物）
+
+> 4.1 的手机端由 app 组用 Qt/QML 实现（见 `qt/` 与 `integration/yiban_client/` 里的补丁）。
+> 这份 Flutter 版的价值：先验证了本地三表主副本 + 端上 30 秒 tick 可行，语义正移植进 Qt 版。
 
 形态分工：**老人端就是 App**（系统通知、锁屏亮屏、离线记录），**看护端是 Web 看板**（`../caremate-cloud/web/dashboard.html`）。
 
