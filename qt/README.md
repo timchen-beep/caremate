@@ -1,44 +1,45 @@
-<!-- 作用：Qt 骨架说明：为什么保留、目录结构、怎么编译、哪些还没验证 -->
-# Qt 老人端（B4 路线，骨架）
+<!-- 作用：Qt 端骨架说明：它是什么、怎么连后端、与新契约 /v1/* 的对应、验证边界 -->
+# Qt 老人端骨架（CareMate）
 
-> **状态：骨架，未编译。** 正式交付的老人端是 `../app/`（Flutter，已能出签名 APK）。
-> 这份代码是为了对齐课程文档的技术路线（Qt for Android）而保留的可替换实现。
+本目录是 **Qt/QML 参考实现**：验证规则展开、到期判断、大按钮交互与 JNI 精确闹钟。
+真正的手机端交付物是另一个仓库（`fspro7967/yiban_android_app`，Qt 6/QML + C++ facade），
+两边的**接口契约相同**：都走 `/v1/*`（见 `docs/端上对接_颐伴手机端.md`）。
 
-## 为什么留着它
+## 目录
 
-项目的通信契约与数据模型独立于客户端，因此老人端可以平替。这份 QML 代码证明了：
+| 路径 | 作用 |
+|---|---|
+| `main.cpp` | 入口：注册 `ReminderModel`、启动 `SyncPuller` |
+| `core/ReminderModel.*` | 规则 → 实例、状态、事件队列（对应后端 `slots_on` / `transition`） |
+| `net/HttpClient.*` | 唯一 HTTP 出口（`/v1/*`，令牌与地址解析） |
+| `net/SyncPuller.*` | 拉计划/状态、推事件、呼救上报、离线退避 |
+| `pages/*.qml` | 今日、记录、家人、SOS 四个页面 |
+| `android/` | JNI 精确闹钟（`AlarmBridge`）与清单 |
 
-- 同一个契约可以由 Qt 实现（`core/ReminderModel.cpp` 复刻了规则→实例的展开逻辑）
-- Android 系统级能力（精确闹钟）在 Qt 下需要一段 Java/JNI 胶水（`android/jni/AlarmBridge.cpp` + `android/src/.../AlarmBridge.java`）
-
-## 结构
-
-```
-qt/
-├── CMakeLists.txt          Qt 6.5+ / qt_add_qml_module
-├── main.cpp                注册 ReminderModel
-├── main.qml                三 tab 外壳（今天 / 记录 / 我的）
-├── pages/
-│   ├── TodayPage.qml       到点卡片 + 确认/稍后/没做
-│   ├── RecordPage.qml      喝水/入睡/起床一键记录
-│   ├── FamilyPage.qml      家属模式（同一 APK 的另一种界面）
-│   └── SosButton.qml       长按 3 秒呼救
-├── core/ReminderModel.*    规则→实例，状态机
-└── android/                精确闹钟（setExactAndAllowWhileIdle）+ 通知渠道
-```
-
-## 编译（需要 Qt 6.5+ 与 Android Kit）
+## 连后端
 
 ```bash
-qt-cmake -S . -B build
-cmake --build build
-# 桌面版先看布局：./build/appCareMate
-# 出 APK：--target apk（需配置 Android Kit）
+export CAREMATE_API=http://127.0.0.1:8400      # 或你电脑的局域网 IP
+export CAREMATE_TOKEN=app-elder-001
+# 只看离线演示（不连后端）：
+CAREMATE_OFFLINE=1 ./appCareMate
 ```
 
-## 已知限制
+后端在同一仓库：`server/server.py`（`/api/v1/*` 给看板，`/v1/*` 给手机端，两者同一真相来源）。
 
-- 未编译验证：搭建工具链时 `download.qt.io` 与镜像返回的 qtbase 包校验失败。
-- `AlarmBridge` 的 JNI 只在真机上有意义，桌面构建走的是打印模拟。
-- 视觉细节未做无障碍量测（Flutter 端有：32px 正文 / 84px 按钮 / 14.9:1 对比）。
+## 同步语义（与手机端仓库一致）
 
+| 时机 | 动作 |
+|---|---|
+| 启动 | `GET /v1/plans?since=0` → `GET /v1/state?since=<cursor>` |
+| 每 15 秒 | 有待传事件先 `POST /v1/events`，否则拉状态 |
+| 点确认/推迟/未做 | 本地入队（`eventId` 固定）→ 立即上传 → 回执写回 |
+| 呼救 | `POST /v1/alarm`（`source=manual`、`level=3`） |
+
+## 验证边界（如实说明）
+
+| 项 | 状态 |
+|---|---|
+| 后端 `/v1/*` 契约 | ✅ `server/test_v1.py` 9 项自动化 |
+| 本目录能否编译 | ❌ 开发机没有 Qt 6.5+/Android kit，**未编译** |
+| 真机 JNI 闹钟 | ❌ 未在真机验证 |
