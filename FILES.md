@@ -1,5 +1,5 @@
 <!-- 作用：文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->
-# 文件索引（147 个）
+# 文件索引（151 个）
 
 | 文件 | 作用 |
 |---|---|
@@ -102,6 +102,10 @@
 | `qt/core/ReminderModel.h` | Qt 规则模型的接口：规则→实例、确认/稍后/未做、到期列表 |
 | `qt/main.cpp` | Qt 入口：注册 ReminderModel、加载 main.qml（Android 走 Qt for Android） |
 | `qt/main.qml` | Qt 外壳：三 tab 布局、字号/按钮尺寸常量（32px 正文、84px 按钮） |
+| `qt/net/HttpClient.cpp` | Qt 端 HTTP 实现：地址/令牌解析、请求跟踪、JSON 解码与错误分类 |
+| `qt/net/HttpClient.h` | Qt 端唯一 HTTP 出口：/v1/* 的 GET/POST 封装（令牌、地址、JSON 解码都集中在这里） |
+| `qt/net/SyncPuller.cpp` | Qt 端同步实现：串行请求、增量游标、事件批量上行、呼救上报与离线退避 |
+| `qt/net/SyncPuller.h` | Qt 端同步器：拉 /v1/plans 与 /v1/state 灌进 ReminderModel，把本地动作队列推给 /v1/events |
 | `qt/pages/FamilyPage.qml` | Qt 家属模式：今日实例列表 + 代确认（同一 APK 的另一种界面） |
 | `qt/pages/RecordPage.qml` | Qt 记录页：喝水/入睡/起床一键记录 |
 | `qt/pages/SosButton.qml` | Qt 呼救按钮：按住 3 秒才触发，松手取消 |
