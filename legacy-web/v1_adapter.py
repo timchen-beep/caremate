@@ -30,6 +30,9 @@ HTTP 契约（`docs/端上接口规范_v1.1.md` §8，形状见 `docs/fixtures/*
    escalated/reopen，这里做词表转换。
 6. 窗口与升级：端上 `window_min` / `escalate_after_min` 对应本服务的"多久判 missed"和
    "多久通知家属"，分别取 CONFIG 的 th3 / th1，保证两边结论一致。
+
+契约版本对账：本模块按 app 组仓库的 `docs/端上接口规范_v1.1.md`（2026-11-06 冻结）实现，
+形状以 `docs/fixtures/*.json` 为准；`server/test_v1.py` 用同四份 fixtures 的字段做断言。
 """
 
 import json
