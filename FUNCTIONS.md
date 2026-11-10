@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（132 个）
+# 函数索引（138 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -26,16 +26,22 @@
 | `app/lib/state.dart` | `pair` | 用配对码换取令牌 |
 | `app/lib/state.dart` | `saveSettings` | 保存服务器地址/令牌并立即重新同步 |
 | `app/lib/state.dart` | `todayEvents` | 筛选出今天的动作记录 |
+| `qt/core/ReminderModel.cpp` | `applyRemoteOccurrences` | /v1/state 的实例直接替换本地清单（服务端为准） |
+| `qt/core/ReminderModel.cpp` | `applyRemotePlans` | /v1/plans 的 rule（四种）→ 内部 Rule，再重建实例列表 |
 | `qt/core/ReminderModel.cpp` | `confirm` | 确认完成（对应后端 confirmed） |
 | `qt/core/ReminderModel.cpp` | `doneCount` | 今日已完成条数 |
 | `qt/core/ReminderModel.cpp` | `isoLocal` | datetime → 'yyyy-MM-dd HH:mm'，实例的唯一时刻身份 |
 | `qt/core/ReminderModel.cpp` | `loadDemo` | 写入演示规则（用药/喝水/散步） |
+| `qt/core/ReminderModel.cpp` | `markEventsSent` | 把服务端回执的 server_seq 写回本地事件 |
 | `qt/core/ReminderModel.cpp` | `matches` | 判断某条规则在某天是否生效（每天/每周/间隔/一次） |
 | `qt/core/ReminderModel.cpp` | `missed` | 标记这次没做（对应后端 missed） |
+| `qt/core/ReminderModel.cpp` | `pendingEvents` | 还没拿到 server_seq 的事件 |
+| `qt/core/ReminderModel.cpp` | `queueEvent` | 把一次动作记进待上传队列（eventId 固定，重试不变） |
 | `qt/core/ReminderModel.cpp` | `rebuild` | 规则 → 未来三天实例列表 |
 | `qt/core/ReminderModel.cpp` | `recompute` | 按当前时间算出到期列表与今日列表 |
 | `qt/core/ReminderModel.cpp` | `refresh` | 30 秒定时重算（与后端调度节奏一致） |
 | `qt/core/ReminderModel.cpp` | `setState` | 改实例状态并发出变更信号 |
+| `qt/core/ReminderModel.cpp` | `setSyncState` | 同步状态透给界面（offline / idle / syncing / error） |
 | `qt/core/ReminderModel.cpp` | `snooze` | 稍后再提醒，超过次数记为未确认 |
 | `qt/core/ReminderModel.cpp` | `sos` | 触发呼救（由界面层发出请求） |
 | `scripts/50-verify-system.sh` | `bad` | 打印失败项并累加失败计数 |
