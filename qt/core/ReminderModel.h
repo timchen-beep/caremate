@@ -1,4 +1,6 @@
 // 作用：Qt 规则模型的接口：规则→实例、确认/稍后/未做、到期列表
+class LocalStore;
+
 #include <QObject>
 #include <QString>
 #include <QVariantList>
@@ -32,6 +34,11 @@ public:
     Q_INVOKABLE void sos();
 
     // ---- 远端同步（net/SyncPuller 调用；/v1/* 的 snake_case 在这里转换）----
+    // ---- 本地主副本（LocalStore / SQLite）----
+    qint64 serverCursor() const;
+    void setServerCursor(qint64 seq);
+    QString localDbPath() const;
+
     void applyRemotePlans(const QVariantList &plans);
     void applyRemoteOccurrences(const QVariantList &occurrences);
     QVariantList pendingEvents() const;                   // serverSeq == 0 的事件
@@ -63,6 +70,12 @@ private:
     QList<Occ> m_occs;
     QVariantList m_due, m_today;
     QTimer m_tick;
+
+    LocalStore *m_store = nullptr;
+    QTimer m_saveTimer;              // 1 秒防抖落盘
+    void persistNow();
+    void touchPersist();
+    void loadFromStoreOrDemo();      // 冷启动：有库读库，没有才演示
 
     struct PendingEvent {
         QString eventId, occId, action, reason;
