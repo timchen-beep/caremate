@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Network)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Network Sql)
 
 qt_standard_project_setup()
 
@@ -15,6 +15,12 @@ qt_add_executable(appCareMate
     main.cpp
     core/ReminderModel.cpp
     core/ReminderModel.h
+    core/LocalStore.cpp
+    core/LocalStore.h
+    net/HttpClient.cpp
+    net/HttpClient.h
+    net/SyncPuller.cpp
+    net/SyncPuller.h
 )
 
 qt_add_qml_module(appCareMate
@@ -31,7 +37,7 @@ qt_add_qml_module(appCareMate
 )
 
 find_package(Qt6 REQUIRED COMPONENTS Core)
-target_link_libraries(appCareMate PRIVATE Qt6::Quick Qt6::Network)
+target_link_libraries(appCareMate PRIVATE Qt6::Quick Qt6::Network Qt6::Sql)
 
 # ---------------------------------------------------------------- Android 部分
 # 说明：Qt for Android 的 Java/JNI 代码放在 android/ 下，由 Qt 的 build.gradle 引入。
