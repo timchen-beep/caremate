@@ -1,0 +1,56 @@
+# 作用：忽略规则：数据库、签名私钥、构建产物、APK、CI 临时文件
+# 鏁版嵁涓庤繍琛屾椂
+*.db
+*.db-wal
+*.db-shm
+server.pid
+backups/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Flutter / Android
+app/build/
+app/.dart_tool/
+app/.idea/
+app/.gradle/
+app/.kotlin/
+app/android/.gradle/
+app/android/app/build/
+app/*.iml
+app/android/*.iml
+.packages
+.pub-cache/
+.pub/
+
+# 绛惧悕绉侀挜锛堢粷涓嶅叆搴擄級
+*.jks
+*.keystore
+app/android/key.properties
+
+# 鏋勫缓浜х墿
+*.apk
+*.aab
+*.so
+
+# 缂栬緫鍣?.vscode/
+.DS_Store
+Thumbs.db
+
+# Qt 构建产物
+qt/build/
+*.o
+*.obj
+moc_*
+CMakeCache.txt
+CMakeFiles/
+*.user
+
+# CI 与本地验收产生的临时文件
+ci_test.db*
+acceptance*.json
+acceptance.json
+
