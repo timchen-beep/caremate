@@ -49,6 +49,9 @@ CMakeCache.txt
 CMakeFiles/
 *.user
 
+# 运行时日志（自启脚本写的）
+server/server.log
+
 # CI 与本地验收产生的临时文件
 ci_test.db*
 acceptance*.json
