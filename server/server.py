@@ -46,6 +46,27 @@ if not os.path.isdir(os.path.join(BASE, "web")) and os.path.isdir(os.path.join(o
     BASE = os.getcwd()
 WEB = os.path.join(BASE, "web")
 
+# 函数 load_dotenv：读 server/.env（不存在就跳过）。
+# 为什么放在服务端而不是 bat：bat 解析 .env 太脆（延迟展开、特殊字符都会踩坑），
+# Python 读一遍最稳。测试可以用 CAREMATE_SKIP_ENV=1 跳过，保证用演示令牌。
+def load_dotenv():
+    path = os.path.join(BASE, ".env")
+    if os.environ.get("CAREMATE_SKIP_ENV") or not os.path.isfile(path):
+        return
+    try:
+        with io.open(path, encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                os.environ.setdefault(key.strip(), value.strip())
+    except OSError:
+        pass
+
+
+load_dotenv()
+
 CONFIG = {
     # 账号令牌与配对码：默认是演示值；上公网必须用环境变量覆盖（tools/rotate_tokens.py 生成）
     "elder_token": os.environ.get("CAREMATE_ELDER_TOKEN", "app-elder-001"),
