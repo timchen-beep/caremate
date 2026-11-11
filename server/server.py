@@ -47,6 +47,11 @@ if not os.path.isdir(os.path.join(BASE, "web")) and os.path.isdir(os.path.join(o
 WEB = os.path.join(BASE, "web")
 
 CONFIG = {
+    # 账号令牌与配对码：默认是演示值；上公网必须用环境变量覆盖（tools/rotate_tokens.py 生成）
+    "elder_token": os.environ.get("CAREMATE_ELDER_TOKEN", "app-elder-001"),
+    "family_token": os.environ.get("CAREMATE_FAMILY_TOKEN", "fam-demo-2026"),
+    "community_token": os.environ.get("CAREMATE_COMMUNITY_TOKEN", "comm-demo-2026"),
+    "pair_code": os.environ.get("CAREMATE_PAIR_CODE", "8823"),
     "db": os.environ.get("CAREMATE_DB", os.path.join(BASE, "caremate.db")),
     "tz": os.environ.get("CAREMATE_TZ", "Asia/Shanghai"),
     "mode": os.environ.get("CAREMATE_MODE", "local"),
@@ -323,18 +328,37 @@ def migrate(conn):
 
 
 # 函数 init_db：建表 + 迁移 + 首次写入演示账号与示例计划
+# 函数 apply_token_overrides：已存在的库也跟随环境变量换令牌（换令牌不用删库）
+def apply_token_overrides(conn):
+    pairs = (("u-elder", "elder_token", "pair_code"),
+             ("u-family", "family_token", None),
+             ("u-community", "community_token", None))
+    for user_id, token_key, code_key in pairs:
+        row = conn.execute("SELECT token, bind_code FROM users WHERE id=?", (user_id,)).fetchone()
+        if not row:
+            continue
+        token = CONFIG[token_key]
+        code = CONFIG[code_key] if code_key else row["bind_code"]
+        if row["token"] != token or (code_key and row["bind_code"] != code):
+            conn.execute("UPDATE users SET token=?, bind_code=? WHERE id=?", (token, code, user_id))
+
+
 def init_db():
     with connect() as conn:
         conn.executescript(SCHEMA)
         migrate(conn)
         if conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]:
+            apply_token_overrides(conn)      # 已有库：按环境变量对齐令牌
             return
         t = iso(utc_now())
         conn.executemany(
             "INSERT INTO users (id,name,role,token,bind_code,tz,created_at) VALUES (?,?,?,?,?,?,?)",
-            [("u-elder", "张阿姨", "elder", "app-elder-001", "8823", CONFIG["tz"], t),
-             ("u-family", "家属（女儿）", "family", "fam-demo-2026", None, CONFIG["tz"], t),
-             ("u-community", "社区网格员", "community", "comm-demo-2026", None, CONFIG["tz"], t)],
+            [("u-elder", "张阿姨", "elder", CONFIG["elder_token"], CONFIG["pair_code"],
+              CONFIG["tz"], t),
+             ("u-family", "家属（女儿）", "family", CONFIG["family_token"], None,
+              CONFIG["tz"], t),
+             ("u-community", "社区网格员", "community", CONFIG["community_token"], None,
+              CONFIG["tz"], t)],
         )
         conn.execute("INSERT INTO links (family_id,elder_id,can_edit,created_at) VALUES (?,?,?,?)",
                      ("u-family", "u-elder", 1, t))
@@ -2071,7 +2095,9 @@ def main():
     print("  总入口    http://%s:%d/" % (args.host, args.port))
     print("  App 端    http://%s:%d/app" % (args.host, args.port))
     print("  家属看板  http://%s:%d/dashboard" % (args.host, args.port))
-    print("令牌：老人 app-elder-001 / 家属 fam-demo-2026 / 社区 comm-demo-2026")
+    print("令牌：老人 %s / 家属 %s / 社区 %s（配对码 %s）"
+      % (CONFIG["elder_token"], CONFIG["family_token"],
+         CONFIG["community_token"], CONFIG["pair_code"]))
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
