@@ -43,32 +43,50 @@ https://timchen.tail3c910a.ts.net/app
 https://timchen.tail3c910a.ts.net/kiosk
 ```
 
-## 三、让它在重启后自动恢复
+## 三、关机再开机之后（已配置好，实测过）
 
-需要两件事同时满足：
-
-| 组件 | 怎么自启 | 现状 |
+| 组件 | 谁负责启动 | 状态 |
 |---|---|---|
-| Tailscale（含 Funnel 配置） | 安装时装成了 Windows 服务，`Automatic` 启动 | ✅ 已生效 |
-| CareMate 后端 | 启动文件夹里的 `CareMate Server.bat` → `server\start-caremate.bat` | ✅ 已放置 |
+| Tailscale（含 Funnel 配置） | 安装时注册的 Windows 服务 `Tailscale`（Automatic） | ✅ Running |
+| CareMate 后端 | 启动文件夹里的 `CareMate Server.vbs` → `server\start-caremate.vbs` | ✅ 已配置 |
 
-`server\start-caremate.bat` 用 `pythonw.exe` 静默启动，日志写 `server\server.log`：
+重启后发生的事，按顺序：
 
-```bat
-cd /d "%~dp0"
-start "" /min "<python 路径>\pythonw.exe" server.py --port 8000 >> "%~dp0server.log" 2>&1
-```
+1. Windows 启动 → `Tailscale` 服务自动起来，**Funnel 配置保存在 tailscaled 状态里**，不需要重新 `funnel --bg`
+2. 你**登录 Windows** → 启动文件夹里的 VBS 静默拉起后端（`pythonw`，不弹窗）
+3. 后端启动时自己读 `server\.env`（令牌/配对码），所以轮换过的令牌重启后依然有效
+4. `https://timchen.tail3c910a.ts.net` 恢复可用（通常 10–20 秒内）
 
-手动验证自启脚本（不用重启电脑）：
+**注意**：启动文件夹是在**用户登录后**才执行。所以脚本必须进桌面一次——如果开机停在登录界面不登录，地址会 502。
+
+### 开机后一分钟自检（照做）
 
 ```powershell
-# 停掉当前服务
-Get-CimInstance Win32_Process -Filter "Name='pythonw.exe'" | Where-Object { $_.CommandLine -like '*server.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-# 用 bat 拉起
-cmd /c "C:\Users\43915\Documents\GitHub\main\server\start-caremate.bat"
-# 健康检查
+# 1) 服务在不在
+Get-Service Tailscale | Select-Object Status,StartType
+# 2) Funnel 还在不在
+& "C:\Program Files\Tailscale\tailscale.exe" funnel status
+# 3) 后端在不在
+Get-CimInstance Win32_Process -Filter "Name='pythonw.exe'" | Where-Object { $_.CommandLine -like '*server.py*' }
+# 4) 本地通不通
 curl.exe http://127.0.0.1:8000/api/v1/health
+# 5) 公网通不通
+curl.exe https://timchen.tail3c910a.ts.net/api/v1/health
 ```
+
+任何一步失败：
+
+| 卡在哪 | 手动修 | 说明 |
+|---|---|---|
+| 2) Funnel 没了 | `& "C:\Program Files\Tailscale\tailscale.exe" funnel --bg 8000` | 极少见，换账号/重装后会出现 |
+| 3) 后端没起 | 双击 `server\start-caremate.vbs` | 或查 `server\server.log` |
+| 4) 本地通、公网 502 | 等 15 秒再试 | Tailscale 重连边缘需要几秒 |
+| 全都正常但公网还是 502 | `& "C:\Program Files\Tailscale\tailscale.exe" status` 看是否掉线 | 重新登录 `tailscale up` |
+
+### 为什么用 VBS 而不是 .bat
+
+实测在这台机器上，`.bat` 里 `start "" /min "pythonw.exe" ...` 会**卡住不返回**（cmd 的 start 在某些环境阻塞），
+导致启动事项挂死、服务起不来。VBS 用 `WScript.Shell.Run(..., 0, False)` 启动即返回，实测 0.01 秒。
 
 ## 四、排错对照表（都踩过）
 
