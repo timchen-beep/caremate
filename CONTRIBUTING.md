@@ -119,6 +119,27 @@ python tools/merge_from_branches.py             # 拉取 → 验证 → 逐文�
 | `qt` | `qt/`、`integration/` 整目录 + **双方都有的** `docs/` 文件 |
 | `main` | `tools/`、根目录文档、`app/`、硬件相关目录 |
 
+### 改完后端之后：把 `server/` 推到另一条迭代分支
+
+后端代码在 `web` 分支迭代，但 `qt` 分支也连同一个后端（`server/` 各有一份）。所以：
+**在 `web` 上改完后端，要顺手把它同步进 `qt`**（反过来也一样）：
+
+```bash
+python tools/sync_branches.py --only qt          # main → qt：覆盖 server/ 核心（+已有文档），验证后提交推送
+python tools/sync_branches.py --only web         # main → web：网页端分支同理
+python tools/sync_branches.py --only qt --dry-run   # 只看会覆盖哪些文件
+```
+
+它做四件事，顺序固定：
+
+1. 差异核对（覆盖前先看 `git status`，没变化直接"已是最新"）
+2. 覆盖 `server.py` / `v1_adapter.py` / `test_v1.py`（外加分支里已有的对接文档）
+3. **起服务验证**：`test_accept` 6 项 + `test_v1` 9 项（`test_accept` 不会自己起服务，工具会先启动）
+4. 逐文件提交 → 推送该分支
+
+> 工具默认只同步"服务端核心"这几个文件；`tools/` 归 main，不加 `--with-tools` 就不会动它。
+> 归档分支（`v1-web`/`v2-qt`/`v3-flash*`）也可以用同一命令，省略 `--only` 就是全部六条一起同步。
+
 两个关键约束：
 
 1. **不要用 `git merge`**：`web`/`qt` 是 orphan 分支（与 main 无共同历史），整枝合并会把分支独有文件当新增、产生大量伪冲突。
