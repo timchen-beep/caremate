@@ -1,0 +1,1450 @@
+﻿From 18ac9ef44064e2b4d3331aa57d79d2c554fd9797 Mon Sep 17 00:00:00 2001
+From: CareMate <caremate@example.com>
+Date: Tue, 10 Nov 2026 16:29:14 +0800
+Subject: [PATCH 1/3] =?UTF-8?q?feat:=20=E5=AF=B9=E6=8E=A5=20CareMate=20?=
+ =?UTF-8?q?=E5=90=8E=E7=AB=AF=20/v1/*=EF=BC=88=E7=9C=9F=20HTTP=20=E4=BC=A0?=
+ =?UTF-8?q?=E8=BE=93=20+=20=E5=90=8C=E6=AD=A5=E5=BC=95=E6=93=8E=20+=20?=
+ =?UTF-8?q?=E7=AB=AF=E4=B8=8A=E7=81=8C=E5=85=A5=E5=85=A5=E5=8F=A3=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ CMakeLists.txt                                |   2 +
+ ...71\345\212\250\350\257\264\346\230\216.md" |  65 +++++
+ src/comm/http_client.cpp                      | 104 +++++++
+ src/comm/http_client.h                        |  41 ++-
+ src/comm/sync_engine.cpp                      | 271 ++++++++++++++++++
+ src/comm/sync_engine.h                        |  73 +++++
+ src/vm/app_core.cpp                           | 123 +++++++-
+ src/vm/app_core.h                             |  13 +
+ src/vm/device_vm.cpp                          |   1 +
+ src/vm/sync_vm.cpp                            |  21 +-
+ src/vm/sync_vm.h                              |   5 +
+ 11 files changed, 712 insertions(+), 7 deletions(-)
+ create mode 100644 "docs/\345\257\271\346\216\245\345\220\216\347\253\257_\346\224\271\345\212\250\350\257\264\346\230\216.md"
+ create mode 100644 src/comm/sync_engine.cpp
+ create mode 100644 src/comm/sync_engine.h
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index f2ff2a4..ba1d534 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -116,6 +116,8 @@ set(VM_SOURCES
+         src/vm/facade_errors.h
+         src/comm/http_client.h
+         src/comm/http_client.cpp
++  src/comm/sync_engine.h
++  src/comm/sync_engine.cpp
+ )
+ 
+ set(PROJECT_SOURCES
+diff --git "a/docs/\345\257\271\346\216\245\345\220\216\347\253\257_\346\224\271\345\212\250\350\257\264\346\230\216.md" "b/docs/\345\257\271\346\216\245\345\220\216\347\253\257_\346\224\271\345\212\250\350\257\264\346\230\216.md"
+new file mode 100644
+index 0000000..3759522
+--- /dev/null
++++ "b/docs/\345\257\271\346\216\245\345\220\216\347\253\257_\346\224\271\345\212\250\350\257\264\346\230\216.md"
+@@ -0,0 +1,65 @@
++# 对接 CareMate 后端（本次改动说明）
++
++> 改动日期：2026-11-10
++> 对应后端：CareMate 云端（`/v1/*` 适配层，见后端仓库 `server/v1_adapter.py`）
++> 前置：`docs/端上接口规范_v1.1.md` 的契约不变，**facade 与 `qml/` 一行未改**
++
++## 1. 这次补了哪些"洞"
++
++| 交付物 | 文件 | 状态 |
++|---|---|---|
++| 真实 HTTP 传输 | `src/comm/http_client.{h,cpp}` | ✅ 新增 `QNetworkHttpClient`（`OfflineHttpClient` 保留给离线演示） |
++| 同步引擎 | `src/comm/sync_engine.{h,cpp}` | ✅ 新增：拉计划/状态、推事件、配对、退避重试 |
++| 端上灌入入口 | `src/vm/app_core.{h,cpp}` | ✅ 新增 4 个方法（`applyRemotePlans` / `applyRemoteOccurrences` / `pendingEvents` / `markEventsUploaded`） |
++| `SyncVM` 接真 | `src/vm/sync_vm.{h,cpp}` | ✅ `syncState` / `lastSyncTs` / `pendingCount` / `retrySync` 都由引擎驱动 |
++| 配对走后端 | `src/vm/device_vm.cpp` | ✅ `pair()` 触发 `POST /v1/pair`，成功后写入令牌 |
++| 构建脚本 | `CMakeLists.txt` | ✅ 加入 `sync_engine` 两个源文件 |
++
++**没改**：`qml/`、`src/vm/*_vm.h` 的公开签名、`facade_errors.h`、`tests/`。
++
++## 2. 配置（三种方式，优先级从高到低）
++
++```bash
++# 1) 环境变量（联调最方便）
++export YIBAN_API=http://192.168.1.20:8400    # 电脑的局域网地址
++export YIBAN_TOKEN=app-elder-001              # 后端 init_db 写入的演示令牌
++
++# 2) 桌面运行（Qt 6.11）
++cmake -S . -B build-desktop -DCMAKE_PREFIX_PATH=/opt/Qt/6.11.1/gcc_64
++cmake --build build-desktop -j6
++./build-desktop/yiban_android_app
++```
++
++3) 配对：设置页输入 6 位配对码 → `DeviceVM.pair()` → `POST /v1/pair` → 令牌写入 QSettings，
++   之后所有请求自动带 `X-Token`。
++
++> Android 模拟器访问宿主机用 `http://10.0.2.2:8400`（默认值就是它）。
++
++## 3. 同步语义（与后端对齐）
++
++| 动作 | 端上 | 后端 |
++|---|---|---|
++| 启动 | 拉 `/v1/plans?since=0` → 拉 `/v1/state?since=cursor` | 计划全量、实例全量 |
++| 每 15 秒 | 有待传事件先上传，否则拉状态 | `/v1/state` 增量 |
++| 每 60 秒 | 拉计划 | `/v1/plans` 全量（量小，直接覆盖） |
++| 用户点确认/推迟/撤销 | 写本地事件（`serverSeq=0`）→ 触发上传 | `/v1/events` → 回 `server_seq` → 端上置已同步 |
++| 到点升级/呼救 | `DeviceVM` 触发 → `POST /v1/alarm` | 后端 `sos()` / `raise_alarm()` |
++| 断网 | `syncState="offline"`，退避 1s→2s→4s→…→5min | — |
++
++**冲突**：后端回 409（`state_conflict`）时以服务端为准，`SyncEngine` 会把状态置 `error` 并提示，
++随后下一轮拉取会用服务端状态覆盖本地乐观值。
++
++## 4. 已经验证 / 还没验证（说实话）
++
++| 项 | 状态 |
++|---|---|
++| 后端 `/v1/*` 契约（7 端点 + 4 份 fixtures 形状） | ✅ 已用 `server/test_v1.py` 9 项自动化验证（后端仓库 CI 里跑） |
++| 端上代码能否编译 | ❌ **没有 Qt 6.11 环境，未编译**；本次是代码级对接，需在装了 Qt 的机器上执行上面的 cmake 命令 |
++| 真机联调（局域网 + 锁屏全屏提醒） | ❌ 未做，需要真机与同一网段 |
++
++## 5. 编译时可能踩的坑
++
++1. `SyncEngine` 用了 `qobject_cast<QNetworkHttpClient *>`，`QNetworkHttpClient` 必须带 `Q_OBJECT`（已带）。
++2. `AppCore::applyRemotePlans` 会触发 `rebuildToday()`，它依赖 `m_day`；引擎在启动后第一帧才有日期，因此
++   首次拉取前若 `m_day` 无效，实例会被重建为空——真机上表现为"首页空一秒后自动出现"，可接受。
++3. 若后端返回 401，先确认 `YIBAN_TOKEN` 与后端 `users.token` 一致（默认 `app-elder-001`）。
+\ No newline at end of file
+diff --git a/src/comm/http_client.cpp b/src/comm/http_client.cpp
+index 7e6b1ab..98d681e 100644
+--- a/src/comm/http_client.cpp
++++ b/src/comm/http_client.cpp
+@@ -1,7 +1,14 @@
+ #include "http_client.h"
+ 
++#include <QJsonDocument>
++#include <QNetworkAccessManager>
++#include <QNetworkReply>
++#include <QNetworkRequest>
++#include <QSettings>
+ #include <QTimer>
++#include <QUrl>
+ 
++// ---------------------------------------------------------------- 占位实现（离线）
+ OfflineHttpClient::OfflineHttpClient(QObject *parent)
+     : HttpClient(parent)
+ {
+@@ -28,3 +35,100 @@ quint64 OfflineHttpClient::getJson(const QString &path, const QUrlQuery &query)
+     });
+     return id;
+ }
++
++// ---------------------------------------------------------------- 真实现（CareMate 后端）
++QNetworkHttpClient::QNetworkHttpClient(QObject *parent)
++    : HttpClient(parent)
++    , m_nam(new QNetworkAccessManager(this))
++{
++    QSettings settings;
++    m_baseUrl = qEnvironmentVariable("YIBAN_API");
++    if (m_baseUrl.isEmpty())
++        m_baseUrl = settings.value(QStringLiteral("api/baseUrl")).toString();
++    if (m_baseUrl.isEmpty())
++        m_baseUrl = QStringLiteral("http://10.0.2.2:8400");
++    while (m_baseUrl.endsWith(QLatin1Char('/')))
++        m_baseUrl.chop(1);
++
++    m_token = qEnvironmentVariable("YIBAN_TOKEN");
++    if (m_token.isEmpty())
++        m_token = settings.value(QStringLiteral("api/token")).toString();
++    if (m_token.isEmpty())
++        m_token = QStringLiteral("app-elder-001"); // 演示令牌（后端 init_db 写入）
++}
++
++void QNetworkHttpClient::setBaseUrl(const QString &url)
++{
++    m_baseUrl = url;
++    while (m_baseUrl.endsWith(QLatin1Char('/')))
++        m_baseUrl.chop(1);
++    QSettings settings;
++    settings.setValue(QStringLiteral("api/baseUrl"), m_baseUrl);
++}
++
++void QNetworkHttpClient::setToken(const QString &token)
++{
++    m_token = token;
++    QSettings settings;
++    settings.setValue(QStringLiteral("api/token"), m_token);
++}
++
++QUrl QNetworkHttpClient::urlFor(const QString &path) const
++{
++    return QUrl(m_baseUrl + path);
++}
++
++void QNetworkHttpClient::track(quint64 id, QNetworkReply *reply)
++{
++    connect(reply, &QNetworkReply::finished, this, [this, id, reply] {
++        reply->deleteLater();
++        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
++        const QByteArray payload = reply->readAll();
++
++        if (reply->error() != QNetworkReply::NoError && status == 0) {
++            // 连不上服务器：保持 offline，让 SyncEngine 走退避重试
++            m_online = false;
++            emit failed(id, reply->errorString());
++            return;
++        }
++        QJsonObject body;
++        if (!payload.isEmpty()) {
++            const QJsonDocument doc = QJsonDocument::fromJson(payload);
++            if (doc.isObject())
++                body = doc.object();
++            else if (doc.isArray())
++                body = QJsonObject{{QStringLiteral("items"), doc.array()}};
++        }
++        // 401/403 说明令牌失效，上层会提示重新配对；其余都算"网络通"
++        m_online = true;
++        emit reply(id, status, body);
++    });
++}
++
++quint64 QNetworkHttpClient::postJson(const QString &path, const QJsonObject &body)
++{
++    const quint64 id = m_nextId++;
++    QNetworkRequest request(urlFor(path));
++    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
++    request.setRawHeader("Accept", "application/json");
++    if (!m_token.isEmpty())
++        request.setRawHeader("X-Token", m_token.toUtf8());
++    QNetworkReply *reply = m_nam->post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
++    track(id, reply);
++    return id;
++}
++
++quint64 QNetworkHttpClient::getJson(const QString &path, const QUrlQuery &query)
++{
++    const quint64 id = m_nextId++;
++    QUrl url = urlFor(path);
++    if (!query.isEmpty())
++        url.setQuery(query);
++    QNetworkRequest request(url);
++    request.setRawHeader("Accept", "application/json");
++    if (!m_token.isEmpty())
++        request.setRawHeader("X-Token", m_token.toUtf8());
++    QNetworkReply *reply = m_nam->get(request);
++    track(id, reply);
++    return id;
++}
+diff --git a/src/comm/http_client.h b/src/comm/http_client.h
+index 7e87c95..a448ec7 100644
+--- a/src/comm/http_client.h
++++ b/src/comm/http_client.h
+@@ -4,13 +4,15 @@
+ #include <QObject>
+ #include <QUrlQuery>
+ 
++class QNetworkAccessManager;
++class QNetworkReply;
++
+ // HTTP 传输层接口（B2 实现）。
+ //
+ // 这是整个仓库里唯一允许出现 QNetworkAccessManager / QNetworkRequest 的地方。
+-// 上层（SyncVM / 同步队列）只认 "path + JSON body → requestId → reply"，
+-// 因此单测可以把实现换成假实现，不联网也能跑。
++// 上层（SyncEngine）只认 "path + JSON body → requestId → reply"，因此单测可以把实现换成假实现。
+ //
+-// 请求/响应形状见 docs/端上接口规范_v1.1.md 第 4 节（与 agent/接口冻结清单.md 对齐）。
++// 请求/响应形状见 docs/端上接口规范_v1.1.md 第 8 节（与 docs/fixtures/*.json 一致）。
+ class HttpClient : public QObject
+ {
+     Q_OBJECT
+@@ -45,3 +47,36 @@ public:
+ private:
+     quint64 m_nextId = 1;
+ };
++
++// 真实现（对接 CareMate 后端 /v1/*）。
++//
++// 配置来源（优先级从高到低）：
++//   1) 环境变量 YIBAN_API / YIBAN_TOKEN（方便联调直连电脑）
++//   2) QSettings 的 api/baseUrl、api/token（配对成功后写入）
++//   3) 默认 http://10.0.2.2:8400（Android 模拟器访问宿主机）
++class QNetworkHttpClient : public HttpClient
++{
++    Q_OBJECT
++
++public:
++    explicit QNetworkHttpClient(QObject *parent = nullptr);
++
++    bool isOnline() const override { return m_online; }
++    quint64 postJson(const QString &path, const QJsonObject &body) override;
++    quint64 getJson(const QString &path, const QUrlQuery &query) override;
++
++    QString baseUrl() const { return m_baseUrl; }
++    void setBaseUrl(const QString &url);
++    QString token() const { return m_token; }
++    void setToken(const QString &token);
++
++private:
++    QUrl urlFor(const QString &path) const;
++    void track(quint64 id, QNetworkReply *reply);
++
++    QNetworkAccessManager *m_nam = nullptr;
++    QString m_baseUrl;
++    QString m_token;
++    bool m_online = false;
++    quint64 m_nextId = 1;
++};
+diff --git a/src/comm/sync_engine.cpp b/src/comm/sync_engine.cpp
+new file mode 100644
+index 0000000..2e8546c
+--- /dev/null
++++ b/src/comm/sync_engine.cpp
+@@ -0,0 +1,271 @@
++#include "sync_engine.h"
++
++#include "http_client.h"
++#include "vm/app_core.h"
++
++#include <QDateTime>
++#include <QJsonArray>
++#include <QJsonDocument>
++#include <QJsonObject>
++#include <QSettings>
++#include <QUuid>
++#include <QVariantList>
++#include <QVariantMap>
++
++namespace {
++// 服务端动作名 ← 端上动作名（端上用 confirm/snooze/miss/escalate/undo）
++QString clientAction(const QString &name)
++{
++    if (name == QLatin1String("confirmed"))
++        return QStringLiteral("confirm");
++    if (name == QLatin1String("snoozed"))
++        return QStringLiteral("snooze");
++    if (name == QLatin1String("missed"))
++        return QStringLiteral("miss");
++    if (name == QLatin1String("escalated"))
++        return QStringLiteral("escalate");
++    if (name == QLatin1String("reopen"))
++        return QStringLiteral("undo");
++    return name;
++}
++} // namespace
++
++SyncEngine::SyncEngine(HttpClient *http, QObject *parent)
++    : QObject(parent)
++    , m_http(http)
++{
++    QSettings settings;
++    m_deviceId = settings.value(QStringLiteral("device/id")).toString();
++    if (m_deviceId.isEmpty()) {
++        m_deviceId = QStringLiteral("android-") + QUuid::createUuid().toString(QUuid::WithoutBraces).left(13);
++        settings.setValue(QStringLiteral("device/id"), m_deviceId);
++    }
++    AppCore::instance()->setDeviceId(m_deviceId);
++
++    connect(m_http, &HttpClient::reply, this, &SyncEngine::onReply);
++    connect(m_http, &HttpClient::failed, this, &SyncEngine::onFailed);
++
++    // 端上有新事件（用户点了确认/推迟…）→ 尽快上传
++    connect(AppCore::instance(), &AppCore::occurrencesChanged, this, [this] {
++        if (!m_busy && pendingCount() > 0)
++            pushPending();
++    });
++
++    connect(AppCore::instance(), &AppCore::pairRequested, this, &SyncEngine::pair);
++
++    m_timerFast.setInterval(15000);
++    connect(&m_timerFast, &QTimer::timeout, this, &SyncEngine::tick);
++    m_timerSlow.setInterval(60000);
++    connect(&m_timerSlow, &QTimer::timeout, this, [this] { pullPlans(); });
++    m_retryTimer.setSingleShot(true);
++    connect(&m_retryTimer, &QTimer::timeout, this, [this] {
++        if (!m_busy)
++            m_cursor == 0 ? pullPlans() : pullState();
++    });
++}
++
++void SyncEngine::start()
++{
++    m_timerFast.start();
++    m_timerSlow.start();
++    pullPlans();       // 先计划：没有计划就没有 occurrence
++}
++
++int SyncEngine::pendingCount() const
++{
++    return AppCore::instance()->pendingEvents().size();
++}
++
++void SyncEngine::setState(const QString &state)
++{
++    if (m_state == state)
++        return;
++    m_state = state;
++    emit stateChanged();
++}
++
++void SyncEngine::pullPlans()
++{
++    if (m_busy)
++        return;   // 一次只跑一个请求：回执按 m_pendingOp 分派，不能并行
++    m_pendingOp = Op::Plans;
++    m_busy = true;
++    setState(QStringLiteral("syncing"));
++    QUrlQuery query;
++    query.addQueryItem(QStringLiteral("since"), QString::number(0)); // 计划量小，直接全量
++    m_http->getJson(QStringLiteral("/v1/plans"), query);
++}
++
++void SyncEngine::pullState()
++{
++    if (m_busy)
++        return;
++    m_pendingOp = Op::State;
++    m_busy = true;
++    setState(QStringLiteral("syncing"));
++    QUrlQuery query;
++    query.addQueryItem(QStringLiteral("since"), QString::number(m_cursor));
++    m_http->getJson(QStringLiteral("/v1/state"), query);
++}
++
++void SyncEngine::pushPending()
++{
++    if (m_busy)
++        return;
++    const QVariantList events = AppCore::instance()->pendingEvents();
++    if (events.isEmpty()) {
++        setState(QStringLiteral("idle"));
++        return;
++    }
++    QJsonArray array;
++    for (const QVariant &entry : events) {
++        const QVariantMap event = entry.toMap();
++        QJsonObject item;
++        item[QStringLiteral("event_id")] = event.value(QStringLiteral("eventId")).toString();
++        item[QStringLiteral("occurrence_id")] = event.value(QStringLiteral("occurrenceId")).toLongLong();
++        item[QStringLiteral("action")] = clientAction(event.value(QStringLiteral("action")).toString());
++        item[QStringLiteral("ts")] = event.value(QStringLiteral("ts")).toLongLong();
++        item[QStringLiteral("device_id")] = m_deviceId;
++        item[QStringLiteral("reason")] = event.value(QStringLiteral("reason")).toString();
++        array.append(item);
++    }
++    QJsonObject body;
++    body[QStringLiteral("events")] = array;
++
++    m_pendingOp = Op::Events;
++    m_busy = true;
++    setState(QStringLiteral("syncing"));
++    m_http->postJson(QStringLiteral("/v1/events"), body);
++}
++
++void SyncEngine::retry()
++{
++    m_retryTimer.stop();
++    m_retryDelayMs = 1000;
++    if (m_cursor == 0)
++        pullPlans();
++    else
++        pullState();
++}
++
++void SyncEngine::pair(const QString &code)
++{
++    if (m_busy)
++        return;
++    QJsonObject body;
++    body[QStringLiteral("pair_code")] = code.trimmed();
++    body[QStringLiteral("device_id")] = m_deviceId;
++    body[QStringLiteral("role")] = QStringLiteral("elder");
++    m_pendingOp = Op::Pair;
++    m_busy = true;
++    setState(QStringLiteral("syncing"));
++    m_http->postJson(QStringLiteral("/v1/pair"), body);
++}
++
++void SyncEngine::tick()
++{
++    m_slowTicks++;
++    if (m_busy)
++        return;
++    if (pendingCount() > 0) {
++        pushPending();
++        return;
++    }
++    pullState();
++}
++
++void SyncEngine::scheduleRetry()
++{
++    setState(QStringLiteral("offline"));
++    m_retryTimer.start(m_retryDelayMs);
++    m_retryDelayMs = qMin(m_retryDelayMs * 2, 5 * 60 * 1000);
++}
++
++void SyncEngine::onFailed(quint64 requestId, const QString &code)
++{
++    Q_UNUSED(requestId)
++    Q_UNUSED(code)
++    m_busy = false;
++    scheduleRetry();
++}
++
++void SyncEngine::onReply(quint64 requestId, int status, const QJsonObject &body)
++{
++    Q_UNUSED(requestId)
++    m_busy = false;
++    m_retryDelayMs = 1000;
++
++    if (status == 401 || status == 403) {
++        setState(QStringLiteral("error"));
++        emit commandRejected(QStringLiteral("auth"), QStringLiteral("令牌失效，请重新配对"));
++        return;
++    }
++    if (status >= 400) {
++        setState(QStringLiteral("error"));
++        return;
++    }
++
++    switch (m_pendingOp) {
++    case Op::Plans: {
++        const QJsonArray plans = body.value(QStringLiteral("plans")).toArray();
++        QVariantList list;
++        for (const QJsonValue &value : plans)
++            list.append(value.toObject().toVariantMap());
++        AppCore::instance()->applyRemotePlans(list);
++        pullState();
++        break;
++    }
++    case Op::State: {
++        const QJsonArray occurrences = body.value(QStringLiteral("occurrences")).toArray();
++        QVariantList list;
++        for (const QJsonValue &value : occurrences)
++            list.append(value.toObject().toVariantMap());
++        AppCore::instance()->applyRemoteOccurrences(list);
++        const qint64 nextSeq = static_cast<qint64>(body.value(QStringLiteral("next_seq")).toDouble());
++        if (nextSeq > m_cursor)
++            m_cursor = nextSeq;
++        m_lastSyncTs = QDateTime::currentMSecsSinceEpoch();
++        setState(QStringLiteral("idle"));
++        if (pendingCount() > 0)
++            pushPending();
++        break;
++    }
++    case Op::Events: {
++        const QJsonArray accepted = body.value(QStringLiteral("accepted")).toArray();
++        QVariantList applied;
++        for (const QJsonValue &value : accepted) {
++            const QJsonObject item = value.toObject();
++            if (item.value(QStringLiteral("applied")).toBool(false)) {
++                QVariantMap entry;
++                entry[QStringLiteral("eventId")] = item.value(QStringLiteral("event_id")).toString();
++                entry[QStringLiteral("serverSeq")] =
++                    static_cast<qint64>(item.value(QStringLiteral("server_seq")).toDouble());
++                applied.append(entry);
++            }
++        }
++        if (!applied.isEmpty())
++            AppCore::instance()->markEventsUploaded(applied);
++        m_lastSyncTs = QDateTime::currentMSecsSinceEpoch();
++        setState(QStringLiteral("idle"));
++        break;
++    }
++    case Op::Pair: {
++        const QString token = body.value(QStringLiteral("token")).toString();
++        if (auto *real = qobject_cast<QNetworkHttpClient *>(m_http)) {
++            if (!token.isEmpty())
++                real->setToken(token);
++        }
++        if (!token.isEmpty()) {
++            emit toast(QStringLiteral("已和后端配对"));
++            pullPlans();
++        } else {
++            setState(QStringLiteral("error"));
++        }
++        break;
++    }
++    case Op::Alarm:
++        setState(QStringLiteral("idle"));
++        break;
++    }
++    m_retryTimer.stop();
++}
+diff --git a/src/comm/sync_engine.h b/src/comm/sync_engine.h
+new file mode 100644
+index 0000000..28426d8
+--- /dev/null
++++ b/src/comm/sync_engine.h
+@@ -0,0 +1,73 @@
++#pragma once
++
++#include <QHash>
++#include <QJsonObject>
++#include <QObject>
++#include <QTimer>
++#include <QUrlQuery>
++
++class HttpClient;
++
++// 同步引擎（B2）：把端上队列与 CareMate 后端的 /v1/* 接起来。
++//
++// 职责边界：
++//   * 只做"拉下来 → 交给 AppCore 应用"和"端上队列 → 发上去"；
++//   * 不碰状态机（状态迁移仍由 AppCore / 后端 transition() 决定）；
++//   * 不碰 QML。
++//
++// 拉取节奏：启动拉一次；之后每 15 秒拉状态、每 60 秒拉计划；
++// 上传：有待传事件就发，失败指数退避（1s/2s/4s…上限 5 分钟）。
++class SyncEngine : public QObject
++{
++    Q_OBJECT
++
++public:
++    explicit SyncEngine(HttpClient *http, QObject *parent = nullptr);
++
++    void start();
++
++    // offline / idle / syncing / error —— 与 SyncVM.syncState 同一套词
++    QString state() const { return m_state; }
++    qint64 lastSyncTs() const { return m_lastSyncTs; }
++    int pendingCount() const;
++
++    // 立即重试一次（SyncVM.retrySync 调到）
++    void retry();
++
++    // 6 位配对码 → 后端换令牌；成功后写入 QSettings 并立即全量同步
++    void pair(const QString &code);
++
++signals:
++    void stateChanged();
++    void toast(const QString &text);
++    void commandRejected(const QString &code, const QString &message);
++
++private slots:
++    void onReply(quint64 requestId, int status, const QJsonObject &body);
++    void onFailed(quint64 requestId, const QString &code);
++    void tick();
++
++private:
++    enum class Op { Plans, State, Events, Alarm, Pair };
++
++    void setState(const QString &state);
++    void pullPlans();
++    void pullState();
++    void pushPending();
++    void scheduleRetry();
++
++    HttpClient *m_http = nullptr;
++    Op m_pendingOp = Op::State;      // 同时只跑一个请求，够用且不会打乱顺序
++    bool m_busy = false;
++    qint64 m_cursor = 0;             // server_seq：已应用到的位置
++    qint64 m_lastSyncTs = 0;
++    QString m_state = QStringLiteral("offline");
++    int m_retryDelayMs = 1000;
++
++    QTimer m_timerFast;              // 15s：拉状态 / 推队列
++    QTimer m_timerSlow;              // 60s：拉计划
++    QTimer m_retryTimer;
++    int m_slowTicks = 0;
++
++    QString m_deviceId;
++};
+diff --git a/src/vm/app_core.cpp b/src/vm/app_core.cpp
+index 4d26f1c..719311f 100644
+--- a/src/vm/app_core.cpp
++++ b/src/vm/app_core.cpp
+@@ -1,8 +1,9 @@
+ #include "app_core.h"
+ 
+ #include <QDateTime>
+-#include <QTime>
+ #include <QHash>
++#include <QSet>
++#include <QTime>
+ #include <QUuid>
+ #include <QtMath>
+ 
+@@ -1023,3 +1024,123 @@ void AppCore::resetDemo()
+     seedDemo();
+     emit toast(QStringLiteral("演示数据已恢复"));
+ }
++
++// ---------------------------------------------------------------- 远端同步（B2 SyncEngine 用）
++// 函数 applyRemotePlans：把 /v1/plans 的 snake_case 计划合并进内存计划表
++void AppCore::applyRemotePlans(const QVariantList &remote)
++{
++    if (remote.isEmpty())
++        return;
++    for (const QVariant &entry : remote) {
++        const QVariantMap src = entry.toMap();
++        const qint64 planId = static_cast<qint64>(src.value(QStringLiteral("plan_id")).toDouble());
++        if (planId <= 0)
++            continue;
++
++        QVariantMap stored;
++        stored[QStringLiteral("planId")] = planId;
++        stored[QStringLiteral("title")] = src.value(QStringLiteral("title"));
++        stored[QStringLiteral("dose")] = src.value(QStringLiteral("dose"));
++        stored[QStringLiteral("note")] = src.value(QStringLiteral("note"));
++        stored[QStringLiteral("rule")] = src.value(QStringLiteral("rule")).toMap();
++        stored[QStringLiteral("windowMin")] =
++            src.value(QStringLiteral("window_min")).toInt();
++        stored[QStringLiteral("escalateAfterMin")] =
++            src.value(QStringLiteral("escalate_after_min")).toInt();
++        stored[QStringLiteral("version")] = src.value(QStringLiteral("version")).toInt();
++        stored[QStringLiteral("deleted")] = src.value(QStringLiteral("deleted")).toBool();
++
++        const int index = indexOfPlan(planId);
++        if (index >= 0)
++            m_plans[index] = stored;      // 服务端是权威：同 id 直接覆盖
++        else
++            m_plans.append(stored);
++        m_nextPlanId = qMax(m_nextPlanId, planId + 1);
++    }
++    emit plansChanged();
++    rebuildToday();
++}
++
++// 函数 applyRemoteOccurrences：把 /v1/state 的实例合并进今天清单（替换同 id，追加新 id）
++void AppCore::applyRemoteOccurrences(const QVariantList &remote)
++{
++    if (remote.isEmpty())
++        return;
++    QHash<qint64, QVariantMap> incoming;
++    for (const QVariant &entry : remote) {
++        const QVariantMap src = entry.toMap();
++        const qint64 occurrenceId =
++            static_cast<qint64>(src.value(QStringLiteral("occurrence_id")).toDouble());
++        if (occurrenceId <= 0)
++            continue;
++        QVariantMap occ;
++        occ[QStringLiteral("occurrenceId")] = occurrenceId;
++        occ[QStringLiteral("planId")] =
++            static_cast<qint64>(src.value(QStringLiteral("plan_id")).toDouble());
++        occ[QStringLiteral("title")] = src.value(QStringLiteral("title"));
++        occ[QStringLiteral("dose")] = src.value(QStringLiteral("dose"));
++        occ[QStringLiteral("note")] = src.value(QStringLiteral("note"));
++        occ[QStringLiteral("dueTs")] =
++            static_cast<qint64>(src.value(QStringLiteral("due_ts")).toDouble());
++        occ[QStringLiteral("state")] = src.value(QStringLiteral("state"));
++        occ[QStringLiteral("snoozeCount")] = src.value(QStringLiteral("snooze_count")).toInt();
++        occ[QStringLiteral("snoozeUntilTs")] =
++            static_cast<qint64>(src.value(QStringLiteral("snooze_until_ts")).toDouble());
++        occ[QStringLiteral("windowMin")] = src.value(QStringLiteral("window_min")).toInt();
++        occ[QStringLiteral("escalateAfterMin")] =
++            src.value(QStringLiteral("escalate_after_min")).toInt();
++        incoming.insert(occurrenceId, occ);
++    }
++    if (incoming.isEmpty())
++        return;
++
++    QVariantList merged;
++    QSet<qint64> consumed;
++    for (const QVariant &entry : std::as_const(m_occurrences)) {
++        const QVariantMap existing = entry.toMap();
++        const qint64 id = existing.value(QStringLiteral("occurrenceId")).toLongLong();
++        if (incoming.contains(id)) {
++            merged.append(incoming.value(id));
++            consumed.insert(id);
++        } else {
++            merged.append(existing);
++        }
++    }
++    for (auto it = incoming.constBegin(); it != incoming.constEnd(); ++it) {
++        if (!consumed.contains(it.key()))
++            merged.append(it.value());
++    }
++    m_occurrences = merged;
++    emit occurrencesChanged();
++    emit currentChanged();
++}
++
++// 函数 pendingEvents：还没拿到 server_seq 的事件（SyncEngine 要上传的就是这些）
++QVariantList AppCore::pendingEvents() const
++{
++    QVariantList out;
++    for (const QVariant &entry : m_events) {
++        const QVariantMap event = entry.toMap();
++        if (event.value(QStringLiteral("serverSeq")).toLongLong() <= 0)
++            out.append(event);
++    }
++    return out;
++}
++
++// 函数 markEventsUploaded：把服务端回执的 server_seq 写回本地事件
++void AppCore::markEventsUploaded(const QVariantList &accepted)
++{
++    for (const QVariant &entry : accepted) {
++        const QVariantMap ack = entry.toMap();
++        const QString eventId = ack.value(QStringLiteral("eventId")).toString();
++        const qint64 serverSeq = ack.value(QStringLiteral("serverSeq")).toLongLong();
++        for (int i = 0; i < m_events.size(); ++i) {
++            QVariantMap event = m_events.at(i).toMap();
++            if (event.value(QStringLiteral("eventId")).toString() != eventId)
++                continue;
++            event[QStringLiteral("serverSeq")] = serverSeq;
++            m_events[i] = event;
++            break;
++        }
++    }
++}
+diff --git a/src/vm/app_core.h b/src/vm/app_core.h
+index 96adb05..9e52636 100644
+--- a/src/vm/app_core.h
++++ b/src/vm/app_core.h
+@@ -76,6 +76,16 @@ public:
+ 
+     void resetDemo();
+ 
++    // ---- 远端同步入口（B2 的 SyncEngine 调用；facade 形状不变）----
++    // 服务端 /v1/plans、/v1/state 返回的是 snake_case，这里转成内部 camelCase 并合并。
++    void applyRemotePlans(const QVariantList &remote);
++    void applyRemoteOccurrences(const QVariantList &remote);
++    QVariantList pendingEvents() const;                     // serverSeq == 0 的那些
++    void markEventsUploaded(const QVariantList &accepted);  // [{eventId, serverSeq}]
++    void setDeviceId(const QString &deviceId) { m_deviceId = deviceId; }
++    void requestPair(const QString &code) { emit pairRequested(code); }
++    QString deviceId() const { return m_deviceId; }
++
+ signals:
+     void occurrencesChanged();
+     void currentChanged();
+@@ -85,6 +95,7 @@ signals:
+     void nowChanged();
+     void reminderDue(const QVariantMap &occurrence);
+     void toast(const QString &text);
++    void pairRequested(const QString &code);   // 配对：由 SyncEngine 处理
+ 
+ private slots:
+     void onTick();
+@@ -107,6 +118,8 @@ private:
+     static QString repeatTextFor(const QVariantMap &rule);
+     static QList<int> dueMinutesFor(const QVariantMap &rule, const QDate &day);
+ 
++    QString m_deviceId;      // 端上设备 id（配对时上报）
++
+     QVariantList m_plans;
+     QVariantList m_occurrences;
+     QVariantList m_records;
+diff --git a/src/vm/device_vm.cpp b/src/vm/device_vm.cpp
+index 6f474a9..c681172 100644
+--- a/src/vm/device_vm.cpp
++++ b/src/vm/device_vm.cpp
+@@ -71,6 +71,7 @@ void DeviceVM::pair(const QString &code, const QString &role)
+                              facadeErrorText(QStringLiteral("bad_pair_code")));
+         return;
+     }
++    AppCore::instance()->requestPair(code.trimmed());   // 交给 SyncEngine 换令牌
+     m_paired = true;
+     m_role = role.isEmpty() ? QStringLiteral("elder") : role;
+     emit pairingChanged();
+diff --git a/src/vm/sync_vm.cpp b/src/vm/sync_vm.cpp
+index 52eafc4..02a5392 100644
+--- a/src/vm/sync_vm.cpp
++++ b/src/vm/sync_vm.cpp
+@@ -3,31 +3,46 @@
+ #include "app_core.h"
+ #include "facade_errors.h"
+ 
++#include "comm/http_client.h"
++#include "comm/sync_engine.h"
++
+ SyncVM::SyncVM(QObject *parent)
+     : QObject(parent)
+ {
+     AppCore *core = AppCore::instance();
+     connect(core, &AppCore::occurrencesChanged, this, &SyncVM::syncChanged);
+     connect(core, &AppCore::toast, this, &SyncVM::toast);
++
++    // 与后端对接：真传输 + 同步引擎（环境变量 YIBAN_API / YIBAN_TOKEN 可覆盖地址与令牌）
++    auto *http = new QNetworkHttpClient(this);
++    m_engine = new SyncEngine(http, this);
++    connect(m_engine, &SyncEngine::stateChanged, this, &SyncVM::syncChanged);
++    connect(m_engine, &SyncEngine::toast, this, &SyncVM::toast);
++    connect(m_engine, &SyncEngine::commandRejected, this, &SyncVM::commandRejected);
++    m_engine->start();
+ }
+ 
+ QString SyncVM::syncState() const
+ {
+-    return QStringLiteral("offline");
++    return m_engine ? m_engine->state() : QStringLiteral("offline");
+ }
+ 
+ qint64 SyncVM::lastSyncTs() const
+ {
+-    return 0;
++    return m_engine ? m_engine->lastSyncTs() : 0;
+ }
+ 
+ int SyncVM::pendingCount() const
+ {
+-    return AppCore::instance()->eventLog().size();
++    return m_engine ? m_engine->pendingCount() : AppCore::instance()->pendingEvents().size();
+ }
+ 
+ void SyncVM::retrySync()
+ {
++    if (m_engine) {
++        m_engine->retry();
++        return;
++    }
+     emit commandRejected(QStringLiteral("offline"),
+                          facadeErrorText(QStringLiteral("offline")));
+ }
+diff --git a/src/vm/sync_vm.h b/src/vm/sync_vm.h
+index 9d43701..d594c02 100644
+--- a/src/vm/sync_vm.h
++++ b/src/vm/sync_vm.h
+@@ -3,6 +3,8 @@
+ #include <QObject>
+ #include <QtQml/qqmlregistration.h>
+ 
++class SyncEngine;
++
+ // 同步 facade（B1 实现同步队列，B2 实现 HTTP 传输）。
+ // demo 固定 offline：pendingCount 是端上已记录、还没上传的事件数，
+ // retrySync 目前只回报错误，等 /v1/events 接上后改成真正的重放。
+@@ -30,4 +32,7 @@ signals:
+     void syncChanged();
+     void commandRejected(const QString &code, const QString &message);
+     void toast(const QString &text);
++
++private:
++    SyncEngine *m_engine = nullptr;
+ };
+-- 
+2.56.0.windows.4
+
+
+From c029b0bc024137e6946142092d045ddc445684d3 Mon Sep 17 00:00:00 2001
+From: CareMate <caremate@example.com>
+Date: Tue, 10 Nov 2026 16:29:44 +0800
+Subject: [PATCH 2/3] =?UTF-8?q?fix:=20=E4=BF=AE=E6=AD=A3=20include=20?=
+ =?UTF-8?q?=E8=B7=AF=E5=BE=84=EF=BC=88app=5Fcore.h=20/=20http=5Fclient.h?=
+ =?UTF-8?q?=20=E6=8C=89=20CMake=20include=20dir=EF=BC=89=E4=B8=8E=20<utili?=
+ =?UTF-8?q?ty>?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/comm/sync_engine.cpp | 2 +-
+ src/vm/sync_vm.cpp       | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/comm/sync_engine.cpp b/src/comm/sync_engine.cpp
+index 2e8546c..2540777 100644
+--- a/src/comm/sync_engine.cpp
++++ b/src/comm/sync_engine.cpp
+@@ -1,7 +1,7 @@
+ #include "sync_engine.h"
+ 
+ #include "http_client.h"
+-#include "vm/app_core.h"
++#include "app_core.h"
+ 
+ #include <QDateTime>
+ #include <QJsonArray>
+diff --git a/src/vm/sync_vm.cpp b/src/vm/sync_vm.cpp
+index 02a5392..cb4d0b5 100644
+--- a/src/vm/sync_vm.cpp
++++ b/src/vm/sync_vm.cpp
+@@ -3,8 +3,8 @@
+ #include "app_core.h"
+ #include "facade_errors.h"
+ 
+-#include "comm/http_client.h"
+-#include "comm/sync_engine.h"
++#include "http_client.h"
++#include "sync_engine.h"
+ 
+ SyncVM::SyncVM(QObject *parent)
+     : QObject(parent)
+-- 
+2.56.0.windows.4
+
+
+From 8c41381640d94efa6086f12298093383b45ae546 Mon Sep 17 00:00:00 2001
+From: CareMate <caremate@example.com>
+Date: Tue, 10 Nov 2026 19:14:17 +0800
+Subject: [PATCH 3/3] =?UTF-8?q?feat:=20=E7=AB=AF=E4=B8=8A=E6=9C=AC?=
+ =?UTF-8?q?=E5=9C=B0=E4=B8=BB=E5=89=AF=E6=9C=AC=EF=BC=88SQLite=20=E5=9B=9B?=
+ =?UTF-8?q?=E8=A1=A8=20+=20=E6=B8=B8=E6=A0=87=EF=BC=89=E2=80=94=E2=80=94?=
+ =?UTF-8?q?=E5=86=B7=E5=90=AF=E5=8A=A8=E8=AF=BB=E6=9C=AC=E5=9C=B0=E3=80=81?=
+ =?UTF-8?q?=E5=8F=98=E6=9B=B4=E9=98=B2=E6=8A=96=E8=90=BD=E7=9B=98=E3=80=81?=
+ =?UTF-8?q?=E9=87=8D=E5=90=AF=E4=B8=8D=E4=B8=A2=E9=98=9F=E5=88=97?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ CMakeLists.txt           |   2 +
+ src/comm/sync_engine.cpp |   7 +-
+ src/vm/app_core.cpp      |  56 +++++++++++-
+ src/vm/app_core.h        |   8 ++
+ src/vm/local_store.cpp   | 179 +++++++++++++++++++++++++++++++++++++++
+ src/vm/local_store.h     |  41 +++++++++
+ 6 files changed, 291 insertions(+), 2 deletions(-)
+ create mode 100644 src/vm/local_store.cpp
+ create mode 100644 src/vm/local_store.h
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index ba1d534..3939f8c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -102,6 +102,8 @@ set(VM_SOURCES
+         src/vm/app_core.h
+         src/vm/app_core.cpp
+         src/vm/reminder_vm.h
++  src/vm/local_store.h
++  src/vm/local_store.cpp
+         src/vm/reminder_vm.cpp
+         src/vm/plan_vm.h
+         src/vm/plan_vm.cpp
+diff --git a/src/comm/sync_engine.cpp b/src/comm/sync_engine.cpp
+index 2540777..56d2441 100644
+--- a/src/comm/sync_engine.cpp
++++ b/src/comm/sync_engine.cpp
+@@ -104,6 +104,9 @@ void SyncEngine::pullState()
+     m_busy = true;
+     setState(QStringLiteral("syncing"));
+     QUrlQuery query;
++    // 启动时从本地库恢复游标，避免每次重启都全量拉
++    if (m_cursor == 0)
++        m_cursor = AppCore::instance()->serverCursor();
+     query.addQueryItem(QStringLiteral("since"), QString::number(m_cursor));
+     m_http->getJson(QStringLiteral("/v1/state"), query);
+ }
+@@ -222,8 +225,10 @@ void SyncEngine::onReply(quint64 requestId, int status, const QJsonObject &body)
+             list.append(value.toObject().toVariantMap());
+         AppCore::instance()->applyRemoteOccurrences(list);
+         const qint64 nextSeq = static_cast<qint64>(body.value(QStringLiteral("next_seq")).toDouble());
+-        if (nextSeq > m_cursor)
++        if (nextSeq > m_cursor) {
+             m_cursor = nextSeq;
++            AppCore::instance()->setServerCursor(m_cursor);   // 游标落本地库，重启不倒退
++        }
+         m_lastSyncTs = QDateTime::currentMSecsSinceEpoch();
+         setState(QStringLiteral("idle"));
+         if (pendingCount() > 0)
+diff --git a/src/vm/app_core.cpp b/src/vm/app_core.cpp
+index 719311f..8216fd2 100644
+--- a/src/vm/app_core.cpp
++++ b/src/vm/app_core.cpp
+@@ -1,5 +1,7 @@
+ #include "app_core.h"
+ 
++#include "local_store.h"
++
+ #include <QDateTime>
+ #include <QHash>
+ #include <QSet>
+@@ -84,7 +86,21 @@ AppCore::AppCore(QObject *parent)
+     connect(&m_tick, &QTimer::timeout, this, &AppCore::onTick);
+     m_tick.start();
+ 
+-    seedDemo();
++    // 本地主副本：有本地库就读库（杀进程不丢队列），没有才播种演示数据
++    m_store = new LocalStore(this);
++    m_saveTimer.setSingleShot(true);
++    m_saveTimer.setInterval(1000);
++    connect(&m_saveTimer, &QTimer::timeout, this, &AppCore::persistNow);
++    
++    QString dbError;
++    qint64 cursor = 0;
++    if (m_store->open(&dbError)
++        && m_store->load(&m_plans, &m_occurrences, &m_records, &m_events, &cursor)) {
++        Q_UNUSED(cursor)
++        rebuildToday();
++    } else {
++        seedDemo();
++    }
+ }
+ 
+ AppCore *AppCore::instance()
+@@ -509,6 +525,7 @@ void AppCore::fireDue(qint64 occurrenceId)
+ 
+ void AppCore::appendEvent(qint64 occurrenceId, const QString &action, const QString &reason)
+ {
++    touchPersist();
+     const qint64 ts = m_nowMs;
+     const QString key = QStringLiteral("%1:%2:%3:%4")
+                             .arg(occurrenceId)
+@@ -720,6 +737,7 @@ QVariantList AppCore::plans() const
+ 
+ qint64 AppCore::createPlan(const QVariantMap &plan, QString *error)
+ {
++    touchPersist();
+     const QString title = plan.value(QStringLiteral("title")).toString().trimmed();
+     const QVariantMap rule = plan.value(QStringLiteral("rule")).toMap();
+     if (title.isEmpty()) {
+@@ -763,6 +781,7 @@ qint64 AppCore::createPlan(const QVariantMap &plan, QString *error)
+ 
+ bool AppCore::updatePlan(qint64 planId, const QVariantMap &plan, QString *error)
+ {
++    touchPersist();
+     const int index = indexOfPlan(planId);
+     if (index < 0) {
+         if (error)
+@@ -784,6 +803,7 @@ bool AppCore::updatePlan(qint64 planId, const QVariantMap &plan, QString *error)
+ 
+ bool AppCore::deletePlan(qint64 planId, QString *error)
+ {
++    touchPersist();
+     const int index = indexOfPlan(planId);
+     if (index < 0) {
+         if (error)
+@@ -809,6 +829,7 @@ bool AppCore::deletePlan(qint64 planId, QString *error)
+ 
+ qint64 AppCore::addRecord(const QString &type, double value, const QString &unit)
+ {
++    touchPersist();
+     QVariantMap rec;
+     rec[QStringLiteral("recordId")] = m_nextRecordId++;
+     rec[QStringLiteral("type")] = type;
+@@ -823,6 +844,7 @@ qint64 AppCore::addRecord(const QString &type, double value, const QString &unit
+ 
+ bool AppCore::correctRecord(qint64 recordId, const QVariantMap &patch, QString *error)
+ {
++    touchPersist();
+     for (int i = 0; i < m_records.size(); ++i) {
+         QVariantMap rec = m_records.at(i).toMap();
+         if (rec.value(QStringLiteral("recordId")).toLongLong() != recordId)
+@@ -844,6 +866,7 @@ bool AppCore::correctRecord(qint64 recordId, const QVariantMap &patch, QString *
+ 
+ bool AppCore::removeRecord(qint64 recordId)
+ {
++    touchPersist();
+     for (int i = 0; i < m_records.size(); ++i) {
+         if (m_records.at(i).toMap().value(QStringLiteral("recordId")).toLongLong() != recordId)
+             continue;
+@@ -1014,6 +1037,7 @@ QVariantMap AppCore::occurrenceById(qint64 id) const
+ 
+ void AppCore::setAutoReminders(bool on)
+ {
++    touchPersist();
+     if (m_autoReminders == on)
+         return;
+     m_autoReminders = on;
+@@ -1029,6 +1053,7 @@ void AppCore::resetDemo()
+ // 函数 applyRemotePlans：把 /v1/plans 的 snake_case 计划合并进内存计划表
+ void AppCore::applyRemotePlans(const QVariantList &remote)
+ {
++    touchPersist();
+     if (remote.isEmpty())
+         return;
+     for (const QVariant &entry : remote) {
+@@ -1064,6 +1089,7 @@ void AppCore::applyRemotePlans(const QVariantList &remote)
+ // 函数 applyRemoteOccurrences：把 /v1/state 的实例合并进今天清单（替换同 id，追加新 id）
+ void AppCore::applyRemoteOccurrences(const QVariantList &remote)
+ {
++    touchPersist();
+     if (remote.isEmpty())
+         return;
+     QHash<qint64, QVariantMap> incoming;
+@@ -1130,6 +1156,7 @@ QVariantList AppCore::pendingEvents() const
+ // 函数 markEventsUploaded：把服务端回执的 server_seq 写回本地事件
+ void AppCore::markEventsUploaded(const QVariantList &accepted)
+ {
++    touchPersist();
+     for (const QVariant &entry : accepted) {
+         const QVariantMap ack = entry.toMap();
+         const QString eventId = ack.value(QStringLiteral("eventId")).toString();
+@@ -1144,3 +1171,30 @@ void AppCore::markEventsUploaded(const QVariantList &accepted)
+         }
+     }
+ }
++
++// ---------------------------------------------------------------- 本地持久化
++// 函数 touchPersist：状态变了就排一次落盘（1 秒防抖，避免每帧写盘）
++void AppCore::touchPersist()
++{
++    if (m_store && !m_saveTimer.isActive())
++        m_saveTimer.start();
++}
++
++// 函数 persistNow：把四张表的快照写进 SQLite（单事务）
++void AppCore::persistNow()
++{
++    if (m_store)
++        m_store->save(m_plans, m_occurrences, m_records, m_events);
++}
++
++// 函数 serverCursor / setServerCursor：`GET /v1/state?since=` 的游标（存 meta 表）
++qint64 AppCore::serverCursor() const
++{
++    return m_store ? m_store->cursor() : 0;
++}
++
++void AppCore::setServerCursor(qint64 seq)
++{
++    if (m_store)
++        m_store->setCursor(seq);
++}
+diff --git a/src/vm/app_core.h b/src/vm/app_core.h
+index 9e52636..137a4ba 100644
+--- a/src/vm/app_core.h
++++ b/src/vm/app_core.h
+@@ -4,6 +4,8 @@
+ #include <QObject>
+ #include <QStringList>
+ #include <QTimer>
++
++class LocalStore;
+ #include <QVariantList>
+ #include <QVariantMap>
+ 
+@@ -83,6 +85,8 @@ public:
+     QVariantList pendingEvents() const;                     // serverSeq == 0 的那些
+     void markEventsUploaded(const QVariantList &accepted);  // [{eventId, serverSeq}]
+     void setDeviceId(const QString &deviceId) { m_deviceId = deviceId; }
++    qint64 serverCursor() const;
++    void setServerCursor(qint64 seq);
+     void requestPair(const QString &code) { emit pairRequested(code); }
+     QString deviceId() const { return m_deviceId; }
+ 
+@@ -126,6 +130,10 @@ private:
+     QVariantList m_events;
+ 
+     QTimer m_tick;
++    QTimer m_saveTimer;          // 1 秒防抖：把快照写进本地库
++    LocalStore *m_store = nullptr;
++    void persistNow();
++    void touchPersist();
+     QDate m_day;
+     qint64 m_nowMs = 0;
+     qint64 m_nextPlanId = 1;
+diff --git a/src/vm/local_store.cpp b/src/vm/local_store.cpp
+new file mode 100644
+index 0000000..0c92437
+--- /dev/null
++++ b/src/vm/local_store.cpp
+@@ -0,0 +1,179 @@
++#include "local_store.h"
++
++#include <QDir>
++#include <QJsonDocument>
++#include <QJsonObject>
++#include <QSqlDatabase>
++#include <QSqlError>
++#include <QSqlQuery>
++#include <QStandardPaths>
++#include <QVariant>
++
++namespace {
++const char *kConnection = "caremate_local";
++
++QString toJson(const QVariantMap &map)
++{
++    return QString::fromUtf8(QJsonDocument(QJsonObject::fromVariantMap(map)).toJson(QJsonDocument::Compact));
++}
++
++QVariantMap fromJson(const QString &text)
++{
++    const QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
++    return doc.isObject() ? doc.object().toVariantMap() : QVariantMap();
++}
++} // namespace
++
++LocalStore::LocalStore(QObject *parent)
++    : QObject(parent)
++{
++}
++
++bool LocalStore::open(QString *error)
++{
++    QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
++    if (dir.isEmpty())
++        dir = QStringLiteral(".");
++    QDir().mkpath(dir);
++    m_path = dir + QStringLiteral("/caremate.db");
++
++    QSqlDatabase db = QSqlDatabase::contains(QString::fromLatin1(kConnection))
++                          ? QSqlDatabase::database(QString::fromLatin1(kConnection))
++                          : QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QString::fromLatin1(kConnection));
++    db.setDatabaseName(m_path);
++    if (!db.open()) {
++        if (error)
++            *error = db.lastError().text();
++        return false;
++    }
++    QSqlQuery pragma(db);
++    pragma.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
++    return ensureSchema();
++}
++
++bool LocalStore::ensureSchema()
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    QSqlQuery query(db);
++    const QStringList statements = {
++        QStringLiteral("CREATE TABLE IF NOT EXISTS plans(id TEXT PRIMARY KEY, json TEXT NOT NULL)"),
++        QStringLiteral("CREATE TABLE IF NOT EXISTS occurrences(id TEXT PRIMARY KEY, json TEXT NOT NULL)"),
++        QStringLiteral("CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, json TEXT NOT NULL)"),
++        QStringLiteral("CREATE TABLE IF NOT EXISTS events(event_id TEXT PRIMARY KEY, json TEXT NOT NULL,"
++                       " server_seq INTEGER NOT NULL DEFAULT 0)"),
++        QStringLiteral("CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)"),
++    };
++    for (const QString &sql : statements) {
++        if (!query.exec(sql))
++            return false;
++    }
++    return true;
++}
++
++bool LocalStore::load(QVariantList *plans, QVariantList *occurrences, QVariantList *records,
++                      QVariantList *events, qint64 *cursor)
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    if (!db.isOpen())
++        return false;
++
++    auto readAll = [&db](const QString &table) {
++        QVariantList out;
++        QSqlQuery query(db);
++        if (!query.exec(QStringLiteral("SELECT json FROM %1").arg(table)))
++            return out;
++        while (query.next())
++            out.append(fromJson(query.value(0).toString()));
++        return out;
++    };
++
++    if (plans)
++        *plans = readAll(QStringLiteral("plans"));
++    if (occurrences)
++        *occurrences = readAll(QStringLiteral("occurrences"));
++    if (records)
++        *records = readAll(QStringLiteral("records"));
++    if (events)
++        *events = readAll(QStringLiteral("events"));
++    if (cursor)
++        *cursor = this->cursor();
++
++    return plans && !plans->isEmpty();
++}
++
++bool LocalStore::save(const QVariantList &plans, const QVariantList &occurrences,
++                      const QVariantList &records, const QVariantList &events)
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    if (!db.isOpen())
++        return false;
++
++    db.transaction();
++    auto rewrite = [&db](const QString &table, const QVariantList &list, const QString &keyField) {
++        QSqlQuery del(db);
++        if (!del.exec(QStringLiteral("DELETE FROM %1").arg(table)))
++            return false;
++        QSqlQuery ins(db);
++        ins.prepare(QStringLiteral("INSERT OR REPLACE INTO %1(%2, json) VALUES (?, ?)")
++                        .arg(table, keyField));
++        for (const QVariant &entry : list) {
++            const QVariantMap map = entry.toMap();
++            ins.addBindValue(map.value(keyField).toString());
++            ins.addBindValue(toJson(map));
++            if (!ins.exec())
++                return false;
++        }
++        return true;
++    };
++
++    bool ok = rewrite(QStringLiteral("plans"), plans, QStringLiteral("planId"))
++        && rewrite(QStringLiteral("occurrences"), occurrences, QStringLiteral("occurrenceId"))
++        && rewrite(QStringLiteral("records"), records, QStringLiteral("recordId"));
++
++    if (ok) {
++        QSqlQuery del(db);
++        del.exec(QStringLiteral("DELETE FROM events"));
++        QSqlQuery ins(db);
++        ins.prepare(QStringLiteral("INSERT OR REPLACE INTO events(event_id, json, server_seq)"
++                                  " VALUES (?, ?, ?)"));
++        for (const QVariant &entry : events) {
++            const QVariantMap map = entry.toMap();
++            ins.addBindValue(map.value(QStringLiteral("eventId")).toString());
++            ins.addBindValue(toJson(map));
++            ins.addBindValue(map.value(QStringLiteral("serverSeq")).toLongLong());
++            if (!ins.exec()) {
++                ok = false;
++                break;
++            }
++        }
++    }
++
++    if (ok)
++        db.commit();
++    else
++        db.rollback();
++    return ok;
++}
++
++qint64 LocalStore::cursor() const
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    if (!db.isOpen())
++        return 0;
++    QSqlQuery query(db);
++    query.prepare(QStringLiteral("SELECT v FROM meta WHERE k='server_seq'"));
++    if (!query.exec() || !query.next())
++        return 0;
++    return query.value(0).toLongLong();
++}
++
++void LocalStore::setCursor(qint64 value)
++{
++    QSqlDatabase db = QSqlDatabase::database(QString::fromLatin1(kConnection));
++    if (!db.isOpen())
++        return;
++    QSqlQuery query(db);
++    query.prepare(QStringLiteral("INSERT OR REPLACE INTO meta(k, v) VALUES ('server_seq', ?)"));
++    query.addBindValue(QString::number(value));
++    query.exec();
++}
+diff --git a/src/vm/local_store.h b/src/vm/local_store.h
+new file mode 100644
+index 0000000..28be881
+--- /dev/null
++++ b/src/vm/local_store.h
+@@ -0,0 +1,41 @@
++#pragma once
++
++#include <QObject>
++#include <QString>
++#include <QVariantList>
++
++/// 端上本地库（QtSql / SQLite）：四张表 + 同步游标。
++///
++/// 为什么需要：`AppCore` 原本是纯内存 demo，App 一被杀进程，待上传的事件就没了，
++/// 冷启动也必须等网络才看得到提醒。这里把"本地主副本"落成 SQLite：
++///
++///   plans / occurrences / records / events(event_id PK, json, server_seq) / meta(k,v)
++///
++/// 用法（AppCore 里）：
++///   - 启动：open() 成功且 load() 拿到非空数据 → 用本地数据；否则 seedDemo()
++///   - 每次状态变化：save(...)（AppCore 内部做了 1 秒防抖，不会每帧写盘）
++///   - 游标：setCursor()/cursor() 存 meta 表，供 `GET /v1/state?since=` 增量拉取
++class LocalStore : public QObject
++{
++    Q_OBJECT
++
++public:
++    explicit LocalStore(QObject *parent = nullptr);
++
++    bool open(QString *error = nullptr);
++
++    /// 读出全部快照；库里没有数据时返回 false（首次启动）。
++    bool load(QVariantList *plans, QVariantList *occurrences, QVariantList *records,
++              QVariantList *events, qint64 *cursor);
++
++    /// 覆盖写入全部快照（单事务）。
++    bool save(const QVariantList &plans, const QVariantList &occurrences,
++              const QVariantList &records, const QVariantList &events);
++
++    qint64 cursor() const;
++    void setCursor(qint64 value);
++
++private:
++    bool ensureSchema();
++    QString m_path;
++};
+-- 
+2.56.0.windows.4
+
