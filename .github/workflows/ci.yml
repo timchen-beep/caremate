@@ -1,0 +1,41 @@
+# 作用：CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 九套验收 + 页面检查 + 完整性守卫）
+name: acceptance
+
+on:
+  push:
+    branches: [ web ]
+  pull_request:
+    branches: [ web ]
+  workflow_dispatch:
+
+jobs:
+  python-acceptance:
+    name: 全量验证 (Python 3.11 / Ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # runner 默认 UTC，与服务端 Asia/Shanghai 会错位，这里对齐
+      TZ: Asia/Shanghai
+      PYTHONIOENCODING: utf-8
+      PYTHONUNBUFFERED: '1'
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 全量验证（与本地同一条命令）
+        run: python tools/verify_all.py 2>&1 | tee /tmp/verify.log
+
+      - name: 失败项转注解
+        if: failure()
+        run: |
+          echo "== 验证输出 =="
+          cat /tmp/verify.log || true
+          grep -h "FAIL" /tmp/verify.log 2>/dev/null | while IFS= read -r line; do
+            echo "::error::$line"
+          done
