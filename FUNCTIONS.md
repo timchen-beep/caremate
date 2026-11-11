@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（143 个）
+# 函数索引（144 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -76,6 +76,7 @@
 | `server/server.py` | `_put` | PUT 的具体处理（改计划等） |
 | `server/server.py` | `_record_view` | 记录对外视图 |
 | `server/server.py` | `add_record` | 新增一条记录并写事件审计 |
+| `server/server.py` | `apply_token_overrides` | 已存在的库也跟随环境变量换令牌（换令牌不用删库） |
 | `server/server.py` | `body_json` | 读取请求体并解析 JSON，空体返回 {} |
 | `server/server.py` | `can_view` | 越权判断：能否查看目标老人的数据 |
 | `server/server.py` | `cols` | 取表的列名集合，用于加列式迁移 |
