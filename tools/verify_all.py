@@ -292,7 +292,8 @@ def run_server():
         p = db + suf
         if os.path.exists(p):
             os.remove(p)
-    env = dict(os.environ, CAREMATE_DB=db, CAREMATE_TZ="Asia/Shanghai")
+    env = dict(os.environ, CAREMATE_DB=db, CAREMATE_TZ="Asia/Shanghai",
+               CAREMATE_SKIP_ENV="1")     # 验证用演示令牌，不读 server/.env
     proc = subprocess.Popen([sys.executable, "server.py", "--port", str(PORT)],
                             cwd=SERVER, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -309,7 +310,8 @@ def run_suites():
     # 子进程统一输出 UTF-8，否则 Windows 下是 GBK，判定与显示都会乱
     # 关键：把临时库传给套件。否则子进程默认用 server/caremate.db，
     # 而生产实例（开机自启）可能正占着它 —— SQLite 锁会让套件自起的服务起不来。
-    env = dict(os.environ, PYTHONIOENCODING="utf-8", CAREMATE_TZ="Asia/Shanghai")
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", CAREMATE_TZ="Asia/Shanghai",
+               CAREMATE_SKIP_ENV="1")
     if DB_PATH:
         env["CAREMATE_DB"] = DB_PATH
     for suite in SUITES:
