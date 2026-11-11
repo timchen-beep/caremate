@@ -7,7 +7,7 @@
     python tools/publish.py              # 验证 + 逐文件提交 + 推送
     python tools/publish.py --dry-run    # 只打印将要提交什么
     python tools/publish.py --no-verify  # 跳过验证（不建议，仅救急）
-    python tools/publish.py --branch main
+    python tools/publish.py --branch web   # 指定分支（默认：当前分支）
 
 规则（与 CONTRIBUTING.md 一致）：
 
@@ -89,8 +89,16 @@ def main():
     ap = argparse.ArgumentParser(description="验证 → 逐文件提交 → 推送")
     ap.add_argument("--dry-run", action="store_true", help="只打印，不提交不推送")
     ap.add_argument("--no-verify", action="store_true", help="跳过全量验证（不建议）")
-    ap.add_argument("--branch", default="main")
+    ap.add_argument("--branch", default="",
+                    help="推送的分支；默认是当前所在分支（避免在 web/qt 分支上误推 main）")
     args = ap.parse_args()
+
+    if not args.branch:
+        args.branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip() or "main"
+        if args.branch in ("HEAD", "(no branch)"):
+            print("当前是游离 HEAD，请用 --branch 指定分支。")
+            return 1
+        print("当前分支：%s（要推别的分支用 --branch）" % args.branch)
 
     files = changed_paths()
     if not files:
