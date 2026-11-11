@@ -1,7 +1,7 @@
-<!-- 作用：开发规约：改代码的三条铁律、一键验证怎么跑、提交与分支规范、踩过的坑 -->
+<!-- 作用：开发规约：三条铁律、改完就发、迭代分支与 main 合并、提交与分支规范、踩过的坑 -->
 # 开发规约（改这个仓库之前先读）
 
-这三条不是建议，是**踩过坑之后定的硬规矩**。
+这几条不是建议，是**踩过坑之后定的硬规矩**。
 
 ---
 
@@ -38,7 +38,9 @@ text = open(p, encoding="utf-8", errors="replace").read()
 open(p, "w").write(text)
 ```
 
-**真实事故**：一次批量加注释的脚本对目录下所有文件用 `errors="replace"` 读写，把 5 个 `ic_launcher.png`、3 个 PWA 图标和 `gradle-wrapper.jar` 一起写坏——表现为 `AAPT: file failed to compile` 与 `ClassNotFoundException: GradleWrapperMain`，而 `git status` 看不出任何异常。
+**真实事故**：一次批量加注释的脚本对所有文件用 `errors="replace"` 读写，把 5 个 `ic_launcher.png`、
+3 个 PWA 图标和 `gradle-wrapper.jar` 一起写坏——表现为 `AAPT: file failed to compile` 与
+`ClassNotFoundException: GradleWrapperMain`，而 `git status` 看不出任何异常。
 
 ---
 
@@ -52,14 +54,12 @@ open(p, "w").write(text)
 | L2 全量验收 | 每次改后端/页面/测试 | **`python tools/verify_all.py`**（21 项：截断守卫 + 二进制魔数 + 语法 + 服务 + 九套验收 + 产物卫生 + 构建引用一致 + 四个页面 + 文档数字一致） |
 | L3 真机 | 交付前 | 见 `docs/验收清单.md` |
 
-一键：
-
 ```bash
-python tools/verify_all.py            # 九套验收 + 页面检查 + 语法检查
+python tools/verify_all.py            # 21 项
 python tools/verify_all.py --flutter  # 额外跑 flutter analyze
 ```
 
-它会逐项打印 PASS/FAIL，任何一项失败就以非零退出码结束——**CI 用的就是同一套逻辑**。
+逐项打印 PASS/FAIL，任何一项失败就以非零退出码结束——**CI 用的就是同一套逻辑**。
 
 ---
 
@@ -76,15 +76,67 @@ GitHub 文件列表的 "Last commit message" 列取的是**最后一次改动该
 
 ---
 
+## 改完就发（固定流程）
+
+任何改动完成后，**只跑一条命令**：
+
+```bash
+python tools/publish.py              # 验证 21 项 → 逐文件提交 → 推送**当前分支**
+python tools/publish.py --dry-run    # 只看会提交什么
+```
+
+规矩：
+
+- **验证不过不提交**：脚本直接退出，一个文件都不动
+- **推的是当前分支**：在 `web` 上跑就推 `web`，不会误推 `main`
+- **目录会被展开**：`?? qt/net/` 这种目录会逐个文件提交（曾因只处理 `isfile` 漏掉四个文件）
+
+---
+
+## 迭代分支与 main 合并（方案 2）
+
+改动的**落点是两个迭代分支**，`main` 只做整合：
+
+| 改什么 | 在哪个分支改 | 怎么发 |
+|---|---|---|
+| 网页端（后端、看板、PWA） | `web` | `git checkout web` → 改 → `python tools/publish.py` |
+| Qt 老人端（`qt/`、对接补丁） | `qt` | `git checkout qt` → 改 → `python tools/publish.py` |
+| 工具与整合文档 | `main` | `git checkout main` → 改 → `python tools/publish.py` |
+
+**定期把两个分支的成果合回 main**（回 `main` 执行）：
+
+```bash
+git checkout main
+python tools/merge_from_branches.py --dry-run   # 先看会拉哪些文件
+python tools/merge_from_branches.py             # 拉取 → 验证 → 逐文件提交 → 推 main
+```
+
+归属规则（写死在 `tools/merge_from_branches.py` 里）：
+
+| 分支 | 归属 |
+|---|---|
+| `web` | `server/` 整目录 + **双方都有的** `docs/` 文件 |
+| `qt` | `qt/`、`integration/` 整目录 + **双方都有的** `docs/` 文件 |
+| `main` | `tools/`、根目录文档、`app/`、硬件相关目录 |
+
+两个关键约束：
+
+1. **不要用 `git merge`**：`web`/`qt` 是 orphan 分支（与 main 无共同历史），整枝合并会把分支独有文件当新增、产生大量伪冲突。
+2. **不要按目录 `git checkout` main 独有的目录**：`git checkout <branch> -- <dir>` 会**删除** main 上该目录里分支没有的文件。工具只对"分支也全有"的目录这么做，文档则逐个文件挑"双方都有"的。
+
+---
+
 ## 提交与分支规范
 
 | 项 | 规矩 |
 |---|---|
 | 提交信息 | 中文，动词开头（`新增`/`修正`/`移除`），一个提交只做一件事 |
-| 分支 `main` | 只放整合后的可运行版本 |
-| 分支 `v1-web` / `v2-qt` / `v3-flash` | **归档**，各自独立历史，**永远不要合并进 main** |
+| 分支 `main` | 整合版：网页端 + Qt 骨架 + Flutter 验证版 + 硬件；由迭代分支合并而来 |
+| 分支 `web` | **网页端唯一迭代分支**（只有后端 + 三个网页 + PWA + 九套验收） |
+| 分支 `qt` | **Qt 老人端唯一迭代分支**（`qt/` + 后端 + 对接补丁） |
+| 分支 `v1-web` / `v2-qt` / `v3-flash` | **归档**，独立历史，**永远不要合并进 main** |
 | 分支 `*-core` | 只保留实现代码（无文档/APK/测试产物） |
-| 归档分支改动 | 用 `git worktree` 单独操作，别在 main 的工作区切分支（会整体替换工作目录） |
+| 任何分支改动 | 用 `git worktree` 单独操作，别在 main 的工作区切分支（会整体替换工作目录） |
 
 ---
 
@@ -105,15 +157,18 @@ GitHub 文件列表的 "Last commit message" 列取的是**最后一次改动该
 |---|---|---|
 | 截断回写 | 大文件变小，页面还在但功能没了 | 完整读写；跑 `verify_all.py` |
 | 文本方式读写二进制 | PNG/JAR 头被替换字符覆盖，构建期才报错 | 二进制用 `"rb"`/`"wb"`；`verify_all.py` 已加魔数守卫 |
-| 测试产物入库 | `*.db` / `__pycache__` 被 `git add -A` 一起提交（本仓库发生过 3 次） | 跑完测试后 `verify_all.py` 的「产物卫生」会拦；分支必须有 `.gitignore` |
+| 测试产物入库 | `*.db` / `__pycache__` / `acceptance.json` 被一起提交（发生过多次） | 「产物卫生」守卫会拦；分支必须有 `.gitignore` |
+| 目录级 `git checkout` | main 上分支没有的文件被删掉 | 只对"分支也全有"的目录用；文档逐个挑共有文件 |
+| orphan 分支用 merge | 大量伪冲突、分支独有文件被当新增 | 用 `merge_from_branches.py` 按归属拉取 |
+| 提交脚本只处理 `isfile` | `?? qt/net/` 目录被跳过，远端缺文件 | 用 `git add -A` 再逐个提交；「构建引用一致」守卫会拦 |
+| 脚本里"假成功" | 锚点没匹配也打印"已更新" | 替换后断言原文消失/新文出现 |
 | Windows 控制台 GBK | 中文输出乱码、`UnicodeDecodeError` | 脚本内 `encoding="utf-8", errors="replace"`；输出写文件再读 |
 | UTF-8 BOM | Dart 报 `Illegal character '65279'` | 写文件用 `utf-8` 且**不加 BOM** |
-| CRLF/LF | git 反复提示"文件已修改"但内容没变 | 仓库统一 LF；`.gitattributes` 里 `*.bat eol=crlf` |
 | `.github` 被当成 `.git` | 遍历时整个 CI 目录被跳过 | 判断用 `os.sep + ".git"`，不要用子串匹配 |
 | `--demo` 参数 | 跑验收会失败（阈值被改成 1/3/10 分钟） | 验收时**不要**带 `--demo` |
-| 测试的时区 | CI 上"时区与历史"失败 | 测试要固定 `TZ=Asia/Shanghai`，或从服务端 `/health` 取时区 |
+| 测试的时区 | CI 上"时区与历史"失败 | 测试固定 `TZ=Asia/Shanghai` |
 | 服务多进程 | 提醒发两遍 | 只跑单进程，`deploy/caremate.service` 已这么配 |
-| 代理 | `git push` 报 `Recv failure` | git 单独配 `http.https://github.com/.proxy`（浏览器代理它不认） |
+| 代理 | `git push` 报 `Recv failure` | git 单独配 `http.https://github.com/.proxy` |
 
 ---
 
@@ -121,27 +176,9 @@ GitHub 文件列表的 "Last commit message" 列取的是**最后一次改动该
 
 ```
 [ ] 改的文件是完整读写，没有截断
-[ ] python tools/verify_all.py 全绿
+[ ] python tools/verify_all.py 全绿（21 项）
 [ ] 改了 .dart 就跑 flutter analyze（--flutter）
 [ ] 新文件头有「作用：」，新函数上方有「函数 X：」
 [ ] FILES.md / FUNCTIONS.md 已重新生成
-[ ] 提交信息按文件各自写，不是一条批量说明
+[ ] 在正确的分支上（web / qt / main），提交信息按文件各自写
 ```
-
-## 一.5、改完就发（固定流程）
-
-任何改动（代码/文档/测试/补丁）完成后，**只跑一条命令**：
-
-```bash
-python tools/publish.py
-```
-
-它会依次做：`verify_all.py` 全量验证 → 逐文件提交（提交信息 = `<路径>：<该文件「作用」注释>`）
-→ 推送 `origin/main` → 打印 CI 地址。
-
-规矩：
-
-- **验证不过不提交**：脚本直接退出，一个文件都不动
-- **目录也会被展开**：`?? qt/net/` 这种目录会逐个文件提交（曾因只处理 `isfile` 漏掉四个文件）
-- 只想看会提交什么：`python tools/publish.py --dry-run`
-
