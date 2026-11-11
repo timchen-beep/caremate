@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<!-- 作用：专注模式页面：四个大按钮，长按左上角 5 秒退出 -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#24457A">
+<title>CareMate · 专注模式</title>
+<style>
+  /* 第 7 步的网页近似：四个大按钮、无地址栏（装成 PWA 后）、隐藏退出 */
+  :root{--ink:#14264a;--line:#cbd7e8;--ac:#24457a;--bad:#7e1b22;--soft:#3a4a63}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{height:100%;margin:0}
+  body{background:#eef1f6;color:var(--ink);font:26px/1.4 "Microsoft YaHei","PingFang SC",system-ui,sans-serif}
+  .app{max-width:520px;margin:0 auto;height:100vh;background:#fff;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;justify-content:space-between;padding:26px 24px 10px}
+  .clock{font-size:54px;font-weight:800;font-variant-numeric:tabular-nums}
+  .who{font-size:20px;color:var(--soft);text-align:right}
+  .grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:18px 20px 52px}
+  button{font:inherit;cursor:pointer;border-radius:22px;border:3px solid var(--ac);background:var(--ac);
+         color:#fff;font-size:34px;font-weight:800;min-height:0}
+  button.ghost{background:#fff;color:var(--ac)}
+  button.sos{background:var(--bad);border-color:var(--bad);grid-column:1 / -1}
+  button:active{transform:scale(.99)}
+  .exit{position:absolute;left:0;top:0;width:76px;height:76px;opacity:0}
+  .hint{position:fixed;left:0;right:0;bottom:8px;text-align:center;color:var(--soft);font-size:15px}
+  .bar{position:relative;height:8px;background:#f3d6d9;border-radius:4px;overflow:hidden;margin-top:8px;display:none}
+  .bar i{display:block;height:100%;width:0;background:#7e1b22}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="exit" id="exitZone"></div>
+  <div class="top">
+    <div class="clock" id="clock">--:--</div>
+    <div class="who">张阿姨<br><span id="state">—</span></div>
+  </div>
+  <div class="grid">
+    <button id="bMed">吃药了</button>
+    <button class="ghost" id="bLog">记一笔</button>
+    <button class="ghost" id="bFam">找家人</button>
+    <button class="sos" id="bSos">按住呼救<div class="bar"><i id="sosBar"></i></div></button>
+  </div>
+  <div class="hint">左上角按住 5 秒可退出专注模式</div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const API = location.origin;
+let token = localStorage.getItem("caremate.app.token") || "app-elder-001";
+const hdr = () => ({ "Content-Type": "application/json", "Authorization": "Bearer " + token });
+
+// 函数 tick：每秒刷新时钟与到期提醒
+function tick() {
+  const d = new Date();
+  $("clock").textContent = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+tick(); setInterval(tick, 15000);
+
+// 函数 due：取当前到期的实例
+async function due() {
+  try {
+    const r = await fetch(API + "/api/v1/app/due", { headers: hdr() });
+    const j = await r.json();
+    const first = (j.items || [])[0];
+    $("state").textContent = first ? (first.title + " 该做了") : "现在没有要做的事";
+    $("bMed").textContent = first ? "已吃：" + first.title.slice(0, 6) : "吃药了";
+    return first;
+  } catch (e) {
+    $("state").textContent = "离线";
+    return null;
+  }
+}
+due(); setInterval(due, 10000);
+
+$("bMed").onclick = async () => {
+  const it = await due();
+  if (!it) return;
+  await fetch(API + "/api/v1/occurrences/" + it.id + "/events", {
+    method: "POST", headers: hdr(),
+    body: JSON.stringify({ action: "confirmed", client_ts: new Date().toISOString(), source: "kiosk" })
+  }).catch(() => {});
+  if (navigator.vibrate) navigator.vibrate(80);
+  due();
+};
+$("bLog").onclick = () => { location.href = "/app#records"; };
+$("bFam").onclick = () => { location.href = "/app#me"; };
+
+/* 呼救：按住 3 秒 */
+(function sos() {
+  const btn = $("bSos"), bar = $("sosBar");
+  let timer = null, t0 = 0;
+  // 函数 down：按下开始计时（长按左上角退出 / 长按呼救）
+  function down(e) {
+    e.preventDefault();
+    $("bSos").querySelector(".bar").style.display = "block";
+    t0 = Date.now();
+    timer = setInterval(() => {
+      const p = Math.min(100, (Date.now() - t0) / 30);
+      bar.style.width = p + "%";
+      if (p >= 100) fire();
+    }, 60);
+  }
+  // 函数 up：松开取消计时
+  function up() {
+    clearInterval(timer); timer = null;
+    bar.style.width = "0%";
+    $("bSos").querySelector(".bar").style.display = "none";
+  }
+  // 函数 fire：触发动作（呼救或退出专注模式）
+  async function fire() {
+    up();
+    if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
+    await fetch(API + "/api/v1/sos", {
+      method: "POST", headers: hdr(),
+      body: JSON.stringify({ note: "专注模式长按呼救", device: navigator.userAgent.slice(0, 40) })
+    }).catch(() => {});
+    $("state").textContent = "已通知家里人";
+  }
+  btn.addEventListener("pointerdown", down);
+  btn.addEventListener("pointerup", up);
+  btn.addEventListener("pointercancel", up);
+  btn.addEventListener("pointerleave", up);
+})();
+
+/* 隐藏退出：左上角按住 5 秒 */
+(function exitZone() {
+  const z = $("exitZone");
+  let t = null;
+  z.addEventListener("pointerdown", () => { t = setTimeout(() => { location.href = "/app"; }, 5000); });
+  ["pointerup", "pointerleave", "pointercancel"].forEach((ev) =>
+    z.addEventListener(ev, () => { clearTimeout(t); t = null; }));
+})();
+
+/* 进页面就尝试全屏（装成 PWA 后更彻底） */
+document.body.addEventListener("click", () => {
+  if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+}, { once: true });
+</script>
+</body>
+</html>
+
