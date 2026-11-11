@@ -147,6 +147,8 @@ python3 server.py --port 8000
 
 配对码 `8823`。
 
+> 关机再开机：Tailscale 服务自动起、启动文件夹的 VBS 会拉起后端（需登录 Windows 一次），地址自动恢复；详见 `docs/固定域名上线_Tailscale.md`。
+
 > 上公网前先轮换令牌：`python tools/rotate_tokens.py`（写入 `server/.env`，重启生效；旧默认值会被拒 401）。
 
 ## 验收
