@@ -281,8 +281,13 @@ def wait_health(timeout=30):
     return False
 
 
+DB_PATH = ""      # run_server 用的临时库；子进程复用，避免和生产实例抢同一个 SQLite 文件
+
+
 def run_server():
+    global DB_PATH
     db = os.path.join(tempfile.gettempdir(), "caremate_verify.db")
+    DB_PATH = db
     for suf in ("", "-wal", "-shm"):
         p = db + suf
         if os.path.exists(p):
@@ -302,7 +307,11 @@ SUITES = ["test_contract.py", "test_p2.py", "test_align.py", "test_steps.py",
 
 def run_suites():
     # 子进程统一输出 UTF-8，否则 Windows 下是 GBK，判定与显示都会乱
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    # 关键：把临时库传给套件。否则子进程默认用 server/caremate.db，
+    # 而生产实例（开机自启）可能正占着它 —— SQLite 锁会让套件自起的服务起不来。
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", CAREMATE_TZ="Asia/Shanghai")
+    if DB_PATH:
+        env["CAREMATE_DB"] = DB_PATH
     for suite in SUITES:
         r = subprocess.run([sys.executable, suite], cwd=SERVER, env=env,
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -314,6 +323,35 @@ def run_suites():
 
 
 # ---------------------------------------------------------------- 4) 页面
+# 函数 ensure_server：页面检查前确认 8400 上有服务。
+# 为什么要这步：test_accept 的"10 次强制重启"用例会杀掉占着 8400 的进程（正是本脚本起的服务），
+# 跑完不留服务；不补起一个的话，后面的页面检查会全部 connection refused。
+_ensure_proc = None          # ensure_server 补起的服务，退出前要关掉
+
+
+def ensure_server():
+    global _ensure_proc
+    import socket as _socket
+    def alive():
+        try:
+            with _socket.create_connection(("127.0.0.1", PORT), timeout=1.0):
+                return True
+        except OSError:
+            return False
+    if alive():
+        return True
+    db = os.path.join(tempfile.gettempdir(), "caremate_verify.db")
+    env = dict(os.environ, CAREMATE_DB=db, CAREMATE_TZ="Asia/Shanghai")
+    _ensure_proc = subprocess.Popen([sys.executable, "server.py", "--port", str(PORT)],
+                                    cwd=SERVER, env=env,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(40):
+        if alive():
+            return True
+        time.sleep(0.3)
+    return False
+
+
 PAGES = [
     ("/dashboard", 30000, "watchAlarms"),
     ("/app", 20000, "speak"),
@@ -359,17 +397,26 @@ def main():
         run_suites()
         check_artifacts()
         check_build_refs()
+        ensure_server()
         check_pages()
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except Exception:
-            proc.kill()
+        for target in (proc, _ensure_proc):
+            if target is None:
+                continue
+            target.terminate()
+            try:
+                target.wait(timeout=5)
+            except Exception:
+                target.kill()
+        # Windows 上文件可能还被句柄占着：删不掉只提示，不让整轮验证失败
         for suf in ("", "-wal", "-shm"):
-            p = db + suf
-            if os.path.exists(p):
-                os.remove(p)
+            path = db + suf
+            if not os.path.exists(path):
+                continue
+            try:
+                os.remove(path)
+            except PermissionError:
+                print("  [提示] 临时库还被占用，稍后自动清理：%s" % os.path.basename(path))
     if USE_FLUTTER:
         check_flutter()
     check_doc_counts()
