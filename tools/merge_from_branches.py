@@ -136,15 +136,12 @@ def main():
     print("提交 %d 个文件。" % committed)
 
     print("\n=== 推送 origin/%s ===" % args.branch)
-    for attempt in range(1, 4):
-        push = git("push", "origin", args.branch)
-        if push.returncode == 0:
-            print("推送成功（HEAD=%s）。" % git("rev-parse", "--short", "HEAD").stdout.strip())
-            return 0
-        print("  第 %d 次失败：%s" % (attempt, (push.stderr or "").strip()[:120]))
-        import time
-        time.sleep(5)
-    return 1
+    from push_helper import push as smart_push
+    ok, message = smart_push(args.branch, ROOT)
+    print(message)
+    if ok:
+        print("HEAD=%s" % git("rev-parse", "--short", "HEAD").stdout.strip())
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
