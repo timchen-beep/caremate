@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<!-- 作用：落地页：项目介绍与三个入口（/app、/dashboard、/kiosk） -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CareMate · 入口</title>
+<style>
+  :root{--ink:#1b335c;--soft:#44546a;--line:#d8e1ee;--ac:#2e548a;--bg:#f5f7fb}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.6 "Microsoft YaHei","PingFang SC",system-ui,sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:48px 20px 60px}
+  h1{font-size:28px;margin:0 0 6px}
+  .sub{color:var(--soft);font-size:14px;margin-bottom:28px}
+  .entries{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  a.entry{display:block;text-decoration:none;color:inherit;background:#fff;
+          border:1px solid var(--line);border-radius:16px;padding:24px 22px;
+          transition:border-color .15s,transform .15s}
+  a.entry:hover{border-color:var(--ac);transform:translateY(-2px)}
+  .tag{display:inline-block;font-size:12px;color:#fff;background:var(--ac);
+       border-radius:999px;padding:2px 10px;margin-bottom:12px}
+  .tag.web{background:#4a7c59}
+  h2{font-size:20px;margin:0 0 8px}
+  p{color:var(--soft);font-size:14px;margin:0 0 14px}
+  .go{color:var(--ac);font-weight:700;font-size:14px}
+  .meta{margin-top:28px;background:#fff;border:1px solid var(--line);border-radius:12px;
+        padding:16px 18px;font-size:13px;color:var(--soft);line-height:1.9}
+  code{background:#eef2f8;border-radius:5px;padding:1px 6px;font-size:12.5px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#c9d3e0;margin-right:6px}
+  .dot.ok{background:#1f7a4d}
+  @media (max-width:700px){.entries{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CareMate</h1>
+  <div class="sub">老人用药与作息提醒 · 两个入口，一套数据</div>
+
+  <div class="entries">
+    <a class="entry" href="/app">
+      <span class="tag">App 端</span>
+      <h2>老人端（App 形态）</h2>
+      <p>正式交付是 Flutter 打包的 APK，装在老人手机上：系统通知 + 大字 + 一键确认。<br>
+         这里给的是<strong>同一套界面的网页预览</strong>，用于电脑上演示，不能替代 APK 的系统通知。</p>
+      <span class="go">打开界面预览 →</span>
+    </a>
+    <a class="entry" href="/dashboard">
+      <span class="tag web">Web 端</span>
+      <h2>家属看板</h2>
+      <p>看护端就是网页：电脑或手机浏览器打开即可，改计划、看完成率、导数据、收告警。家属用绑定码关联老人账号。</p>
+      <span class="go">打开家属看板 →</span>
+    </a>
+  </div>
+
+  <div class="meta">
+    <div><span class="dot ok"></span>云端服务 <span id="health">检查中…</span></div>
+    <div>App 令牌 <code>app-elder-001</code> ｜ 家属令牌 <code>fam-demo-2026</code> ｜ 绑定码 <code>8823</code></div>
+    <div>手机访问：<code id="lan">把地址里的 127.0.0.1 换成电脑局域网 IP</code></div>
+  </div>
+</div>
+
+<script>
+document.getElementById("lan").textContent =
+  "http://" + (location.hostname === "127.0.0.1" || location.hostname === "localhost"
+    ? "电脑局域网IP" : location.hostname) + (location.port ? ":" + location.port : "") + "/app";
+
+fetch("/api/v1/health").then(r => r.json()).then(j => {
+  document.getElementById("health").textContent = "正常 · v" + (j.version || "?") + " · " + (j.time || "");
+}).catch(() => {
+  document.getElementById("health").textContent = "未连接（请确认 server.py 正在运行）";
+});
+</script>
+</body>
+</html>
+
