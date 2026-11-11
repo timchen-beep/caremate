@@ -1,5 +1,5 @@
 <!-- 作用：文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->
-# 文件索引（160 个）
+# 文件索引（161 个）
 
 | 文件 | 作用 |
 |---|---|
@@ -60,7 +60,7 @@
 | `docs/Opening_Report_Web_Cloud_修订版_v4.docx` | 二进制资源 |
 | `docs/README.md` | 文档目录的说明：每份文档解决什么问题、什么时候看 |
 | `docs/topics.md` | MQTT topic 与 payload 约定，含发布方/订阅方与频率说明 |
-| `docs/云部署.md` | 上云部署步骤：买机、换令牌、systemd、Caddy、验证、备份（约 40 分钟） |
+| `docs/云部署.md` | 上云部署完整手册：选机、无域名/有域名两条路、令牌、systemd、HTTPS、备份、防火墙、排错 |
 | `docs/固定域名上线_Cloudflare隧道.md` | 把本机 CareMate 服务挂到固定域名的操作手册（Cloudflare 命名隧道），含每步命令与排错 |
 | `docs/固定域名上线_Tailscale.md` | 用 Tailscale Funnel 给本机 CareMate 一个固定公网地址（免域名、免服务器），含实测步骤与排错 |
 | `docs/契约_手机端对接_v0.1.md` | 手机端与后端的接口契约回执：七条接口逐条确认与差异说明 |
@@ -124,12 +124,13 @@
 | `server/deploy/Caddyfile` | 反向代理与自动 HTTPS：把域名转发到 127.0.0.1:8000 |
 | `server/deploy/README.md` | 部署说明：反代终止 TLS、应用单进程的原因与步骤 |
 | `server/deploy/caremate.service` | systemd 单元：以单进程跑后端（多进程会有两个调度循环） |
-| `server/deploy/setup.sh` | 服务器一键部署：装 Python/tzdata、建 systemd 单元、起服务并用 curl 自检 |
+| `server/deploy/setup.sh` | 服务器一键部署：装依赖、建账号目录、生成/复用 .env 令牌、systemd、可选 Caddy、自检 |
 | `server/docs/HARDWARE.md` | 硬件接入：香橙派/树莓派/ESP32 分工、接线、topic 表 |
 | `server/evidence-验收汇总.md` | 九套验收的汇总证据：命令、时间、通过数（由 tools/collect_evidence.py 生成） |
 | `server/firmware/esp32_node.ino` | ESP32 传感器节点：读 LD2410C 雷达并上报 presence，收告警按语义表点灯/蜂鸣（不含业务判断） |
 | `server/server.py` | CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度（到点 notified→2 分钟 escalated→5 分钟再提醒家属→15 分钟 missed）、统计、备份、页面路由、端云同步三接口（零第三方依赖） |
 | `server/start-caremate.bat` | 开机/登录时静默拉起 CareMate 后端（配合 Tailscale Funnel 提供固定公网地址） |
+| `server/start-caremate.vbs` | 静默启动 CareMate 后端（开机/登录时由启动文件夹调用；不弹窗、不依赖 cmd start） |
 | `server/start.bat` | Windows 本地启动器：ASCII 输出，避免中文代码页乱码 |
 | `server/test_accept.py` | 可靠性验收 6 项：P95 派发、断网补传、越权 403、升级链自驱、10 次重启不丢不重 |
 | `server/test_align.py` | 一致性 9 项：from/to 反序 400、改计划历史不变、换时区不新增行、单入口检查 |
