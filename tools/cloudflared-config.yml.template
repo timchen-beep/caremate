@@ -1,0 +1,28 @@
+# 作用：Cloudflare 命名隧道（固定域名）配置模板：本机服务 → 你自己的域名，重启不变
+#
+# 用法（Windows，cloudflared 已装：C:\Program Files (x86)\cloudflared\cloudflared.exe）：
+#   1) cloudflared tunnel login                       # 浏览器授权，生成 %USERPROFILE%\.cloudflared\cert.pem
+#   2) cloudflared tunnel create caremate             # 输出 tunnel ID，并生成 <ID>.json 凭据
+#   3) 复制本文件到 %USERPROFILE%\.cloudflared\config.yml，改三处：tunnel / credentials-file / hostname
+#   4) cloudflared tunnel route dns caremate caremate.你的域名.com
+#   5) cloudflared tunnel run caremate                # 前台验证
+#   6) cloudflared service install                    # 装成 Windows 服务，开机自启
+#
+# 说明：
+#   - 本服务只监听 IPv4 127.0.0.1:8000，所以 service 必须写 127.0.0.1，不写 localhost
+#     （Windows 上 localhost 可能解析到 ::1，云隧道的 502 大多是这个原因）
+#   - 若本机 UDP 到 Cloudflare 被阻断（报 "failed to dial with quic"），在服务参数里加
+#     --protocol http2（快速隧道我实测过，QUIC 被墙、http2 正常）
+
+tunnel: <TUNNEL_ID>
+credentials-file: C:\Users\<你的用户名>\.cloudflared\<TUNNEL_ID>.json
+
+# 边缘协议：被墙时保留 http2，能直连 QUIC 时删掉这行
+protocol: http2
+
+ingress:
+  # 老人端 / 家属看板 / kiosk 都在同一个服务里，按路径不区分
+  - hostname: caremate.你的域名.com
+    service: http://127.0.0.1:8000
+  # 兜底：其余一律 404（防止有人拿这个隧道扫别的端口）
+  - service: http_status:404
