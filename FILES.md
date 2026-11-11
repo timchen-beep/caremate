@@ -1,5 +1,5 @@
 <!-- 作用：文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->
-# 文件索引（153 个）
+# 文件索引（154 个）
 
 | 文件 | 作用 |
 |---|---|
@@ -7,7 +7,7 @@
 | `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 九套验收 + 页面检查 + 完整性守卫） |
 | `.github/workflows/flutter-build.yml` | 手动触发的 APK 构建（release/debug 可选，产物上传为 artifact） |
 | `.gitignore` | 忽略规则：数据库、签名私钥、构建产物、APK、CI 临时文件 |
-| `CONTRIBUTING.md` | 开发规约：改代码的三条铁律、一键验证怎么跑、提交与分支规范、踩过的坑 |
+| `CONTRIBUTING.md` | 开发规约：三条铁律、改完就发、迭代分支与 main 合并、提交与分支规范、踩过的坑 |
 | `FILES.md` | 文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） |
 | `FUNCTIONS.md` | 函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） |
 | `GUIDE.md` | 给第一次看这个仓库的人：项目是什么、代码怎么跑、从哪读起、改功能改哪里 |
@@ -152,6 +152,7 @@
 | `tools/README.md` | 辅助工具的说明：怎么跑九套验收并生成一份证据文件 |
 | `tools/collect_evidence.py` | 跑九套验收并把结果汇总成一份 markdown 证据文件 |
 | `tools/gen_index.py` | 文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->", |
+| `tools/merge_from_branches.py` | 按"分支迭代、main 定期合并"的流程，把 web / qt 分支的成果合并回 main（按归属路径拉取，验证后提交推送） |
 | `tools/publish.py` | 一条命令发布：先全量验证，再逐文件提交（说明取自文件自己的「作用」注释），最后推送并等 CI |
 | `tools/sample_p95.py` | 一键取 P95 真实样本：干净端口 + 临时库 → 建 40 秒后的计划 → 等调度器派发 → 打印派发延迟 |
 | `tools/sync_branches.py` | 一条命令把 main 的服务端核心同步到六条归档分支：差异核对 → 覆盖 → 起服务验证 → 逐文件提交 → 推送 |
