@@ -1,0 +1,36 @@
+// 作用：Qt for Android 的 Gradle 配置（AGP 8.1、compileSdk 34）
+// Qt for Android 的构建入口（Qt 6.5+，AGP 8.x）
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath "com.android.tools.build:gradle:8.1.4" }
+}
+repositories { google(); mavenCentral() }
+
+apply plugin: "com.android.application"
+
+android {
+    namespace "com.caremate.app"
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.caremate.app"
+        minSdk 26                 // Android 8.0：NotificationChannel 需要
+        targetSdk 34              // Android 14：精确闹钟需显式授权
+        versionCode 1
+        versionName "1.0"
+    }
+    sourceSets {
+        main {
+            java.srcDirs += ["src"]          // 我们的 AlarmBridge.java 在这里
+            manifest.srcFile "AndroidManifest.xml"
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.core:core:1.12.0"   // NotificationCompat
+}
+
