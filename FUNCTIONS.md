@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（144 个）
+# 函数索引（145 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -98,6 +98,7 @@
 | `server/server.py` | `json` | 发送 JSON 响应（自动序列化，保留中文） |
 | `server/server.py` | `link_of` | 查家属与老人的绑定关系（越权判断的基础） |
 | `server/server.py` | `list_records` | 记录列表，可选带修订历史 |
+| `server/server.py` | `load_dotenv` | 读 server/.env（不存在就跳过）。 |
 | `server/server.py` | `local_dt` | UTC ISO → 本地时区 datetime（读展示用） |
 | `server/server.py` | `local_str` | UTC ISO → 本地 'YYYY-MM-DD HH:MM'（页面与日志用） |
 | `server/server.py` | `log_message` | 访问日志：方法、路径、耗时 |
