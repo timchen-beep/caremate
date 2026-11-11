@@ -285,13 +285,11 @@ def main():
     pending = [b for b, state, _ in results if state == "已同步"]
     if pending:
         print("\n=== 推送 %d 条分支 ===" % len(pending))
-        for attempt in range(1, 4):
-            push = git("push", "origin", *pending)
-            if push.returncode == 0:
-                print("推送成功：%s" % ", ".join(pending))
-                break
-            print("  第 %d 次失败：%s" % (attempt, (push.stderr or "").strip()[:120]))
-            time.sleep(5)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from push_helper import push as smart_push
+        for branch in pending:
+            ok, message = smart_push(branch, ROOT)
+            print("  %-14s %s" % (branch, message))
 
     print("\n=== 汇总 ===")
     for branch, state, detail in results:
