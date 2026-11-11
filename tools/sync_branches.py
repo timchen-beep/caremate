@@ -40,7 +40,12 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BRANCHES = ["v1-web", "v1-web-core", "v2-qt", "v2-qt-core", "v3-flash", "v3-flash-core"]
+BRANCHES = ["v1-web", "v1-web-core", "v2-qt", "v2-qt-core", "v3-flash", "v3-flash-core",
+            "web", "qt"]
+# 迭代分支（web/qt）的 server/ 在仓库根，归档分支在 caremate-cloud/ 或 legacy-web/ 下
+ITER_BRANCHES = {"web", "qt"}
+TOOL_FILES = ["tools/verify_all.py", "tools/publish.py", "tools/gen_index.py",
+              "tools/sample_p95.py", "tools/collect_evidence.py", "tools/README.md"]
 SYNC = [
     ("server/server.py", "server.py"),
     ("server/v1_adapter.py", "v1_adapter.py"),
@@ -68,23 +73,37 @@ def free_port():
 
 
 def sub_dir(worktree):
-    return "caremate-cloud" if os.path.isdir(os.path.join(worktree, "caremate-cloud")) else "legacy-web"
+    """返回 server 文件所在目录（相对 worktree）：迭代分支在根，归档分支在子目录。"""
+    if os.path.isdir(os.path.join(worktree, "caremate-cloud")):
+        return "caremate-cloud"
+    if os.path.isdir(os.path.join(worktree, "legacy-web")):
+        return "legacy-web"
+    return "server"      # web / qt：server/ 是仓库下的子目录
 
 
-def copy_shared(worktree):
+def copy_shared(worktree, with_tools=False):
     """把 main 的核心文件覆盖到分支；返回被覆盖的相对路径列表。"""
     sub = sub_dir(worktree)
     touched = []
     for src_rel, name in SYNC:
         src = os.path.join(ROOT, src_rel.replace("/", os.sep))
-        dst = os.path.join(worktree, sub, name)
+        dst = os.path.join(worktree, sub, name) if sub else os.path.join(worktree, name)
         if os.path.isfile(src):
             shutil.copyfile(src, dst)
-            touched.append("%s/%s" % (sub, name))
+            touched.append(os.path.relpath(dst, worktree).replace(os.sep, "/"))
+    if with_tools:
+        for src_rel in TOOL_FILES:
+            src = os.path.join(ROOT, src_rel.replace("/", os.sep))
+            dst = os.path.join(worktree, src_rel.replace("/", os.sep))
+            if os.path.isfile(src):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copyfile(src, dst)
+                touched.append(src_rel)
     src_doc = os.path.join(ROOT, DOC[0].replace("/", os.sep))
-    if os.path.isfile(src_doc):
-        docs = os.path.join(worktree, "docs")
-        dst = os.path.join(docs if os.path.isdir(docs) else worktree, DOC[1])
+    docs = os.path.join(worktree, "docs")
+    dst = os.path.join(docs if os.path.isdir(docs) else worktree, DOC[1])
+    # 只更新"分支里本来就有的"文档，不把 Qt 相关文档塞进 web 分支（保持 web 分支只有网页端）
+    if os.path.isfile(src_doc) and os.path.isfile(dst):
         shutil.copyfile(src_doc, dst)
         touched.append(os.path.relpath(dst, worktree).replace(os.sep, "/"))
     return sub, touched
@@ -96,7 +115,7 @@ def verify(worktree, sub):
     注意：`test_accept.py` 不会自己起服务（它先做健康检查），所以这里必须先启动，
     再依次跑 test_accept 与 test_v1——与 tools/verify_all.py 的做法一致。
     """
-    server_dir = os.path.join(worktree, sub)
+    server_dir = os.path.join(worktree, sub) if sub else worktree
     compile_proc = run([sys.executable, "-m", "py_compile", "server.py", "v1_adapter.py", "test_v1.py"],
                        cwd=server_dir)
     if compile_proc.returncode != 0:
@@ -152,7 +171,11 @@ def verify(worktree, sub):
 
 def clean_artifacts(worktree):
     for name in CLEAN:
-        for path in (os.path.join(worktree, name), os.path.join(worktree, sub_dir(worktree), name)):
+        sub = sub_dir(worktree)
+        candidates = {os.path.join(worktree, name)}
+        if sub:
+            candidates.add(os.path.join(worktree, sub, name))
+        for path in candidates:
             if os.path.exists(path):
                 try:
                     os.remove(path)
@@ -206,6 +229,8 @@ def main():
     ap = argparse.ArgumentParser(description="把 main 的服务端核心同步到六条归档分支")
     ap.add_argument("--dry-run", action="store_true", help="只报告差异，不复制/提交/推送")
     ap.add_argument("--only", default="", help="逗号分隔的分支名")
+    ap.add_argument("--with-tools", action="store_true",
+                    help="同时同步 tools/（verify_all、publish、索引、P95、证据）")
     ap.add_argument("--keep", action="store_true", help="保留 worktree")
     args = ap.parse_args()
 
@@ -223,7 +248,7 @@ def main():
             results.append((branch, "跳过", "worktree 失败"))
             continue
 
-        sub, touched = copy_shared(worktree)
+        sub, touched = copy_shared(worktree, with_tools=args.with_tools)
         changed = [line[3:].strip().strip('"')
                    for line in git("status", "--porcelain", cwd=worktree).stdout.splitlines()]
         if not changed:
