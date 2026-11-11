@@ -135,18 +135,15 @@ def main():
     print("共提交 %d 个文件。" % committed)
 
     print("\n=== 3/3 推送 origin/%s ===" % args.branch)
-    for attempt in range(1, 4):
-        push = git("push", "origin", args.branch)
-        if push.returncode == 0:
-            head = git("rev-parse", "--short", "HEAD").stdout.strip()
-            print("推送成功（HEAD=%s）。" % head)
-            print("\nCI 会自动跑同一条验证命令；查结果：")
-            print("  https://github.com/timchen-beep/main/actions")
-            return 0
-        print("  第 %d 次推送失败，5 秒后重试：%s" % (attempt, (push.stderr or "").strip()[:120]))
-        import time
-        time.sleep(5)
-    print("推送三次都失败，改动已提交但没上去。")
+    from push_helper import push as smart_push
+    ok, message = smart_push(args.branch, ROOT)
+    print(message)
+    if ok:
+        head = git("rev-parse", "--short", "HEAD").stdout.strip()
+        print("HEAD=%s；CI 会自动跑同一条验证命令：" % head)
+        print("  https://github.com/timchen-beep/caremate/actions")
+        return 0
+    print("改动已提交，但没有推上去（工作区是干净的，重跑本命令会继续推送）。")
     return 1
 
 
