@@ -49,6 +49,10 @@ CMakeCache.txt
 CMakeFiles/
 *.user
 
+# 本机私密配置（令牌/配对码，绝不入库）
+server/.env
+.env
+
 # 运行时日志（自启脚本写的）
 server/server.log
 
