@@ -147,6 +147,8 @@ python3 server.py --port 8000
 
 配对码 `8823`。
 
+> 上公网前先轮换令牌：`python tools/rotate_tokens.py`（写入 `server/.env`，重启生效；旧默认值会被拒 401）。
+
 ## 验收
 
 一条命令跑全部：
