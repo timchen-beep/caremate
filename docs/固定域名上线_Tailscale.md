@@ -81,9 +81,33 @@ curl.exe http://127.0.0.1:8000/api/v1/health
 | 重启后地址在但 502 | 后端没自启 | 检查启动文件夹里的 bat；`server\server.log` 看报错 |
 | 换电脑后地址变 | 节点名换了 | `*.ts.net` 名按机器名生成，可在 admin 里改机器名 |
 
-## 五、安全提醒（上公网前必须做）
+## 五、令牌轮换（已做，且可随时重做）
 
-1. **改掉默认令牌**：`app-elder-001` / `fam-demo-2026` / `comm-demo-2026` 和配对码 `8823`，
+代码里的 `app-elder-001` / `fam-demo-2026` / `comm-demo-2026` / 配对码 `8823` 只是**演示值**。
+上公网前执行一次（会生成随机值并写入 `server/.env`，该文件已被 `.gitignore` 忽略）：
+
+```bash
+python tools/rotate_tokens.py          # 生成
+python tools/rotate_tokens.py --print  # 查看当前值
+```
+
+`server\start-caremate.bat` 启动时会读取 `server/.env`，所以轮换后只要重启服务：
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='pythonw.exe'" | ForEach-Object { if ($_.CommandLine -like '*server.py*') { Stop-Process -Id $_.ProcessId -Force } }
+cmd /c "C:\Users\43915\Documents\GitHub\main\server\start-caremate.bat"
+```
+
+验证（旧令牌必须被拒）：
+
+```bash
+curl.exe -H "X-Token: <新家属令牌>" https://<你的地址>/api/v1/overview   # 200
+curl.exe -H "X-Token: fam-demo-2026"    https://<你的地址>/api/v1/overview   # 401
+```
+
+另外两条仍然成立：
+
+1. **别把令牌和地址发到公开群里**：`app-elder-001` / `fam-demo-2026` / `comm-demo-2026` 和配对码 `8823`，
    否则任何人扫到这个域名都能看到老人数据。
 2. **换端口或加白名单**：目前 `/dashboard` 任何人都能打开、只是没令牌看不到数据；加密后可留。
 3. **别把 `*.ts.net` 地址发到公开群里**，虽然地址算随机，但被扫到仍是暴露面。
