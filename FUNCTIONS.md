@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（142 个）
+# 函数索引（143 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -145,3 +145,4 @@
 | `server/v1_adapter.py` | `occurrence_payload` | occurrences 行 → 端上 occurrence（§3.1 + state_since.json） |
 | `server/v1_adapter.py` | `plan_payload` | plans 表行 → 端上 plan（§3.2 + plans_since.json） |
 | `server/v1_adapter.py` | `row_seq` | 某行的写入序号；没有就现分配一个（读路径也能做增量） |
+| `tools/verify_all.py` | `ensure_server` | 页面检查前确认 8400 上有服务。 |
