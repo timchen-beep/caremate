@@ -1,5 +1,5 @@
 <!-- 作用：文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->
-# 文件索引（155 个）
+# 文件索引（159 个）
 
 | 文件 | 作用 |
 |---|---|
@@ -61,6 +61,8 @@
 | `docs/README.md` | 文档目录的说明：每份文档解决什么问题、什么时候看 |
 | `docs/topics.md` | MQTT topic 与 payload 约定，含发布方/订阅方与频率说明 |
 | `docs/云部署.md` | 上云部署步骤：买机、换令牌、systemd、Caddy、验证、备份（约 40 分钟） |
+| `docs/固定域名上线_Cloudflare隧道.md` | 把本机 CareMate 服务挂到固定域名的操作手册（Cloudflare 命名隧道），含每步命令与排错 |
+| `docs/固定域名上线_Tailscale.md` | 用 Tailscale Funnel 给本机 CareMate 一个固定公网地址（免域名、免服务器），含实测步骤与排错 |
 | `docs/契约_手机端对接_v0.1.md` | 手机端与后端的接口契约回执：七条接口逐条确认与差异说明 |
 | `docs/客户端框架说明.md` | 回答"4.1 到底是 Flutter 还是 Qt"：章节归属、交付物、两套代码各自定位、以及为什么最终统一到 Qt |
 | `docs/按4.1架构改造计划.md` | 按 4.1 架构图（端上主副本 + 端上调度）改造的实施计划：目标、与现状的 5 处差异、分步清单、已踩的坑 |
@@ -127,6 +129,7 @@
 | `server/evidence-验收汇总.md` | 九套验收的汇总证据：命令、时间、通过数（由 tools/collect_evidence.py 生成） |
 | `server/firmware/esp32_node.ino` | ESP32 传感器节点：读 LD2410C 雷达并上报 presence，收告警按语义表点灯/蜂鸣（不含业务判断） |
 | `server/server.py` | CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度（到点 notified→2 分钟 escalated→5 分钟再提醒家属→15 分钟 missed）、统计、备份、页面路由、端云同步三接口（零第三方依赖） |
+| `server/start-caremate.bat` | 开机/登录时静默拉起 CareMate 后端（配合 Tailscale Funnel 提供固定公网地址） |
 | `server/start.bat` | Windows 本地启动器：ASCII 输出，避免中文代码页乱码 |
 | `server/test_accept.py` | 可靠性验收 6 项：P95 派发、断网补传、越权 403、升级链自驱、10 次重启不丢不重 |
 | `server/test_align.py` | 一致性 9 项：from/to 反序 400、改计划历史不变、换时区不新增行、单入口检查 |
@@ -150,6 +153,7 @@
 | `server/web/manifest.webmanifest` | PWA 清单：应用名、图标、显示模式（装到桌面像原生 App） |
 | `server/web/sw.js` | Service Worker：缓存静态页，让老人端可离线打开 |
 | `tools/README.md` | 辅助工具的说明：怎么跑九套验收并生成一份证据文件 |
+| `tools/cloudflared-config.yml.template` | Cloudflare 命名隧道（固定域名）配置模板：本机服务 → 你自己的域名，重启不变 |
 | `tools/collect_evidence.py` | 跑九套验收并把结果汇总成一份 markdown 证据文件 |
 | `tools/gen_index.py` | 文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->", |
 | `tools/merge_from_branches.py` | 按"分支迭代、main 定期合并"的流程，把 web / qt 分支的成果合并回 main（按归属路径拉取，验证后提交推送） |
