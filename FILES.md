@@ -162,5 +162,5 @@
 | `tools/push_helper.py` | 推送助手：代理没开时先试直连，最后给出"代理未启动"的明确提示，而不是干等 5 分钟 |
 | `tools/rotate_tokens.py` | 生成随机令牌与配对码并写入 server/.env（已被 .gitignore 忽略），供上公网时替换演示值 |
 | `tools/sample_p95.py` | 一键取 P95 真实样本：干净端口 + 临时库 → 建 40 秒后的计划 → 等调度器派发 → 打印派发延迟 |
-| `tools/sync_branches.py` | 一条命令把 main 的服务端核心同步到六条归档分支：差异核对 → 覆盖 → 起服务验证 → 逐文件提交 → 推送 |
+| `tools/sync_branches.py` | 一条命令把 main 的服务端核心同步到八条分支（六条归档 + web/qt）：差异核对 → 覆盖 → 起服务验证 → 逐文件提交 → 推送 |
 | `tools/verify_all.py` | 一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 九套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze） |
