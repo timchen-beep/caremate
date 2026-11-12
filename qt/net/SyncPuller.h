@@ -45,5 +45,6 @@ private:
     QString m_state = QStringLiteral("offline");
     qint64 m_cursor = 0;
     bool m_busy = false;
+    bool m_sosPending = false;   // 正在同步时按下的呼救：不能丢，等这一轮结束补发
     QTimer m_timer;
 };
