@@ -275,6 +275,7 @@ def commit_all(worktree, branch):
     changed = [line[3:].strip().strip('"') for line in
                git("status", "--porcelain", cwd=worktree).stdout.splitlines()]
     committed = 0
+    failed = []
     for rel in changed:
         msg = "%s：%s" % (rel, describe(rel, worktree))
         if len(msg) > 115:
@@ -283,8 +284,11 @@ def commit_all(worktree, branch):
         if git("commit", "-q", "-m", msg, "--", rel, cwd=worktree).returncode == 0:
             committed += 1
             print("    提交 %s" % rel)
+        else:
+            failed.append(rel)
+            print("    失败 %s" % rel)
     print("  %s 提交 %d 个文件" % (branch, committed))
-    return committed
+    return committed, failed
 
 
 def main():
@@ -335,7 +339,13 @@ def main():
                 git("worktree", "remove", worktree, "--force")
             continue
 
-        commit_all(worktree, branch)
+        _committed, commit_failed = commit_all(worktree, branch)
+        if commit_failed:
+            # 有文件没提交进去就别说"已同步"：否则外面看起来八条都好了，实际少文件。
+            results.append((branch, "提交失败", ", ".join(commit_failed)))
+            if not args.keep:
+                git("worktree", "remove", worktree, "--force")
+            continue
         results.append((branch, "已同步", detail))
         if not args.keep:
             git("worktree", "remove", worktree, "--force")
@@ -349,9 +359,15 @@ def main():
         print("\n=== 推送 %d 条分支 ===" % len(pending))
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from push_helper import push as smart_push
+        pushed_failed = []
         for branch in pending:
             ok, message = smart_push(branch, ROOT)
             print("  %-14s %s" % (branch, message))
+            if not ok:
+                pushed_failed.append(branch)
+        if pushed_failed:
+            # 推送失败必须改状态：不然 exit 0 让人以为远端已经有了
+            results = [(b, "推送失败" if b in pushed_failed else s, d) for b, s, d in results]
 
     print("\n=== 汇总 ===")
     for branch, state, detail in results:
