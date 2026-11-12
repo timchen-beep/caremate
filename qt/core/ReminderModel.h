@@ -61,7 +61,7 @@ private:
         QString dose;
     };
     struct Occ {
-        QString id, planId, title, slotLocal, state;
+        QString id, planId, title, dose, slotLocal, state;
         QDateTime due;
         int snoozeLeft = 3;
     };
