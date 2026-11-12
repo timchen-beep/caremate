@@ -1,4 +1,6 @@
 // 作用：手机端本地库（4.1 架构图第 3 层）：plans / occurrences / events 三表 + 同步游标，冷启动先读这里
+import 'dart:convert';
+
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -66,18 +68,31 @@ class LocalDb {
   static Future<List<Plan>> loadPlans() async {
     final db = await open();
     final rows = await db.query('plans');
-    return rows
-        .map((r) => Plan.fromJson({
-              'id': r['id'],
-              'title': r['title'],
-              'kind': r['kind'],
-              'times': r['times'],
-              'dose': r['dose'],
-              'note': r['note'],
-              'active': r['active'],
-              'rule': const {'kind': 'daily'},
-            }))
-        .toList();
+    return rows.map((r) {
+      // rule 存的是 JSON 字符串（savePlans 里 plan.rule.toString() 的结果），
+      // 原来这里硬编码成 {'kind':'daily'}，周计划读回来就变成每天都提醒。
+      Map<String, dynamic> rule = const {'kind': 'daily'};
+      final raw = (r['rule'] ?? '').toString();
+      if (raw.startsWith('{')) {
+        try {
+          rule = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+        } catch (_) {
+          // 解析不了就退回每天，至少不崩
+        }
+      }
+      return Plan.fromJson({
+        'id': r['id'],
+        'title': r['title'],
+        'kind': r['kind'],
+        'times': r['times'],
+        'dose': r['dose'],
+        'note': r['note'],
+        'active': r['active'],
+        'rule': rule,
+        // 周几存在 rule.weekdays 里，一起还原，别丢
+        'weekdays': rule['weekdays'],
+      });
+    }).toList();
   }
 
   // ---------------------------------------------------------------- 实例
@@ -181,6 +196,8 @@ class LocalDb {
   }
 
   // ---------------------------------------------------------------- 游标
+  // 游标存成 "时间|id" 两段：服务端 updated_at 只到秒，同一秒里的一批变化必须靠 id 续上，
+  // 否则翻页时同一秒里剩下的行会被永久跳过（家属端少记录就是这么来的）。
   static Future<String> getCursor() async {
     final db = await open();
     final rows = await db.query('meta', where: 'k=?', whereArgs: ['since']);
