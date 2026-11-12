@@ -116,11 +116,19 @@ $("bFam").onclick = () => { location.href = "/app#me"; };
   async function fire() {
     up();
     if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
-    await fetch(API + "/api/v1/sos", {
-      method: "POST", headers: hdr(),
-      body: JSON.stringify({ note: "专注模式长按呼救", device: navigator.userAgent.slice(0, 40) })
-    }).catch(() => {});
-    $("state").textContent = "已通知家里人";
+    // 必须看 r.ok：原来 .catch(() => {}) 把网络错误吞掉、也不判状态码，
+    // 令牌失效或服务端挂了照样显示"已通知家里人"，老人以为有人来而实际什么都没发出去
+    try {
+      const r = await fetch(API + "/api/v1/sos", {
+        method: "POST", headers: hdr(),
+        body: JSON.stringify({ note: "专注模式长按呼救", device: navigator.userAgent.slice(0, 40) })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+      $("state").textContent = "已通知家里人";
+    } catch (e) {
+      $("state").textContent = "没发出去（" + e.message + "）——请再按一次或直接打电话";
+    }
   }
   btn.addEventListener("pointerdown", down);
   btn.addEventListener("pointerup", up);
