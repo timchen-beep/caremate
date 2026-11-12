@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（145 个）
+# 函数索引（148 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -74,6 +74,7 @@
 | `server/server.py` | `_patch` | PATCH 的具体处理（改记录、暂停计划等） |
 | `server/server.py` | `_plan_view` | 计划对外视图 |
 | `server/server.py` | `_put` | PUT 的具体处理（改计划等） |
+| `server/server.py` | `_qi` | 取查询参数里的整数（缺省/非法/超范围都不报错，按默认值并夹到区间内） |
 | `server/server.py` | `_record_view` | 记录对外视图 |
 | `server/server.py` | `add_record` | 新增一条记录并写事件审计 |
 | `server/server.py` | `apply_token_overrides` | 已存在的库也跟随环境变量换令牌（换令牌不用删库） |
@@ -125,6 +126,8 @@
 | `server/server.py` | `sync_events_up` | 手机端批量上行本地事件队列；每条复用 transition()（不传连接，避免嵌套锁） |
 | `server/server.py` | `sync_state_down` | 按游标回灌服务端状态（换机/重装/家属代确认后对齐） |
 | `server/server.py` | `today_occurrences` | 今天到未来的实例（老人端首页） |
+| `server/server.py` | `transition` | 唯一允许改 occurrences.state 的函数（文档 4.2.5）。 |
+| `server/server.py` | `tzinfo` | 当前时区。顺序：系统 tz 库 → 内置规则 → 固定 +08:00 |
 | `server/server.py` | `utc_now` | 当前 UTC 时间（带时区），全库时间基准 |
 | `server/v1_adapter.py` | `_alarm` | 呼救/告警（occurrence_id 可空，source=manual） |
 | `server/v1_adapter.py` | `_ensure_row_seq` | 取某行序号；没有则分配一个（保证 since=0 时能拿到全量） |
