@@ -1510,7 +1510,7 @@ class Handler(BaseHTTPRequestHandler):
 
         user = self.me()
         if not user:
-            return self.json(401, {"error": "令牌无效（请在页面右上角填令牌）"})
+            return self.json(401, {"error": "令牌无效（请检查当前页面的令牌设置）"})
 
         if p == "/api/v1/me":
             return self.json(200, {"id": user["id"], "name": user["name"], "role": user["role"],
