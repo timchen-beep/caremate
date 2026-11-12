@@ -28,7 +28,8 @@ import sqlite3
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from datetime import tzinfo as _TzBase  # 本文件里 tzinfo() 是"当前时区"函数，基类别名避开重名
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.request
 from urllib.parse import parse_qs, urlparse
@@ -104,13 +105,162 @@ STATES = ("pending", "notified", "snoozed", "confirmed", "missed", "escalated")
 
 
 # ================================================================ 时间（UTC 存、tz 显示）
+# 为什么要自己带一份时区规则：Windows 上的 Python 不带 tz 数据库，
+# `ZoneInfo("Asia/Shanghai")` 会抛 ZoneInfoNotFoundError。旧代码 except 之后固定回退 +08:00，
+# 于是 CAREMATE_TZ 写什么都等于上海——`test_align` 的「换时区重算」用例一直是假通过。
+# 现在顺序是：系统 tz 库 → 内置规则（文档里出现的时区都覆盖，含夏令时）→ 最后才退回 +08:00，
+# 并且把实际用的是哪一种如实写进 /api/v1/health 的 tz_source，页面和测试都能一眼看出退化。
+_TZ_CACHE = {}
+_TZ_STATE = {"tz": "", "source": "unknown", "note": ""}
+
+
+def _nth_weekday(year, month, weekday, n):
+    first = date(year, month, 1)
+    return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
+
+
+def _last_weekday(year, month, weekday):
+    last = date(year, month + 1, 1) - timedelta(days=1) if month < 12 else date(year, 12, 31)
+    return last - timedelta(days=(last.weekday() - weekday) % 7)
+
+
+def _us_dst(year):  # 美国：3 月第二个周日 02:00 → 11 月第一个周日 02:00
+    return (3, _nth_weekday(year, 3, 6, 2).day), (11, _nth_weekday(year, 11, 6, 1).day)
+
+
+def _eu_dst(year):  # 欧盟：3 月最后一个周日 → 10 月最后一个周日
+    return (3, _last_weekday(year, 3, 6).day), (10, _last_weekday(year, 10, 6).day)
+
+
+def _au_dst(year):  # 南半球：10 月第一个周日 → 次年 4 月第一个周日
+    return (10, _nth_weekday(year, 10, 6, 1).day), (4, _nth_weekday(year, 4, 6, 1).day)
+
+
+class _RuleTZ(_TzBase):
+    """没有系统时区库时的兜底：标准/夏令时两挡 + 起止规则。"""
+
+    def __init__(self, name, std_hours, dst_hours, rule=None):
+        self._name = name
+        self._std = timedelta(hours=std_hours)
+        self._dst = timedelta(hours=dst_hours)
+        self._rule = rule
+
+    def _summer(self, naive):
+        if self._rule is None or self._dst == self._std:
+            return False
+        (sm, sd), (em, ed) = self._rule(naive.year)
+        start = datetime(naive.year, sm, sd, 2)
+        end = datetime(naive.year, em, ed, 2)
+        if end < start:  # 南半球跨年
+            return naive >= start or naive < end
+        return start <= naive < end
+
+    def utcoffset(self, dt):
+        if dt is None:
+            return self._std
+        return self._dst if self._summer(dt.replace(tzinfo=None)) else self._std
+
+    def dst(self, dt):
+        return (self._dst - self._std) if self.utcoffset(dt) == self._dst else timedelta(0)
+
+    def tzname(self, dt):
+        return self._name
+
+    def fromutc(self, dt):
+        naive = dt.replace(tzinfo=None) + self._std
+        if self._summer(naive):
+            naive = dt.replace(tzinfo=None) + self._dst
+        return naive.replace(tzinfo=self)
+
+
+# 无夏令时的时区：名字 → 小时偏移
+_TZ_FIXED = {
+    "asia/shanghai": 8, "asia/chongqing": 8, "asia/chungking": 8, "asia/harbin": 8,
+    "asia/beijing": 8, "prc": 8, "asia/hong_kong": 8, "asia/macau": 8, "asia/taipei": 8,
+    "asia/singapore": 8, "asia/manila": 8, "asia/kuala_lumpur": 8, "asia/brunei": 8,
+    "asia/tokyo": 9, "asia/seoul": 9, "asia/pyongyang": 9,
+    "asia/bangkok": 7, "asia/jakarta": 7, "asia/hanoi": 7, "asia/ho_chi_minh": 7,
+    "asia/kolkata": 5.5, "asia/calcutta": 5.5, "asia/colombo": 5.5, "asia/kathmandu": 5.75,
+    "asia/karachi": 5, "asia/dhaka": 6, "asia/dubai": 4, "asia/muscat": 4,
+    "asia/riyadh": 3, "asia/baghdad": 3, "asia/kuwait": 3, "asia/qatar": 3,
+    "asia/tehran": 3.5, "asia/kabul": 4.5, "asia/ulaanbaatar": 8,
+    "europe/moscow": 3, "europe/istanbul": 3, "africa/cairo": 2,
+    "africa/johannesburg": 2, "africa/nairobi": 3, "africa/lagos": 1,
+    "america/phoenix": -7, "america/bogota": -5, "america/lima": -5,
+    "america/sao_paulo": -3, "america/buenos_aires": -3, "america/halifax": -4,
+}
+
+# 有夏令时的时区：名字 → (标准时, 夏令时, 规则)
+_TZ_DST = {
+    "america/new_york": (-5, -4, _us_dst), "america/toronto": (-5, -4, _us_dst),
+    "america/detroit": (-5, -4, _us_dst), "america/montreal": (-5, -4, _us_dst),
+    "america/chicago": (-6, -5, _us_dst), "america/denver": (-7, -6, _us_dst),
+    "america/los_angeles": (-8, -7, _us_dst), "america/vancouver": (-8, -7, _us_dst),
+    "america/anchorage": (-9, -8, _us_dst),
+    "europe/london": (0, 1, _eu_dst), "europe/dublin": (0, 1, _eu_dst),
+    "europe/lisbon": (0, 1, _eu_dst), "europe/berlin": (1, 2, _eu_dst),
+    "europe/paris": (1, 2, _eu_dst), "europe/madrid": (1, 2, _eu_dst),
+    "europe/rome": (1, 2, _eu_dst), "europe/amsterdam": (1, 2, _eu_dst),
+    "europe/brussels": (1, 2, _eu_dst), "europe/vienna": (1, 2, _eu_dst),
+    "europe/stockholm": (1, 2, _eu_dst), "europe/warsaw": (1, 2, _eu_dst),
+    "europe/zurich": (1, 2, _eu_dst), "europe/prague": (1, 2, _eu_dst),
+    "europe/athens": (2, 3, _eu_dst), "europe/helsinki": (2, 3, _eu_dst),
+    "australia/sydney": (10, 11, _au_dst), "australia/melbourne": (10, 11, _au_dst),
+    "pacific/auckland": (12, 13, _au_dst),
+}
+
+
+def _offset_tz(text):
+    """支持 '+08:00' / 'UTC+8' / 'GMT-05:00' 这类直接给偏移的写法。"""
+    match = re.fullmatch(r"(?:utc|gmt)?\s*([+-])(\d{1,2})(?::?(\d{2}))?", (text or "").strip().lower())
+    if not match:
+        return None
+    hours = int(match.group(2)) + int(match.group(3) or 0) / 60.0
+    if hours > 14:
+        return None
+    if hours == 0:
+        return timezone.utc
+    return timezone(timedelta(hours=hours if match.group(1) == "+" else -hours))
+
+
+def _builtin_tz(name):
+    key = (name or "").strip().lower().replace(" ", "_")
+    if key in ("", "utc", "gmt", "z", "etc/utc", "etc/gmt", "utc+0", "universal"):
+        return timezone.utc
+    if key in _TZ_FIXED:
+        return timezone(timedelta(hours=_TZ_FIXED[key]))
+    if key in _TZ_DST:
+        std, dst, rule = _TZ_DST[key]
+        return _RuleTZ(name, std, dst, rule)
+    return _offset_tz(key) or _offset_tz(name)
+
+
+# 函数 tzinfo：当前时区。顺序：系统 tz 库 → 内置规则 → 固定 +08:00
 def tzinfo():
-    if ZoneInfo:
+    name = CONFIG["tz"]
+    cached = _TZ_CACHE.get(name)
+    if cached is not None:
+        return cached
+    reason = ""
+    if ZoneInfo is not None:
         try:
-            return ZoneInfo(CONFIG["tz"])
-        except Exception:
-            pass
-    return timezone(timedelta(hours=8))
+            zone = ZoneInfo(name)
+            _TZ_STATE.update(tz=name, source="zoneinfo", note="")
+            _TZ_CACHE[name] = zone
+            return zone
+        except Exception as exc:
+            reason = "系统没有时区数据（%s）" % type(exc).__name__
+    else:
+        reason = "当前 Python 没有 zoneinfo 模块"
+    zone = _builtin_tz(name)
+    if zone is not None:
+        _TZ_STATE.update(tz=name, source="builtin", note=reason + "，已用内置规则近似")
+        _TZ_CACHE[name] = zone
+        return zone
+    _TZ_STATE.update(tz=name, source="fallback+08:00",
+                     note=reason + "，内置表也没有这个时区，退回 +08:00")
+    _TZ_CACHE[name] = timezone(timedelta(hours=8))
+    return _TZ_CACHE[name]
 
 
 # 函数 utc_now：当前 UTC 时间（带时区），全库时间基准
@@ -600,6 +750,11 @@ def occ_row(conn, oid):
 
 
 # ================================================================ 唯一状态入口
+# 函数 transition：唯一允许改 occurrences.state 的函数（文档 4.2.5）。
+# 合法动作白名单：不在表里的动作一律 422，避免随便一个字符串就写进事件流。
+ACTIONS = {"confirmed", "missed", "snoozed", "notified", "escalated", "reopen", "undo"}
+
+
 def transition(oid, action, actor="", source="app", client_ts="", payload=None, conn=None):
     """唯一允许改 occurrences.state 的函数（文档 4.2.5）。"""
     own = conn is None
@@ -610,9 +765,16 @@ def transition(oid, action, actor="", source="app", client_ts="", payload=None, 
             occ = occ_row(conn, oid)
             if not occ:
                 raise LookupError("实例不存在")
-            # 契约 409：已经是终态、又提交相反结论
-            if occ["state"] == "confirmed" and action in ("missed", "snoozed"):
+            # 契约 409：终态不能被"降级"改回去。
+            # 之前只拦 confirmed + {missed,snoozed}，于是调度器读到"确认前的快照"也能把已确认的实例
+            # 改回 notified/escalated，最后判 missed——用户按了确认却收到"未确认"告警。
+            # 例外：missed → confirmed 是允许的（老人事后补按"我吃了"，属于纠正而不是降级）。
+            if occ["state"] == "confirmed" and action not in ("confirmed", "reopen", "undo"):
                 raise ChildProcessError("该实例已确认，不能再记为 %s" % action)
+            if occ["state"] == "missed" and action in ("notified", "escalated"):
+                raise ChildProcessError("该实例已记未确认，不能再改回 %s" % action)
+            if action not in ACTIONS:
+                raise ValueError("未知动作：%s" % action)
             now = utc_now()
             payload = payload or {}
             event_id = (payload.get("event_id") if isinstance(payload, dict) else "") or str(
@@ -675,10 +837,18 @@ def transition(oid, action, actor="", source="app", client_ts="", payload=None, 
                 "UPDATE occurrences SET state=?,level=?,snooze_count=?,notified_at=?,confirmed_at=?,"
                 "missed_at=?,updated_at=? WHERE id=?",
                 (state, level, snooze_count, notified_at, confirmed_at, missed_at, iso(now), oid))
+            # 手机增量同步靠 v1_rowseq 的序号：状态一变就给这行新序号。
+            # 不 bump 的话，家属在网页确认、调度器升级/missed 这些"服务端发起"的变化，
+            # 手机带 ?since= 永远拉不到，老人端一直显示旧状态。
+            try:
+                v1_adapter.row_seq(conn, "occurrence", oid, bump=True)
+            except Exception:
+                pass
 
             publish("home/reminder/%s/state" % occ["user_id"],
-                    {"occurrence": oid, "plan_id": occ["plan_id"], "due_at": occ["due_at"],
-                     "action": action, "state": state, "actor": actor, "event_id": event_id}, conn)
+                    {"user_id": occ["user_id"], "occurrence": oid, "plan_id": occ["plan_id"],
+                     "due_at": occ["due_at"], "action": action, "state": state,
+                     "actor": actor, "event_id": event_id}, conn)
 
             if action == "confirmed":
                 _ack_open_alarms(conn, oid)
@@ -695,8 +865,9 @@ def transition(oid, action, actor="", source="app", client_ts="", payload=None, 
                                  "prev_state": prev_state, "new_state": state, "level": level},
                       "event_id": event_id, "duplicate": False, "state": state,
                       "level": level, "snooze_count": snooze_count}
-        if own:
-            conn.commit()          # 自己开的连接必须显式提交，否则 close() 会回滚
+            # 提交放在锁内：放锁外时调度器线程可能读到未提交的旧状态，再把用户的确认覆盖成 missed
+            if own:
+                conn.commit()
         return result
     except Exception:
         if own:
@@ -719,7 +890,8 @@ def _alarm_once(conn, user_id, kind, level, oid, message):
                  " VALUES (?,?,?,?,?,?,?)",
                  (aid, user_id, kind, level, oid, message, iso(utc_now())))
     publish("home/alarm/%s" % user_id,
-            {"id": aid, "kind": kind, "level": level, "occurrence": oid, "message": message}, conn)
+            {"user_id": user_id, "id": aid, "kind": kind, "level": level,
+             "occurrence": oid, "message": message}, conn)
     try:
         notify(kind, message, {"user_id": user_id, "alarm": aid, "level": level})
     except Exception:
@@ -788,14 +960,20 @@ def inactivity_check(now=None):
         return 0
     fired = 0
     with connect() as conn:
-        elders = [r["id"] for r in conn.execute("SELECT id FROM users WHERE role='elder'").fetchall()]
-        for uid in elders:
-            last_ev = conn.execute("SELECT at_utc FROM events WHERE user_id=? ORDER BY id DESC LIMIT 1",
-                                   (uid,)).fetchone()
+        elders = [dict(r) for r in conn.execute(
+            "SELECT id, created_at FROM users WHERE role='elder'").fetchall()]
+        for u in elders:
+            uid = u["id"]
+            # 只算「人做的动作」：调度器自己写的 notified/escalated/missed 事件不是老人有动静，
+            # 否则每响一次提醒就把计时器清零，老人整天不按也会显示「刚有活动」，告警永远不发。
+            last_ev = conn.execute(
+                "SELECT at_utc FROM events WHERE user_id=? AND actor<>'' AND actor<>'scheduler'"
+                " ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
             last_rec = conn.execute("SELECT created_at FROM records WHERE user_id=?"
                                    " ORDER BY created_at DESC LIMIT 1", (uid,)).fetchone()
             stamps = [r[0] for r in (last_ev, last_rec) if r and r[0]]
-            last = max(stamps) if stamps else None
+            # 从没动过的账号：从开户时间算起，而不是当成「刚有活动」直接跳过
+            last = max(stamps) if stamps else (u["created_at"] or None)
             if last is None:
                 continue
             if minutes_since(last, now) < hours * 60:
@@ -842,46 +1020,57 @@ def scheduler_tick(now=None):
         users = [r["id"] for r in conn.execute("SELECT id FROM users WHERE role='elder'").fetchall()]
         local_today = now.astimezone(tzinfo()).date()
         for uid in users:
-            ensure_occurrences(uid, local_today - timedelta(days=1), local_today + timedelta(days=1), conn)
+            # 单个老人/单条坏计划出错不能拖垮整个调度器：以前没有 try，
+            # 一条 rule 写坏的记录会让每个 tick 都在同一处抛异常，所有人的提醒全部停摆。
+            try:
+                ensure_occurrences(uid, local_today - timedelta(days=1), local_today + timedelta(days=1), conn)
+            except Exception as exc:  # noqa: BLE001
+                print("[scheduler] 老人 %s 物化实例出错，跳过：%s" % (uid, exc))
+        # 暂停/停用的计划不该再提醒：已物化的 pending 实例也要跟着停
         rows = conn.execute(
-            "SELECT * FROM occurrences WHERE state IN ('pending','notified','escalated','snoozed')"
-        ).fetchall()
+            "SELECT o.* FROM occurrences o JOIN plans p ON p.id=o.plan_id"
+            " WHERE o.state IN ('pending','notified','escalated','snoozed') AND p.active=1"
+            " AND (p.paused_until='' OR substr(p.paused_until,1,10) < ?)",
+            (local_today.isoformat(),)).fetchall()
     for row in rows:
         stats["scanned"] += 1
-        late = minutes_since(row["due_at"], now)
-        if late < 0:
-            continue
-        if row["state"] == "snoozed":
-            if minutes_since(row["updated_at"], now) >= CONFIG["snooze_gap"]:
+        try:
+            late = minutes_since(row["due_at"], now)
+            if late < 0:
+                continue
+            if row["state"] == "snoozed":
+                if minutes_since(row["updated_at"], now) >= CONFIG["snooze_gap"]:
+                    transition(row["id"], "notified", actor="scheduler", source="scheduler")
+                    stats["notified"] += 1
+                continue
+            # 升级链（三档，阈值为 2/5/15 分钟，可用环境变量覆盖）：
+            #   到点            → notified（本机提醒）
+            #   迟到 th1 分钟   → escalated（通知家属，告警 level 2）
+            #   迟到 th2 分钟   → 再提醒家属一次（告警 level 3，状态仍是 escalated）
+            #   迟到 th3 分钟   → missed（记未确认）
+            if not row["notified_at"]:
                 transition(row["id"], "notified", actor="scheduler", source="scheduler")
                 stats["notified"] += 1
-            continue
-        # 升级链（三档，阈值为 2/5/15 分钟，可用环境变量覆盖）：
-        #   到点            → notified（本机提醒）
-        #   迟到 th1 分钟   → escalated（通知家属，告警 level 2）
-        #   迟到 th2 分钟   → 再提醒家属一次（告警 level 3，状态仍是 escalated）
-        #   迟到 th3 分钟   → missed（记未确认）
-        if not row["notified_at"]:
-            transition(row["id"], "notified", actor="scheduler", source="scheduler")
-            stats["notified"] += 1
-            row = dict(row)
-            row["notified_at"] = iso(now)
-        if late >= CONFIG["th3"]:
-            if row["state"] != "missed":
-                transition(row["id"], "missed", actor="scheduler", source="scheduler")
-                stats["missed"] += 1
-        else:
-            if late >= CONFIG["th1"] and row["state"] not in ("escalated", "missed", "confirmed"):
-                transition(row["id"], "escalated", actor="scheduler", source="scheduler")
-                stats["escalated"] += 1
                 row = dict(row)
-                row["state"] = "escalated"
-            # th2：第二次提醒家属（只发告警，不改状态；_alarm_once 按 kind+occurrence+level 去重）
-            if late >= CONFIG["th2"] and row["state"] == "escalated":
-                aid = raise_alarm(row["user_id"], "escalated", 3, row["id"],
-                                  "仍未确认：%s（已过 %d 分钟）" % (row["title_snap"] or "", int(late)))
-                if aid:
+                row["notified_at"] = iso(now)
+            if late >= CONFIG["th3"]:
+                if row["state"] != "missed":
+                    transition(row["id"], "missed", actor="scheduler", source="scheduler")
+                    stats["missed"] += 1
+            else:
+                if late >= CONFIG["th1"] and row["state"] not in ("escalated", "missed", "confirmed"):
+                    transition(row["id"], "escalated", actor="scheduler", source="scheduler")
                     stats["escalated"] += 1
+                    row = dict(row)
+                    row["state"] = "escalated"
+                # th2：第二次提醒家属（只发告警，不改状态；_alarm_once 按 kind+occurrence+level 去重）
+                if late >= CONFIG["th2"] and row["state"] == "escalated":
+                    aid = raise_alarm(row["user_id"], "escalated", 3, row["id"],
+                                      "仍未确认：%s（已过 %d 分钟）" % (row["title_snap"] or "", int(late)))
+                    if aid:
+                        stats["escalated"] += 1
+        except Exception as exc:  # noqa: BLE001
+            print("[scheduler] 实例 %s 处理出错，跳过：%s" % (row["id"], exc))
     try:
         stats["inactivity"] = inactivity_check(now)
     except Exception as exc:  # noqa: BLE001
@@ -1208,6 +1397,14 @@ def save_plan(user_id, body, plan_id=None):
                          (1 if body.get("active", 1) else 0, iso(utc_now()), plan_id, user_id))
         return {"id": plan_id}
 
+    # 名字必填：老人端首页按名字念"该吃氨氯地平了"，空名字会变成只有时间的一条提醒
+    title = str(body.get("title") or "").strip()
+    if not title:
+        raise ValueError("title 不能为空（老人端要按名字念出提醒内容）")
+    if len(title) > 120:
+        raise ValueError("title 太长，最多 120 个字")
+    body = dict(body, title=title)
+
     times = normalize_times(body.get("times") or [])
     rule = body.get("rule") or {}
     if isinstance(rule, str):
@@ -1233,6 +1430,37 @@ def save_plan(user_id, body, plan_id=None):
     if kind == "once" and not rule.get("date"):
         raise ValueError("一次性提醒需要 date（YYYY-MM-DD）")
     weekdays = normalize_weekdays(body.get("weekdays") or rule.get("weekdays") or [])
+
+    # 规则里的数值字段要在这里校验：以前 rule={"kind":"monthly","day":"x"} 能存进去，
+    # 下一轮 slots_on 里 int("x") 抛异常，scheduler_tick 整个中断——所有老人的提醒全部停摆。
+    def _num(key, lo, hi, default):
+        try:
+            value = int(rule.get(key, default))
+        except (TypeError, ValueError):
+            raise ValueError("规则的 %s 必须是整数" % key)
+        return max(lo, min(hi, value))
+
+    def _date_field(key):
+        raw = str(rule.get(key) or "")[:10]
+        if not raw:
+            return
+        try:
+            datetime.strptime(raw, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("规则的 %s 要写成 YYYY-MM-DD" % key)
+
+    if kind == "interval":
+        rule["n"] = _num("n", 1, 365, 2)
+        _date_field("start")
+    elif kind == "monthly":
+        rule["day"] = _num("day", 1, 31, 1)
+    elif kind == "course":
+        rule["days"] = _num("days", 1, 365, 7)
+        _date_field("start")
+    elif kind == "mealOffset":
+        rule["offset"] = _num("offset", -180, 180, 30)
+    elif kind == "once":
+        _date_field("date")
 
     with _lock, connect() as conn:
         if plan_id:
@@ -1296,23 +1524,52 @@ def sync_events_up(user_id, events):
 
 
 # 函数 sync_state_down：按游标回灌服务端状态（换机/重装/家属代确认后对齐）
-def sync_state_down(user_id, since="", limit=500):
-    """GET /v1/state?since= —— since 之后变化的实例与记录，带 next_since。"""
+def sync_state_down(user_id, since="", limit=500, since_id=""):
+    """GET /v1/state?since=&since_id= —— since 之后变化的实例与记录，带 next_since/next_id。
+
+    游标是 (时间, id) 复合键：updated_at 只精确到秒，一批数据在同一秒里写入时，只按
+    时间戳翻页会把同一秒里剩下的行永久跳过（家属端就永远少几条）。客户端把 next_id
+    原样回传即可；不带 since_id 时按老口径工作（只比较多，不跳过）。
+    """
+    try:
+        limit = max(1, min(int(limit), 1000))
+    except (TypeError, ValueError):
+        limit = 500
+    since = since or ""
+    since_id = since_id or ""
+    if since_id:
+        occ_where = "user_id=? AND (updated_at>? OR (updated_at=? AND id>?))"
+        occ_args = (user_id, since, since, since_id)
+        rec_where = "user_id=? AND (created_at>? OR (created_at=? AND id>?))"
+        rec_args = (user_id, since, since, since_id)
+    else:
+        occ_where, occ_args = "user_id=? AND updated_at>?", (user_id, since)
+        rec_where, rec_args = "user_id=? AND created_at>?", (user_id, since)
     with connect() as conn:
         occ_rows = conn.execute(
-            "SELECT * FROM occurrences WHERE user_id=? AND updated_at>? ORDER BY updated_at LIMIT ?",
-            (user_id, since or "", int(limit))).fetchall()
+            "SELECT * FROM occurrences WHERE " + occ_where + " ORDER BY updated_at, id",
+            occ_args).fetchall()
         rec_rows = conn.execute(
-            "SELECT * FROM records WHERE user_id=? AND created_at>? ORDER BY created_at LIMIT ?",
-            (user_id, since or "", int(limit))).fetchall()
-        max_occ = max([r["updated_at"] for r in occ_rows], default="")
-        max_rec = max([r["created_at"] for r in rec_rows], default="")
+            "SELECT * FROM records WHERE " + rec_where + " ORDER BY created_at, id",
+            rec_args).fetchall()
+    # 两张表合并后按 (时间, id) 排序再截断：这样翻页边界不会漏行，也不会重复
+    merged = sorted([(r["updated_at"], r["id"], "occ", r) for r in occ_rows] +
+                    [(r["created_at"], r["id"], "rec", r) for r in rec_rows],
+                    key=lambda x: (x[0], x[1]))
+    page = merged[:limit]
+    if page:
+        next_since, next_id = page[-1][0], page[-1][1]
+    else:
+        next_since, next_id = since, since_id
     return {
-        "occurrences": [occ_view(r) for r in occ_rows],
+        "occurrences": [occ_view(r) for (_, _, kind, r) in page if kind == "occ"],
         "records": [{"id": r["id"], "type": r["type"], "value": r["value"], "unit": r["unit"],
                      "occurred_at": r["occurred_at"], "created_at": r["created_at"],
-                     "revision": r["revision"], "deleted": bool(r["deleted"])} for r in rec_rows],
-        "next_since": max(max_occ, max_rec, since or ""),
+                     "revision": r["revision"], "deleted": bool(r["deleted"])}
+                    for (_, _, kind, r) in page if kind == "rec"],
+        "next_since": next_since,
+        "next_id": next_id,
+        "has_more": len(merged) > len(page),
         "server_ts": iso(utc_now()),
     }
 
@@ -1404,6 +1661,21 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(n).decode("utf-8") or "{}") if n else {}
 
+    # 函数 _qi：取查询参数里的整数（缺省/非法/超范围都不报错，按默认值并夹到区间内）
+    # 以前直接 int(q.get("days", 7))，?days=abc 会抛 ValueError 被 _dispatch 兜成 500，
+    # 响应里还带出 "invalid literal for int()..." 这样的内部异常文本。
+    def _qi(self, q, key, default, lo=None, hi=None):
+        raw = str(q.get(key) or "").strip()
+        try:
+            v = int(raw) if raw else default
+        except (TypeError, ValueError):
+            v = default
+        if lo is not None and v < lo:
+            v = lo
+        if hi is not None and v > hi:
+            v = hi
+        return v
+
     # 函数 static：静态文件服务（web/ 下的页面与资源）
     def static(self, rel):
         path = os.path.normpath(os.path.join(WEB, rel))
@@ -1494,9 +1766,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_body(204, b"")
 
         if p == "/api/v1/health":
+            zone = tzinfo()  # 先解析一次，_TZ_STATE 才有值
             return self.json(200, {"ok": True, "time": iso(utc_now()), "version": VERSION,
                                     "mode": CONFIG["mode"], "scheduler": CONFIG["scheduler"],
-                                    "tz": CONFIG["tz"]})
+                                    "tz": CONFIG["tz"], "tz_source": _TZ_STATE["source"],
+                                    "tz_note": _TZ_STATE["note"],
+                                    "utc_offset_min": int(zone.utcoffset(utc_now()).total_seconds() // 60)})
         if p == "/api/v1/version":
             return self.json(200, {
                 "version": VERSION, "api": "v1", "mode": CONFIG["mode"],
@@ -1555,7 +1830,7 @@ class Handler(BaseHTTPRequestHandler):
                 d = datetime.strptime(day, "%Y-%m-%d").date()
             except ValueError:
                 return self.json(400, {"error": "date 格式应为 YYYY-MM-DD"})
-            items = occurrences(target, d, int(q.get("horizon", 1)))
+            items = occurrences(target, d, self._qi(q, "horizon", 1, 1, 14))
             if q.get("envelope") == "1":
                 return self.json(200, {"elder_id": target, "date": day, "tz": CONFIG["tz"], "items": items})
             return self.json(200, items)
@@ -1575,10 +1850,10 @@ class Handler(BaseHTTPRequestHandler):
             for pl in plans:
                 pl["rule"] = rule_of(pl)
             return self.json(200, {"date": day, "tz": CONFIG["tz"],
-                                   "occurrences": occurrences(target, d, int(q.get("horizon", 1))),
+                                   "occurrences": occurrences(target, d, self._qi(q, "horizon", 1, 1, 14)),
                                    "alarms": alarms, "plans": plans,
-                                   "stats": stats(target, int(q.get("days", 7))),
-                                   "records": list_records(target, int(q.get("days", 7)))})
+                                   "stats": stats(target, self._qi(q, "days", 7, 1, 365)),
+                                   "records": list_records(target, self._qi(q, "days", 7, 1, 365))})
 
         if p == "/api/v1/plans":
             with connect() as conn:
@@ -1589,11 +1864,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(200, {"items": rows})
 
         if p == "/api/v1/records":
-            return self.json(200, {"items": list_records(target, int(q.get("days", 7)),
+            return self.json(200, {"items": list_records(target, self._qi(q, "days", 7, 1, 365),
                                                          q.get("history") == "1")})
 
         if p == "/api/v1/stats":
-            days = int(q.get("days") or 7)
+            days = self._qi(q, "days", 7, 1, 365)
             rng = (q.get("range") or "").strip()
             if rng.endswith("d") and rng[:-1].isdigit():
                 days = int(rng[:-1])
@@ -1630,7 +1905,7 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/v1/alarms/wait":
             # 长轮询：有新的就马上回，没有就挂起，最长 timeout 秒
             try:
-                since = int(q.get("since") or 0)
+                since = self._qi(q, "since", 0, 0)
             except ValueError:
                 since = 0
             try:
@@ -1685,15 +1960,27 @@ class Handler(BaseHTTPRequestHandler):
             with connect() as conn:
                 rows = [dict(r) for r in conn.execute(
                     "SELECT * FROM events WHERE user_id=? ORDER BY id DESC LIMIT ?",
-                    (target, int(q.get("limit", 200)))).fetchall()]
+                    (target, self._qi(q, "limit", 200, 1, 500))).fetchall()]
             for r in rows:
                 r["at_local"] = local_str(r["created_at"])
             return self.json(200, {"items": rows})
 
         if p == "/api/v1/outbox":
+            # 待发队列里有提醒标题和实例 id：只能看自己能看的老人的消息，不能全局裸读。
+            # 表里没有 user_id 列，归属写在 payload JSON 里；读不出来的一律不展示（宁可少给）。
+            if user["role"] == "community":
+                return self.json(403, {"error": "社区账号不能读取待发队列"})
             with connect() as conn:
                 rows = [dict(r) for r in conn.execute(
                     "SELECT * FROM outbox WHERE delivered_at='' ORDER BY id LIMIT 200").fetchall()]
+
+            def _owner(row):
+                try:
+                    return (json.loads(row.get("payload") or "{}") or {}).get("user_id", "")
+                except (ValueError, AttributeError):
+                    return "-"
+
+            rows = [r for r in rows if _owner(r) == target]
             return self.json(200, {"items": rows, "mqtt": CONFIG["mqtt_url"] or ""})
 
         if p == "/api/v1/export.csv":
@@ -1703,10 +1990,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(201, ingest_presence(target, True, source=q.get("source", "sensor")))
 
         if p == "/api/v1/state":
-            return self.json(200, sync_state_down(target, q.get("since", "")))
+            return self.json(200, sync_state_down(target, q.get("since", ""),
+                                                   self._qi(q, "limit", 500, 1, 1000),
+                                                   q.get("since_id", "")))
 
         if p == "/api/v1/preview":
-            days = int(q.get("days") or 7)
+            days = self._qi(q, "days", 7, 1, 365)
             day = None
             if q.get("date"):
                 try:
@@ -1718,7 +2007,7 @@ class Handler(BaseHTTPRequestHandler):
                                    "count": len(items), "items": items})
 
         if p == "/api/v1/metrics":
-            return self.json(200, dispatch_stats(int(q.get("days", 7))))
+            return self.json(200, dispatch_stats(self._qi(q, "days", 7, 1, 365)))
 
         parts = p.strip("/").split("/")
         if len(parts) == 5 and parts[:3] == ["api", "v1", "occurrences"] and parts[4] == "events":
@@ -1765,7 +2054,7 @@ class Handler(BaseHTTPRequestHandler):
     # 函数 _export：导出 CSV（按月/按人）
     def _export(self, q, target):
         kind = q.get("type", "records")
-        days = int(q.get("days", 7))
+        days = self._qi(q, "days", 7, 1, 365)
         buf = io.StringIO()
         w = csv.writer(buf)
         if kind == "events":
@@ -1803,6 +2092,17 @@ class Handler(BaseHTTPRequestHandler):
             return False
         lnk = can_view(user, target)
         return bool(lnk and lnk.get("can_edit"))
+
+    def _may_touch(self, user, table, rid):
+        """按资源 id 反查归属：任何"按 id 直改"的接口都要先过这一关。
+
+        不校验归属时，只要知道 id 就能改到别人家的计划/记录，甚至删掉别人的记录修订链。
+        """
+        with connect() as conn:
+            row = conn.execute("SELECT user_id FROM %s WHERE id=?" % table, (rid,)).fetchone()
+        if not row:
+            return None
+        return row["user_id"] if self._need_edit(user, row["user_id"]) else None
 
     # ---------------- POST
     def _post(self):
@@ -1866,6 +2166,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/v1/events":
             # body 已在 _post 开头解析过，必须复用；再调 body_json() 会等新字节挂住
+            if not self._need_edit(user, target):
+                return self.json(403, {"error": "没有权限"})
             events = body.get("events") if isinstance(body, dict) else body
             return self.json(200, sync_events_up(target, events or []))
 
@@ -1878,6 +2180,11 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts) == 5 and parts[:3] == ["api", "v1", "occurrences"] and parts[4] == "events":
             if not self._need_edit(user, target):
                 return self.json(403, {"error": "没有权限"})
+            # 实例必须属于 target：否则家属 A 可以拿 body 里的 elder_id=A、路径里的 oid=B 去改别人家的状态
+            with connect() as conn:
+                occ = occ_row(conn, parts[3])
+            if not occ or occ["user_id"] != target:
+                return self.json(404, {"error": "实例不存在"})
             try:
                 payload = dict(body)
                 payload.setdefault("note", body.get("note", ""))
@@ -1900,12 +2207,18 @@ class Handler(BaseHTTPRequestHandler):
                 with connect() as conn:
                     if body.get("occurrence"):
                         oid = body["occurrence"]
+                        occ = occ_row(conn, oid)
+                        if not occ or occ["user_id"] != target:
+                            return self.json(404, {"error": "实例不存在"})
                     else:
                         today = utc_now().astimezone(tzinfo()).date()
                         ensure_occurrences(target, today - timedelta(days=1), today + timedelta(days=1), conn)
+                        # 用本地墙钟 slot_local 匹配：以前拿 due_at LIKE '<本地日>T%' 找，
+                        # 本地 00:00–07:59 的提醒 due_at 落在前一天（UTC），永远找不到 → 一直是 422
+                        slot = str(body["slot"])[:16]
                         row = conn.execute(
-                            "SELECT id FROM occurrences WHERE plan_id=? AND due_at LIKE ?",
-                            (body["plan_id"], body["slot"][:10] + "T%")).fetchone()
+                            "SELECT id FROM occurrences WHERE plan_id=? AND user_id=? AND slot_local=?",
+                            (body["plan_id"], target, slot)).fetchone()
                         if not row:
                             raise ValueError("找不到对应实例，请先刷新")
                         oid = row["id"]
@@ -1947,6 +2260,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(200, {"acked": body.get("id")})
 
         if p == "/api/v1/sensor/presence":
+            # presence 会压掉"久未活动"告警，是安全信号，必须是有编辑权的账号/设备才能写
+            if not self._need_edit(user, target):
+                return self.json(403, {"error": "没有权限上报该老人的传感器数据"})
             return self.json(201, ingest_presence(target, bool(body.get("present", True)),
                                                   body.get("source", "sensor")))
 
@@ -1964,12 +2280,20 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/v1/community/webhook":
             if user["role"] != "community":
                 return self.json(403, {"error": "需要社区角色（comm-demo-2026）"})
-            aid = raise_alarm(target, body.get("kind", "community"), int(body.get("level", 2)), "",
+            try:
+                lvl = int(body.get("level", 2))
+            except (TypeError, ValueError):
+                lvl = 2
+            lvl = max(1, min(3, lvl))
+            aid = raise_alarm(target, body.get("kind", "community"), lvl, "",
                               body.get("message", "社区上报"))
             return self.json(201, {"id": aid,
                                    "webhook": CONFIG["webhook_url"] or "(未配置，已落本地告警)"})
 
         if p == "/api/v1/outbox/drain":
+            # 只有老人/家属令牌能标记已发（bridge.py 用家属令牌跑）；社区视角只读，不能把消息吃掉
+            if user["role"] == "community":
+                return self.json(403, {"error": "社区账号不能消费待发队列"})
             with _lock, connect() as conn:
                 rows = conn.execute("SELECT * FROM outbox WHERE delivered_at='' LIMIT 200").fetchall()
                 conn.executemany("UPDATE outbox SET delivered_at=? WHERE id=?",
@@ -1977,6 +2301,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(200, {"delivered": len(rows)})
 
         if p == "/api/v1/dev/scheduler/tick":
+            if user["role"] == "community":
+                return self.json(403, {"error": "社区账号不能手动触发调度"})
             return self.json(200, scheduler_tick())
 
         return self.json(404, {"error": "no route", "path": p})
@@ -2015,6 +2341,8 @@ class Handler(BaseHTTPRequestHandler):
         if v1_adapter.handle_body(self, "/" + "/".join(parts), _body, "PATCH"):
             return
         if len(parts) == 4 and parts[:3] == ["api", "v1", "records"]:
+            if not self._may_touch(user, "records", parts[3]):
+                return self.json(404, {"error": "记录不存在"})
             try:
                 r = correct_record(parts[3], _body, user["id"])
                 return self.json(200, self._record_view(r["id"]))
@@ -2024,6 +2352,10 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 body = _body
                 target = body.get("elder_id") or body.get("user_id") or user.get("paired_elder") or user["id"]
+                if not self._need_edit(user, target):
+                    return self.json(403, {"error": "没有编辑权限"})
+                if not self._may_touch(user, "plans", parts[3]):
+                    return self.json(404, {"error": "计划不存在"})
                 save_plan(target, body, plan_id=parts[3])
                 return self.json(200, self._plan_view(target, parts[3]))
             except (KeyError, ValueError) as e:
@@ -2039,6 +2371,8 @@ class Handler(BaseHTTPRequestHandler):
         if v1_adapter.handle_body(self, "/" + "/".join(parts), {}, "DELETE"):
             return
         if len(parts) == 4 and parts[:3] == ["api", "v1", "records"]:
+            if not self._may_touch(user, "records", parts[3]):
+                return self.json(404, {"error": "记录不存在"})
             try:
                 return self.json(200, delete_record(parts[3], user["id"]))
             except TimeoutError as e:
