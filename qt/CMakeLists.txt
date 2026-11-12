@@ -42,9 +42,15 @@ target_link_libraries(appCareMate PRIVATE Qt6::Quick Qt6::Network Qt6::Sql)
 # ---------------------------------------------------------------- Android 部分
 # 说明：Qt for Android 的 Java/JNI 代码放在 android/ 下，由 Qt 的 build.gradle 引入。
 # 没有 NDK 时这里什么都不做，普通桌面构建仍可跑（用于在电脑上先看 QML 布局）。
+#
+# 注意：包源码目录必须用 target 属性（QT_ANDROID_PACKAGE_SOURCE_DIR）。
+# 写成普通变量 set(ANDROID_PACKAGE_SOURCE_DIR ...) 是 Qt5 时代的写法，
+# Qt6 不会读它 —— 结果就是 android/AndroidManifest.xml 与 jni 代码从没进过 APK。
 if(ANDROID)
-    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
-    message(STATUS "Android 构建：会合并 android/AndroidManifest.xml 与 jni/AlarmBridge")
+    set_target_properties(appCareMate PROPERTIES
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
+    target_sources(appCareMate PRIVATE android/jni/AlarmBridge.cpp)
+    message(STATUS "Android 构建：合并 android/AndroidManifest.xml，编译 jni 里的 AlarmBridge")
 endif()
 
 install(TARGETS appCareMate
