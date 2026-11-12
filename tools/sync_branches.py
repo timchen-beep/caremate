@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-# 作用：一条命令把 main 的服务端核心同步到六条归档分支：差异核对 → 覆盖 → 起服务验证 → 逐文件提交 → 推送
+# 作用：一条命令把 main 的服务端核心同步到八条分支（六条归档 + web/qt）：差异核对 → 覆盖 → 起服务验证 → 逐文件提交 → 推送
 """分支同步工具。
 
 背景：六条归档分支（v1-web / v1-web-core / v2-qt / v2-qt-core / v3-flash / v3-flash-core）
-各自带着一份 `server.py`。main 每次改服务端（三档升级链、端云同步、`/v1` 适配），
-都要把这几份补齐——手工做容易漏，也容易把 `caremate.db` 之类的东西带进去。
+各自带着一份 `server.py`（在 caremate-cloud/ 或 legacy-web/ 下）；web / qt 两个迭代分支的
+`server/` 在仓库根。main 每次改服务端（三档升级链、端云同步、`/v1` 适配），
+都要把这八份补齐——手工做容易漏，也容易把 `caremate.db` 之类的东西带进去。
 
 用法：
 
@@ -15,7 +16,8 @@
 
 同步的文件（main → 分支同目录）：
 
-    server/server.py       → <分支>/caremate-cloud/server.py 或 legacy-web/server.py
+    server/server.py       → <分支>/caremate-cloud/server.py 或 legacy-web/server.py（归档分支）
+                             或 <分支>/server/server.py（web / qt 两个迭代分支）
     server/v1_adapter.py   → 同上
     server/test_v1.py      → 同上
     docs/客户端框架说明.md  → docs/ 或分支根目录
@@ -23,8 +25,8 @@
 验证（每个有改动的分支）：
 
     1. py_compile 三个文件
-    2. test_accept.py（自带服务与重启用例）
-    3. 起服务（临时库）→ test_v1.py（9 项契约）
+    2. test_accept.py（自带 10 次强制重启用例；必须继承同一个 CAREMATE_DB，否则重启后换了库）
+    3. 重新起一个干净实例（test_accept 会把 8400 上的监听杀掉）→ test_v1.py（9 项契约）
     4. 清理测试产物（caremate.db / acceptance.json / __pycache__），确保不混进提交
 """
 
@@ -58,8 +60,41 @@ CLEAN = ("caremate.db", "caremate.db-wal", "caremate.db-shm", "acceptance.json",
 
 
 def run(args, cwd=None, capture=True, env=None):
+    # 子进程的输出是管道，Windows 上默认按 cp936 编码打印；这里统一强制 UTF-8，
+    # 否则上面按 UTF-8 解码会得到乱码，连"总计：5/6 通过"都匹配不到（提示变成空字符串）。
+    child_env = dict(env or os.environ)
+    child_env["PYTHONIOENCODING"] = "utf-8"
     return subprocess.run(args, cwd=cwd or ROOT, capture_output=capture, text=True,
-                          encoding="utf-8", errors="replace", env=env)
+                          encoding="utf-8", errors="replace", env=child_env)
+
+
+def port_open(port, timeout=0.5):
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def ensure_port_free(port):
+    """确保测试端口没有被别的进程占着。
+
+    不清理的话，`verify()` 等的"端口可连接"会被上一个残留实例满足，
+    我们的 server.py 其实没起来（绑定失败退出），后面的 test_accept 就打在别人的实例上，
+    `test_restart` 会稳定 10/10 异常。这里只动**监听测试端口**的进程，
+    不会碰 8000 上的正式实例。
+    """
+    if not port_open(port):
+        return True
+    subprocess.run(["powershell", "-NoProfile", "-Command",
+                    "(Get-NetTCPConnection -LocalPort %d -State Listen -ErrorAction SilentlyContinue)"
+                    ".OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force }" % port],
+                   capture_output=True, text=True)
+    for _ in range(24):
+        if not port_open(port):
+            return True
+        time.sleep(0.25)
+    return False
 
 
 def git(*args, cwd=None):
@@ -112,8 +147,10 @@ def copy_shared(worktree, with_tools=False):
 def verify(worktree, sub):
     """编译 + 起服务 + 两套验收；返回 (ok, 说明)。
 
-    注意：`test_accept.py` 不会自己起服务（它先做健康检查），所以这里必须先启动，
-    再依次跑 test_accept 与 test_v1——与 tools/verify_all.py 的做法一致。
+    注意两点：
+    - `test_accept.py` 不会自己起服务（它先做健康检查），所以这里必须先启动；
+    - 它的"10 次强制重启"会把 8400 上的监听全杀掉，所以跑完 test_accept 之后
+      必须**重新起一个干净实例**再跑 test_v1，否则 test_v1 连不上。
     """
     server_dir = os.path.join(worktree, sub) if sub else worktree
     compile_proc = run([sys.executable, "-m", "py_compile", "server.py", "v1_adapter.py", "test_v1.py"],
@@ -122,22 +159,47 @@ def verify(worktree, sub):
         return False, "语法失败：%s" % (compile_proc.stderr or "").strip()[:120]
 
     db = os.path.join(tempfile.gettempdir(), "sync_branch_%d.db" % os.getpid())
-    env = dict(os.environ, CAREMATE_DB=db, CAREMATE_TZ="Asia/Shanghai")
-    proc = subprocess.Popen([sys.executable, "server.py", "--port", str(PORT)], cwd=server_dir,
-                            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    try:
-        ready = False
+    env = dict(os.environ, CAREMATE_DB=db, CAREMATE_TZ="Asia/Shanghai",
+               PYTHONIOENCODING="utf-8")
+
+    def start_server():
+        """起一个实例并等到端口可连；返回 (proc, 错误说明)。"""
+        if not ensure_port_free(PORT):
+            return None, "端口 %d 被别的程序占着，且清理失败（先关掉它再跑）" % PORT
+        proc = subprocess.Popen([sys.executable, "server.py", "--port", str(PORT)], cwd=server_dir,
+                                env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for _ in range(60):
             try:
                 with socket.create_connection(("127.0.0.1", PORT), timeout=0.5):
-                    ready = True
                     break
             except OSError:
                 time.sleep(0.25)
-        if not ready:
-            return False, "服务没起来（端口 %d 被占用？）" % PORT
+        else:
+            proc.terminate()
+            return None, "服务没起来（端口 %d 被占用？）" % PORT
+        time.sleep(1.0)   # 给"绑定失败就立刻退出"的进程一点时间暴露出来
+        if proc.poll() is not None:
+            return None, "端口 %d 被其他实例占用，本分支 server.py 没起来" % PORT
+        return proc, ""
 
-        accept = run([sys.executable, "test_accept.py"], cwd=server_dir)
+    def stop_server(proc):
+        if proc is None:
+            return
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+    proc = None
+    try:
+        proc, err = start_server()
+        if err:
+            return False, err
+        # 必须把同一个 env（含 CAREMATE_DB）传给 test_accept：它内部会重启 server.py，
+        # 子进程要继承这份 env，否则重启后连的是 worktree 里的默认 caremate.db，
+        # 实例数与重启前对不上 → "10 次强制重启"稳定 10/10 异常。
+        accept = run([sys.executable, "test_accept.py"], cwd=server_dir, env=env)
         accept_total = ""
         for line in (accept.stdout or "").splitlines():
             if "总计" in line:
@@ -145,6 +207,10 @@ def verify(worktree, sub):
         if accept.returncode != 0:
             return False, "test_accept 失败：%s" % (accept_total or (accept.stderr or "").strip()[:120])
 
+        stop_server(proc)
+        proc, err = start_server()      # test_accept 已把 8400 上的实例杀光，重新起
+        if err:
+            return False, "test_v1 前重启失败：%s" % err
         v1 = run([sys.executable, "test_v1.py"], cwd=server_dir,
                  env=dict(env, CAREMATE_API="http://127.0.0.1:%d" % PORT))
         v1_total = ""
@@ -154,11 +220,7 @@ def verify(worktree, sub):
         if v1.returncode != 0:
             return False, "test_v1 失败：%s" % (v1_total or (v1.stderr or "").strip()[:120])
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        stop_server(proc)
         for suffix in ("", "-wal", "-shm"):
             path = db + suffix
             if os.path.exists(path):
