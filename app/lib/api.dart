@@ -163,8 +163,18 @@ class ApiClient {
 
   Future<Map<String, dynamic>> me() async => await _get('/api/v1/me') as Map<String, dynamic>;
   // 函数 fetchStateSince：按游标回灌服务端状态（4.1 架构图第 5 层下行）
+  // 游标是 "时间|id" 两段（服务端 updated_at 只到秒，同秒多行要靠 id 续上，否则会漏行）
   Future<Map<String, dynamic>> fetchStateSince(String since) async {
-    final j = await _get('/api/v1/state', {'since': since}) as Map<String, dynamic>;
+    var ts = since;
+    var id = '';
+    final bar = since.lastIndexOf('|');
+    if (bar >= 0) {
+      ts = since.substring(0, bar);
+      id = since.substring(bar + 1);
+    }
+    final j = await _get('/api/v1/state', {'since': ts, 'since_id': id}) as Map<String, dynamic>;
+    final ns = '${j['next_since'] ?? ''}';
+    j['cursor'] = ns.isEmpty ? '' : '$ns|${j['next_id'] ?? ''}';
     return j;
   }
 
