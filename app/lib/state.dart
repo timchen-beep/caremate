@@ -76,12 +76,22 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- 待办
-  /// 待办来自云端实例（状态只由后端改），本地只负责把动作排队
+  /// 待办来自云端实例（状态只由后端改），本地只负责把动作排队。
+  /// 三条过滤缺一不可：
+  /// 1) 已经确认/记未确认的（本地刚点过、还没同步回来的）不再出现；
+  ///     但"稍后提醒"要留着，否则点了等会儿它就消失、再也不会弹回来；
+  /// 2) 还没到点的不能进待办（否则上午 9 点就把 20:00 的药摆出来，还能提前确认）；
+  /// 3) 按时间正序，最早到点的排第一。
   void recomputeDue() {
     final out = <DueItem>[];
+    final nowLocal = slotOf(DateTime.now());     // "2026-11-12 09:03"
     for (final o in occurrences) {
       if (!o.actionable) continue;
-      if (events.any((e) => e.occurrenceId == o.id)) continue;
+      final settled = events.any((e) =>
+          e.occurrenceId == o.id &&
+          (e.action == 'confirmed' || e.action == 'missed'));
+      if (settled) continue;
+      if (o.slotLocal.isNotEmpty && o.slotLocal.compareTo(nowLocal) > 0) continue;
       out.add(DueItem(
         occurrenceId: o.id,
         planId: o.planId,
@@ -91,7 +101,7 @@ class AppState extends ChangeNotifier {
         snoozeLeft: o.snoozeLeft,
       ));
     }
-    out.sort((a, b) => b.slotLocal.compareTo(a.slotLocal));
+    out.sort((a, b) => a.slotLocal.compareTo(b.slotLocal));
     due = out;
   }
 
@@ -201,7 +211,11 @@ class AppState extends ChangeNotifier {
           .toList();
       if (remoteOcc.isNotEmpty) {
         await LocalDb.saveOccurrences(remoteOcc);
-        await LocalDb.setCursor((state['next_since'] ?? '').toString());
+      }
+      // 游标即使本页没有实例也要推进：只改了记录（revision+1）时 next_since 也会前进
+      final nextCursor = (state['cursor'] ?? '').toString();
+      if (nextCursor.isNotEmpty) {
+        await LocalDb.setCursor(nextCursor);
       }
 
       // ② 再取整包（兼容旧服务端），并用「本地优先 + 云端覆盖」合并
