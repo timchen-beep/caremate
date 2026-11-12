@@ -46,7 +46,7 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const API = location.origin;
-let token = localStorage.getItem("caremate.app.token") || "app-elder-001";
+let token = localStorage.getItem("caremate.app.token") || "";
 const hdr = () => ({ "Content-Type": "application/json", "Authorization": "Bearer " + token });
 
 // 函数 tick：每秒刷新时钟与到期提醒
@@ -58,15 +58,21 @@ tick(); setInterval(tick, 15000);
 
 // 函数 due：取当前到期的实例
 async function due() {
+  // 大屏没有自己的令牌框，令牌来自 /app 的「我的」；没配就直接告诉用户去哪配
+  if (!token) {
+    $("state").textContent = "未配置令牌（先在 /app 的「我的」里填）";
+    return null;
+  }
   try {
     const r = await fetch(API + "/api/v1/app/due", { headers: hdr() });
     const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
     const first = (j.items || [])[0];
     $("state").textContent = first ? (first.title + " 该做了") : "现在没有要做的事";
     $("bMed").textContent = first ? "已吃：" + first.title.slice(0, 6) : "吃药了";
     return first;
   } catch (e) {
-    $("state").textContent = "离线";
+    $("state").textContent = "离线（" + e.message + "）";
     return null;
   }
 }
