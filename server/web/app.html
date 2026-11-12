@@ -166,7 +166,7 @@
       <h3 style="margin-top:6px">家属绑定码</h3>
       <div class="box"><span class="code" id="bind">——</span><br>账号：<span id="uid">u-elder</span></div>
 
-      <label class="field"><span>设备令牌</span><input id="token" value="app-elder-001"></label>
+      <label class="field"><span>设备令牌</span><input id="token" value="" placeholder="向项目负责人索取"></label>
       <label class="field"><span>服务器</span><input id="base" value=""></label>
       <button class="ghost" style="width:100%;margin-top:16px" id="btnInstall">安装到桌面（当 App 用）</button>
       <button class="ghost" style="width:100%;margin-top:16px" id="btnSave">保存并同步</button>
@@ -202,7 +202,7 @@
 const $ = (id) => document.getElementById(id);
 const LS = { token: "caremate.app.token", base: "caremate.app.base" };
 const DEFAULT_BASE = "http://127.0.0.1:8000";
-let token = localStorage.getItem(LS.token) || "app-elder-001";
+let token = localStorage.getItem(LS.token) || "";
 let base = localStorage.getItem(LS.base) || "";
 const openedAsFile = location.protocol === "file:";
 const originBase = openedAsFile ? DEFAULT_BASE : location.origin;
@@ -447,6 +447,13 @@ function runCheck() {
 
 // 函数 load：首次加载：拉计划与记录
 async function load() {
+  // 没令牌就别打接口：旧版默认的演示令牌轮换后已失效，只会得到 401「令牌无效」
+  if (!token) {
+    lastErr = "未配置令牌";
+    $("sync").textContent = "未配置令牌";
+    $("stage").innerHTML = '<div class="idle">还没填设备令牌<small>点底部「我的」→「设备令牌」填好后点「保存并同步」</small></div>';
+    return;
+  }
   try {
     const b = await api("/api/v1/app/bundle");
     plans = b.plans || [];
