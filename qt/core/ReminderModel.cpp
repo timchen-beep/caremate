@@ -9,10 +9,18 @@
 
 ReminderModel::ReminderModel(QObject *parent) : QObject(parent)
 {
+    // 本地主副本：冷启动读这个库，网络只是同步，不是数据来源（4.1 架构图）
+    m_store = new LocalStore(this);
+    m_saveTimer.setSingleShot(true);
+    m_saveTimer.setInterval(1000);
+    connect(&m_saveTimer, &QTimer::timeout, this, &ReminderModel::persistNow);
+
     // 30 秒刷新一次到期判断：与后端 scheduler 的 30 s 节奏一致
     m_tick.setInterval(30 * 1000);
     connect(&m_tick, &QTimer::timeout, this, &ReminderModel::refresh);
     m_tick.start();
+
+    loadFromStoreOrDemo();   // 有库读库，没有才写演示数据并落盘
 }
 
 // 函数 isoLocal：datetime → 'yyyy-MM-dd HH:mm'，实例的唯一时刻身份
@@ -106,8 +114,11 @@ void ReminderModel::confirm(const QString &occId)
 void ReminderModel::snooze(const QString &occId)
 {
     if (Occ *o = find(occId)) {
-        if (o->snoozeLeft <= 0) setState(*o, QStringLiteral("missed"));
-        else {
+        if (o->snoozeLeft <= 0) {
+            // 次数用尽记未确认：必须上报，否则只有本机知道，家属看板看不到
+            setState(*o, QStringLiteral("missed"));
+            queueEvent(occId, QStringLiteral("miss"));
+        } else {
             o->snoozeLeft--;
             setState(*o, QStringLiteral("snoozed"));
             queueEvent(occId, QStringLiteral("snooze"));
@@ -160,8 +171,12 @@ void ReminderModel::recompute()
         m["snoozeLeft"] = o.snoozeLeft;
         m["lateMin"] = o.due.isValid() ? qMax<qint64>(0, o.due.secsTo(now) / 60) : 0;
         if (o.slotLocal.startsWith(today)) m_today << m;
-        // 到期未处理（不超过 45 分钟）才进"现在该做的事"
-        if (o.state == "pending" && o.due <= now && o.due.secsTo(now) <= 45 * 60)
+        // 到期未处理（不超过 45 分钟）才进"现在该做的事"。
+        // notified / escalated 也算：tick 一到点就把 pending 置成 notified，
+        // 如果这里只收 pending，老人到点后反而看不到确认按钮。
+        const bool active = o.state == "pending" || o.state == "notified"
+                            || o.state == "escalated" || o.state == "snoozed";
+        if (active && o.due <= now && o.due.secsTo(now) <= 45 * 60)
             m_due << m;
     }
     emit changed();
@@ -303,7 +318,20 @@ void ReminderModel::applyRemoteOccurrences(const QVariantList &occurrences)
         o.snoozeLeft = qMax(0, 3 - src.value(QStringLiteral("snooze_count")).toInt());
         incoming << o;
     }
-    m_occs = incoming;
+    // 增量合并：/v1/state?since= 只回变化的那几条，整表替换会把当天其余提醒抹掉。
+    // 同 id 覆盖字段，新 id 插入，其余保留。
+    for (const Occ &o : incoming) {
+        bool replaced = false;
+        for (Occ &old : m_occs) {
+            if (old.id == o.id) {
+                old = o;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced)
+            m_occs << o;
+    }
     std::sort(m_occs.begin(), m_occs.end(), [](const Occ &a, const Occ &b) {
         return a.due < b.due;
     });
