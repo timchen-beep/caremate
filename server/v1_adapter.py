@@ -203,12 +203,14 @@ def occurrence_payload(conn, row, plan_row=None):
     plan = dict(plan_row) if plan_row else {}
     plan_int = int_id(conn, "plan", row["plan_id"])
     slot = row.get("slot_local") or S.local_str(row["due_at"])
-    # 当天第几个提醒：数"同日同计划、到期更早"的实例数——与规则类型无关，
-    # 比按 times 下标推更稳（interval/course 这类规则的 times 不等于当天实际时刻）。
+    # 当天第几个提醒：按 slot_local 的"本地日"数同日同计划里更早的实例，序号=下标。
+    # 不能拿 due_at 的日期前缀数：本地 07:00 的实例 due_at 是前一天 23:00Z，会数成 0，
+    # 与端上按本地日算出来的序号对不上（同一天两条会算出同一个 occurrenceId）。
     early = conn.execute(
         "SELECT COUNT(*) AS c FROM occurrences WHERE plan_id=? AND user_id=?"
-        " AND substr(due_at,1,10)=? AND due_at<?",
-        (row["plan_id"], row.get("user_id", ""), row["due_at"][:10], row["due_at"])).fetchone()
+        " AND substr(COALESCE(NULLIF(slot_local,''), due_at),1,10)=?"
+        " AND COALESCE(NULLIF(slot_local,''), due_at)<?",
+        (row["plan_id"], row.get("user_id", ""), slot[:10], slot)).fetchone()
     seq_in_day = int(early["c"]) if early else 0
     oid = occurrence_int_id(conn, plan_int, slot, seq_in_day)
     snooze_until = 0
@@ -260,7 +262,13 @@ def handle_get(handler, path, query):
         handler.json(401, {"error": "auth", "detail": "令牌无效"})
         return True
     elder = user.get("paired_elder") or user["id"]
-    since = int(query.get("since") or 0)
+    try:
+        since = int(query.get("since") or 0)
+    except (TypeError, ValueError):
+        handler.json(400, {"error": "bad_request", "detail": "since 必须是整数（游标）"})
+        return True
+    if since < 0:
+        since = 0
 
     if path == "/v1/state":
         today = S.utc_now().astimezone(S.tzinfo()).date()
@@ -268,17 +276,26 @@ def handle_get(handler, path, query):
             ensure_tables(conn)
             # 实例是按需物化的：不先物化，端上永远拉不到今天的提醒
             S.ensure_occurrences(elder, today - timedelta(days=1), today + timedelta(days=1), conn)
-            rows = conn.execute("SELECT * FROM occurrences WHERE user_id=? ORDER BY due_at LIMIT 800",
-                                (elder,)).fetchall()
-            picked = []
-            for r in rows:
-                seq_of_row = _ensure_row_seq(conn, "occurrence", r["id"])
-                if seq_of_row > since:
-                    picked.append((seq_of_row, r))
-            payload = [occurrence_payload(conn, r) for _, r in picked]
-            conn.commit()
+            # 先给还没有序号的行补一个（只在真有新行时才扫，正常增量是空转）
+            fresh = conn.execute(
+                "SELECT o.id FROM occurrences o LEFT JOIN v1_rowseq w"
+                " ON w.kind='occurrence' AND w.local_id=o.id"
+                " WHERE o.user_id=? AND w.seq IS NULL", (elder,)).fetchall()
+            for row in fresh:
+                _ensure_row_seq(conn, "occurrence", row["id"])
+            # 游标下推到 SQL 再分页：以前是先 LIMIT 800 再按键过滤，第 801 条以后的新提醒永远拉不到
+            page = conn.execute(
+                "SELECT o.*, w.seq AS row_seq FROM occurrences o"
+                " JOIN v1_rowseq w ON w.kind='occurrence' AND w.local_id=o.id"
+                " WHERE o.user_id=? AND w.seq > ? ORDER BY w.seq LIMIT 500",
+                (elder, since)).fetchall()
+            payload = [occurrence_payload(conn, r) for r in page]
             seq = current_seq(conn)
-        handler.json(200, {"occurrences": payload, "next_seq": seq,
+            has_more = len(page) >= 500
+            if has_more:
+                seq = int(page[-1]["row_seq"])  # 还有下一页：游标停在最后一条，客户端接着拉
+            conn.commit()
+        handler.json(200, {"occurrences": payload, "next_seq": seq, "has_more": has_more,
                            "server_time": int(S.utc_now().timestamp() * 1000)})
         return True
 
@@ -309,14 +326,14 @@ def handle_body(handler, path, body, method):
     if not path.startswith("/v1/"):
         return False
     body = body or {}
+    # 配对必须在鉴权之前：新设备/换机时正是"还没有令牌"才来配对（契约 §2）。
+    if path == "/v1/pair" and method == "POST":
+        return _pair(handler, body)
     user = handler.me()
     if not user:
         handler.json(401, {"error": "auth", "detail": "令牌无效"})
         return True
     elder = user.get("paired_elder") or user["id"]
-
-    if path == "/v1/pair" and method == "POST":
-        return _pair(handler, body)
 
     if path == "/v1/events" and method == "POST":
         return _events(handler, body, elder)
@@ -340,9 +357,30 @@ def handle_body(handler, path, body, method):
     return True
 
 
+# 配对尝试限速：同一个来源 IP 10 分钟内最多 10 次，防止 4 位/6 位码被暴力枚举。
+# 故意用 TCP 来源地址而不是 X-Forwarded-For——那个头客户端想写什么都行，拿来限速等于没限。
+_PAIR_TRIES = {}
+
+
+def _pair_allowed(handler):
+    import time as _time
+    peer = (handler.client_address or ("",))[0]
+    now = _time.time()
+    hits = [t for t in _PAIR_TRIES.get(peer, []) if now - t < 600]
+    if len(hits) >= 10:
+        _PAIR_TRIES[peer] = hits
+        return False
+    hits.append(now)
+    _PAIR_TRIES[peer] = hits
+    return True
+
+
 # 函数 _pair：6 位配对码 → 令牌（复用 users.bind_code 与 sessions 表）
 def _pair(handler, body):
     import secrets as _secrets
+    if not _pair_allowed(handler):
+        handler.json(429, {"error": "too_many_requests", "detail": "配对尝试太频繁，请 10 分钟后再试"})
+        return True
     code = str(body.get("pair_code") or body.get("pairing_code") or "").strip()
     device = str(body.get("device_id") or "android-unknown")[:64]
     with S.connect() as conn:
@@ -381,7 +419,7 @@ def _events(handler, body, elder):
                 conn.commit()
                 accepted.append({"event_id": event_id, "server_seq": int(dup["seq"]), "applied": False})
                 continue
-            oid = _resolve_occurrence(conn, oid_int)
+            oid = _resolve_occurrence(conn, oid_int, elder)
         if not action:
             rejected.append({"index": idx, "event_id": event_id,
                              "code": "bad_request", "detail": "action 不在契约内"})
@@ -437,33 +475,50 @@ def _events(handler, body, elder):
 
 
 # 函数 _resolve_occurrence：端上 int64 occurrenceId → 本地 occurrence id
-def _resolve_occurrence(conn, oid_int):
+def _resolve_occurrence(conn, oid_int, elder=None):
     if oid_int in (None, "", 0):
         return None
-    target = int(oid_int)
-    # 先按端上公式直接反推：planId = oid // 1e9，然后按日期+序号匹配
+    try:
+        target = int(oid_int)
+    except (TypeError, ValueError):
+        return None
+    # 端上公式：planId = oid // 1e9
     plan_int = target // 1000000000
     plan_local = local_id(conn, "plan", plan_int)
-    if plan_local:
-        for row in conn.execute("SELECT id, plan_id, slot_local, due_at FROM occurrences"
-                                " WHERE plan_id=?", (plan_local,)).fetchall():
-            local_plan_int = int_id(conn, "plan", row["plan_id"])
-            slot = row["slot_local"] or S.local_str(row["due_at"])
-            for seq_in_day in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9):
-                if occurrence_int_id(conn, local_plan_int, slot, seq_in_day) == target:
-                    return row["id"]
+    if not plan_local:
+        return None
+    # 序号口径必须和下发时一致：同一计划同一天（本地墙钟日）按时间排序，下标就是 seq_in_day。
+    # 以前是"每一行 × 序号 0..9"穷举，08:00 那行能拼出 20:00 的 id，于是 20:00 的确认被记到 08:00。
+    # 同时按 elder 过滤：只认自己名下的实例，避免任何配对设备拿别人的 planInt 操作。
+    sql = ("SELECT id, plan_id, slot_local, due_at FROM occurrences WHERE plan_id=?"
+           + (" AND user_id=?" if elder else "") + " ORDER BY slot_local, id")
+    rows = conn.execute(sql, ((plan_local, elder) if elder else (plan_local,))).fetchall()
+    local_plan_int = int_id(conn, "plan", plan_local)
+    seen = {}
+    for row in rows:
+        slot = row["slot_local"] or S.local_str(row["due_at"])
+        day = slot[:10]
+        seq_in_day = seen.get(day, 0)
+        seen[day] = seq_in_day + 1
+        if occurrence_int_id(conn, local_plan_int, slot, seq_in_day) == target:
+            return row["id"]
     return None
 
 
 # 函数 _alarm：呼救/告警（occurrence_id 可空，source=manual）
 def _alarm(handler, body, elder):
-    level = int(body.get("level") or 1)
+    try:
+        level = int(body.get("level") or 1)
+    except (TypeError, ValueError):
+        handler.json(400, {"error": "bad_request", "detail": "level 必须是 1/2/3"})
+        return True
+    level = max(1, min(3, level))
     reason = str(body.get("reason") or "")
     device = str(body.get("device_id") or "")
     oid_int = body.get("occurrence_id")
     with S.connect() as conn:
         ensure_tables(conn)
-        oid = _resolve_occurrence(conn, oid_int)
+        oid = _resolve_occurrence(conn, oid_int, elder)
         seq = next_seq(conn)
         conn.commit()
     if level >= 3 or str(body.get("source") or "") == "manual" or not oid:
@@ -479,8 +534,11 @@ def _plan_write(handler, body, elder, plan_int, method):
     with S.connect() as conn:
         ensure_tables(conn)
         local = local_id(conn, "plan", plan_int) if plan_int else None
+        # 归属校验：planInt 是全局递增的，不校验 owner 就能改到别的老人的计划
+        owned = bool(local) and bool(
+            conn.execute("SELECT 1 FROM plans WHERE id=? AND user_id=?", (local, elder)).fetchone())
     if method == "DELETE":
-        if not local:
+        if not owned:
             handler.json(404, {"error": "plan_not_found", "detail": "计划不存在"})
             return True
         S.save_plan(elder, {"active": 0}, plan_id=local)
@@ -495,7 +553,7 @@ def _plan_write(handler, body, elder, plan_int, method):
         handler.json(200, payload)
         return True
 
-    if method == "PATCH" and not local:
+    if method == "PATCH" and not owned:
         handler.json(404, {"error": "plan_not_found", "detail": "计划不存在"})
         return True
 
@@ -548,14 +606,19 @@ def _record_write(handler, body, elder, record_int, method):
     with S.connect() as conn:
         ensure_tables(conn)
         local = local_id(conn, "record", record_int) if record_int else None
+        owned = bool(local) and bool(
+            conn.execute("SELECT 1 FROM records WHERE id=? AND user_id=?", (local, elder)).fetchone())
     if method == "PATCH":
-        if not local:
+        if not owned:
             handler.json(404, {"error": "record_not_found", "detail": "记录不存在"})
             return True
         try:
-            S.correct_record(local, {"value": body.get("value"),
-                                     "unit": body.get("unit"),
-                                     "note": body.get("note", "")}, elder)
+            # 只把 body 里真正出现的字段传下去：以前三个键总是存在，只改备注会把 value/unit 写成 NULL
+            patch = {}
+            for key in ("value", "unit", "note", "occurred_at"):
+                if body.get(key) is not None:
+                    patch[key] = body[key]
+            S.correct_record(local, patch, elder)
         except ValueError as exc:
             handler.json(422, {"error": "bad_request", "detail": str(exc)})
             return True
