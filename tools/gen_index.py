@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# 作用：生成 FILES.md（每个文件一行说明）与 FUNCTIONS.md（每个函数一行说明），需在仓库根目录运行
 """生成 FILES.md（每个文件一行作用）与 FUNCTIONS.md（每个函数一行说明）。"""
 import io, os, re, subprocess, sys
 
@@ -14,9 +15,16 @@ FIXED_DESC = {
 }
 
 def tracked():
-    out = subprocess.run(["git", "-C", ROOT, "-c", "core.quotepath=false", "ls-files"],
-                         capture_output=True, text=True, encoding="utf-8").stdout
-    return [p for p in out.splitlines() if p]
+    # 别吞掉 git 的失败：以前 returncode 没查、输出为空时把两份索引覆盖成 0 条，
+    # 而 FILES.md 是入库文件，一次手滑就丢掉了全部说明。宁可中止也不写坏的。
+    r = subprocess.run(["git", "-C", ROOT, "-c", "core.quotepath=false", "ls-files"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        sys.exit("git ls-files 失败（退出码 %d）：%s\n索引未改动。" % (r.returncode, (r.stderr or "").strip()[:300]))
+    files = [p for p in (r.stdout or "").splitlines() if p]
+    if not files:
+        sys.exit("git ls-files 没有返回任何文件（当前目录 %s 是仓库根吗？）\n索引未改动。" % ROOT)
+    return files
 
 files_rows, func_rows = [], []
 for rel in tracked():
