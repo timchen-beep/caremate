@@ -123,6 +123,7 @@ def main():
 
     print("\n=== 2/3 逐文件提交 ===")
     committed = 0
+    failed = []
     for rel in files:
         result = commit_one(rel)
         if result.returncode == 0:
@@ -131,8 +132,14 @@ def main():
         elif "nothing to commit" in (result.stdout + result.stderr):
             print("  跳过 %s（无内容变化）" % rel)
         else:
+            failed.append(rel)
             print("  失败 %s：%s" % (rel, (result.stderr or "").strip()[:120]))
     print("共提交 %d 个文件。" % committed)
+    if failed:
+        # 有文件没提交进去就不推送：否则推上去的是半套改动，别人拉下来会缺文件。
+        print("\n有 %d 个文件提交失败：%s" % (len(failed), ", ".join(failed)))
+        print("已中止推送（剩下的改动还在工作区，修好重跑本命令即可）。")
+        return 1
 
     print("\n=== 3/3 推送 origin/%s ===" % args.branch)
     from push_helper import push as smart_push
