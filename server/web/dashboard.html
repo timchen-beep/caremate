@@ -91,7 +91,7 @@
   <span class="spacer"></span>
   <div class="tok">
     <span>令牌</span>
-    <input id="token" value="fam-demo-2026">
+    <input id="token" value="" placeholder="填家属令牌" title="向项目负责人索取家属令牌，填一次会自动记住">
     <span id="role" class="pill info">—</span>
     <button class="btn" id="btnReload">刷新</button>
     
@@ -108,6 +108,7 @@
 <div class="toastline" id="toastLine"></div>
 
 <div class="wrap">
+  <div class="msg" id="tokHint"></div>
   <div class="cards">
     <div class="card"><div class="k">今日实例</div><div class="v" id="kTotal">–</div></div>
     <div class="card"><div class="k">已完成</div><div class="v" id="kDone">–</div></div>
@@ -514,6 +515,13 @@ async function renderCloud() {
 /* ---------------- 加载 ---------------- */
 // 函数 refresh：每 5 秒拉一次数据并重渲染
 async function refresh() {
+  // 没令牌就不发请求：旧版默认的演示令牌在轮换后已失效，直接打接口只会得到 401
+  if (!tok()) {
+    $("role").textContent = "未填令牌";
+    msg($("tokHint"), "还没填令牌：在上面「令牌」框粘贴家属令牌（向项目负责人索取）后点「刷新」，填一次会自动记住。", "bad");
+    return;
+  }
+  msg($("tokHint"), "");
   try {
     const ov = await api("/api/v1/overview?user_id=" + ELDER + "&days=7");
     state.overview = ov;
@@ -699,8 +707,16 @@ $("btnUnpair").onclick = () => {
 };
 
 $("btnReload").onclick = refresh;
+// 手动改令牌后回车/失焦即生效，并记住（否则刷新页面就丢，只能重填）
+$("token").onchange = () => {
+  const v = tok();
+  if (v) localStorage.setItem("caremate.dash.token", v);
+  else localStorage.removeItem("caremate.dash.token");
+  refresh();
+};
 $("rAt").value = nowText();
 if (savedTok) $("token").value = savedTok;
+else $("role").textContent = "未填令牌";
 /* ================= 求救实时反馈 ================= */
 let alarmSeq = 0;
 let sosAlarm = null;
