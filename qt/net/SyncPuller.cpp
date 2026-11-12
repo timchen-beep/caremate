@@ -94,8 +94,13 @@ void SyncPuller::pushEvents()
 
 void SyncPuller::sendSos()
 {
-    if (m_busy)
+    if (m_busy) {
+        // 呼救不能静默丢弃：排队，等这一轮同步结束立刻发（原来直接 return 就没了）
+        m_sosPending = true;
+        emit notice(QStringLiteral("呼救已排队，正在补发"));
         return;
+    }
+    m_sosPending = false;
     QJsonObject body;
     body[QStringLiteral("occurrence_id")] = QJsonValue::Null;
     body[QStringLiteral("source")] = QStringLiteral("manual");
@@ -112,6 +117,10 @@ void SyncPuller::tick()
 {
     if (m_busy)
         return;
+    if (m_sosPending) {
+        sendSos();          // 上一轮同步期间排队的呼救，优先补发
+        return;
+    }
     if (!m_model->pendingEvents().isEmpty())
         pushEvents();
     else
@@ -124,6 +133,8 @@ void SyncPuller::onFailed(const QString &tag, const QString &reason)
     m_busy = false;
     setState(QStringLiteral("offline"));
     emit notice(QStringLiteral("离线：%1").arg(reason));
+    if (m_sosPending)
+        sendSos();
 }
 
 void SyncPuller::onReplied(const QString &tag, int status, const QJsonObject &body)
