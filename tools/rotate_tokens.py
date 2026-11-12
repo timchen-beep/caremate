@@ -57,6 +57,9 @@ def main():
     tokens = {key: secrets.token_urlsafe(24) for key in KEYS}
     pair_code = "".join(secrets.choice("0123456789") for _ in range(6))
 
+    # 只替换这四个键，其余键（CAREMATE_DB / CAREMATE_TZ / CAREMATE_JWT_SECRET …
+    # 别人手工加的）原样保留：以前整文件重建，一次轮换就把库路径等配置抹掉了。
+    keep = [key for key in current if key not in KEYS and key != "CAREMATE_PAIR_CODE"]
     lines = [
         "# 作用：本机私密配置（令牌/配对码）。已在 .gitignore 中忽略，不要提交。",
         "# 由 tools/rotate_tokens.py 生成于 %s" % __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -65,8 +68,11 @@ def main():
         "CAREMATE_FAMILY_TOKEN=%s" % tokens["CAREMATE_FAMILY_TOKEN"],
         "CAREMATE_COMMUNITY_TOKEN=%s" % tokens["CAREMATE_COMMUNITY_TOKEN"],
         "CAREMATE_PAIR_CODE=%s" % pair_code,
-        "",
     ]
+    if keep:
+        lines += ["", "# 以下键不是本脚本生成的，原样保留"] + \
+                 ["%s=%s" % (key, current[key]) for key in keep]
+    lines.append("")
     content = "\n".join(lines)
     if not args.dry_run:
         io.open(ENV_PATH, "w", encoding="utf-8", newline="\n").write(content)
