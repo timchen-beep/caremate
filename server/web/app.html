@@ -61,8 +61,9 @@
               font-weight:600;padding:8px 0;min-height:auto;text-decoration:underline}
 
   /* 第 6 步：呼救键够大，按住 3 秒才触发，防误触 */
+  /* 尺寸对齐主按钮（≥84px / 28px 字）：这是整页最关键的按钮，之前被压到 60px/18px，比"吃了"小一圈 */
   button.sos{background:#7e1b22;border:3px solid #7e1b22;color:#fff;border-radius:14px;
-             min-height:60px;padding:0 18px;font-size:18px;font-weight:700;position:relative;
+             min-height:84px;padding:0 22px;font-size:26px;font-weight:700;position:relative;
              overflow:hidden;touch-action:none;user-select:none}
   button.sos.firing{background:#a3282f}
   button.sos .bar{position:absolute;left:0;bottom:0;height:6px;background:#f6d5d8;width:0%}
@@ -209,6 +210,20 @@ const originBase = openedAsFile ? DEFAULT_BASE : location.origin;
 
 let plans = [], due = [], occurrences = [], records = [], current = null, busy = false, lastErr = "";
 
+// 函数 esc：把任意值转义成可安全拼进 innerHTML 的文本
+// 为什么必须有：计划标题是家属在 /dashboard 里写的，原样拼 HTML 就能在老人端执行脚本、伪造确认
+function esc(v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// 函数 todayLocal：本地日期 YYYY-MM-DD
+// 为什么不用 toISOString()：那是 UTC，东八区 0–8 点会差一天，"今天的记录"会恒为空
+function todayLocal() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
 $("token").value = token;
 $("base").value = base || originBase;
 
@@ -249,7 +264,7 @@ function tick() {
 }
 
 const STATE = { pending: ["待提醒", "idle"], notified: ["该吃了", "warn"], escalated: ["已通知家属", "bad"],
-                confirmed: ["已完成", "ok"], missed: ["未确认", "bad"] };
+                confirmed: ["已完成", "ok"], missed: ["未确认", "bad"], snoozed: ["稍后提醒", "warn"] };
 
 // 函数 renderStage：渲染当前该做的事（大卡片）
 function renderStage() {
@@ -262,12 +277,12 @@ function renderStage() {
   const key = it.plan_id + "@" + it.slot;
   if (key === current) return;
   current = key;
-  const late = it.late_min > 0 ? '<div class="late">已经过了 ' + it.late_min + ' 分钟</div>' : "";
+  const late = it.late_min > 0 ? '<div class="late">已经过了 ' + esc(it.late_min) + ' 分钟</div>' : "";
   $("stage").innerHTML =
     '<div class="card urgent">' +
       '<div class="label">现在该做的事</div>' +
-      '<div class="title">' + it.title + '</div>' +
-      '<div class="slot">' + it.slot.slice(11) + (it.dose ? " · " + it.dose : "") + '</div>' + late +
+      '<div class="title">' + esc(it.title) + '</div>' +
+      '<div class="slot">' + esc(it.slot.slice(11)) + (it.dose ? " · " + esc(it.dose) : "") + '</div>' + late +
       '<div class="btns">' +
         '<button id="bDone">吃了，记一下</button>' +
         '<button class="ghost" id="bSnooze">等会儿再做</button>' +
@@ -298,8 +313,10 @@ function showUndo(occId, label) {
   const bar = $("undoBar");
   $("undoText").textContent = label;
   bar.style.display = "flex";
+  // 先把上一条的定时器清掉再换对象：原来 clearTimeout(新对象.timer) 清了个 undefined，
+  // 5 秒内连确认两条时，第一条的定时器会把第二条的撤销条提前藏掉
+  if (undoState) clearTimeout(undoState.timer);
   undoState = { occId: occId, label: label };
-  clearTimeout(undoState.timer);
   undoState.timer = setTimeout(hideUndo, 5000);   // 与后端 CAREMATE_UNDO_SECONDS 对齐
 }
 
@@ -328,18 +345,15 @@ $("btnUndo").onclick = async () => {
   }
 };
 
-// 函数 act：提交动作（确认/稍后/没做），带本地排队
+// 函数 act：提交动作（确认/稍后/没做），断网时排进本机队列
 async function act(it, action) {
   if (busy) return;
   busy = true;
+  // event_id 由客户端生成：同一个动作重发是幂等的，断网补传不会记两遍
+  const eventId = "app:" + it.id + ":" + action + ":" + new Date().toISOString();
+  const body = { action: action, client_ts: new Date().toISOString(), source: "app", event_id: eventId };
   try {
-    const r = await api("/api/v1/occurrences/" + it.id + "/events", {
-      method: "POST",
-      body: JSON.stringify({ action: action, client_ts: new Date().toISOString(),
-                             source: "app", event_id: "app:" + it.id + ":" + action + ":" +
-                               new Date().toISOString() })
-    });
-    const st = r.state || "";
+    await api("/api/v1/occurrences/" + it.id + "/events", { method: "POST", body: JSON.stringify(body) });
     toast(action === "confirmed" ? "记下了" : action === "snoozed" ? "好，等会儿再说一次" : "记成未确认了");
     if (action === "confirmed") {
       speak("记下了");
@@ -348,10 +362,48 @@ async function act(it, action) {
     current = null;
     await load();
   } catch (e) {
-    toast("没连上，先记在本机：" + e.message, true);
+    if (/连不上/.test(e.message)) {
+      queuePush({ id: it.id, action: action, client_ts: body.client_ts, event_id: eventId });
+      toast("没连上，先存在手机里了，联网后自动补记");
+      if (action === "confirmed") showUndo(it.id, (it.title || "") + " 已记下（待补传）");
+    } else {
+      toast("没记上：" + e.message, true);
+    }
   } finally {
     busy = false;
   }
+}
+
+const LSQ = "caremate.app.outbox";
+
+// 函数 queuePush：把断网时没发出去的动作存进 localStorage
+function queuePush(item) {
+  try {
+    const q = JSON.parse(localStorage.getItem(LSQ) || "[]");
+    q.push(item);
+    localStorage.setItem(LSQ, JSON.stringify(q));
+  } catch (e) {}
+}
+
+// 函数 flushQueue：联网后把队列里的动作补发（服务端按 event_id 去重）
+async function flushQueue() {
+  let q = [];
+  try { q = JSON.parse(localStorage.getItem(LSQ) || "[]"); } catch (e) { q = []; }
+  if (!q.length) return;
+  const left = [];
+  for (const it of q) {
+    try {
+      await api("/api/v1/occurrences/" + it.id + "/events", {
+        method: "POST",
+        body: JSON.stringify({ action: it.action, client_ts: it.client_ts, source: "app",
+                               event_id: it.event_id, note: "断网补传" })
+      });
+    } catch (e) {
+      left.push(it);
+    }
+  }
+  localStorage.setItem(LSQ, JSON.stringify(left));
+  if (left.length < q.length) toast("已补记 " + (q.length - left.length) + " 条");
 }
 
 // 函数 renderPlans：渲染今日计划列表
@@ -360,20 +412,20 @@ function renderPlans() {
   $("planCount").textContent = rows.length ? "共 " + rows.length + " 条" : "";
   $("plans").innerHTML = rows.length ? rows.map((o) => {
     const s = STATE[o.state] || [o.state, "idle"];
-    return '<div class="row"><span class="t">' + o.slot.slice(11) + '</span>' +
-      '<span class="n">' + o.title + '</span>' +
+    return '<div class="row"><span class="t">' + esc(o.slot.slice(11)) + '</span>' +
+      '<span class="n">' + esc(o.title) + '</span>' +
       '<span class="pill ' + s[1] + '">' + s[0] + '</span></div>';
   }).join("") : '<div style="color:#3a4a63;font-size:22px;padding:8px 0">今天没有计划</div>';
 }
 
 // 函数 renderLog：渲染动作流水
 function renderLog() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();   // 本地日期，不能用 toISOString()（UTC，凌晨会差一天）
   const items = occurrences.filter((o) => o.slot.slice(0, 10) === today && o.state !== "pending");
   $("log").innerHTML = items.length ? items.map((o) => {
     const s = STATE[o.state] || [o.state, "idle"];
-    return '<div class="row"><span class="t">' + o.slot.slice(11) + '</span>' +
-      '<span class="n">' + o.title + '</span><span class="pill ' + s[1] + '">' + s[0] + '</span></div>';
+    return '<div class="row"><span class="t">' + esc(o.slot.slice(11)) + '</span>' +
+      '<span class="n">' + esc(o.title) + '</span><span class="pill ' + s[1] + '">' + s[0] + '</span></div>';
   }).join("") : '<div style="color:#3a4a63;font-size:22px;padding:8px 0">还没有记录</div>';
 }
 
@@ -387,8 +439,8 @@ function renderRecords() {
     '<div class="stat"><div class="k">记录天数</div><div class="v">' + days.size + ' 天</div></div>';
   const name = { water: "喝水", activity: "活动", diet: "吃饭", sleep_start: "睡觉", sleep_end: "起床", mood: "心情" };
   $("records").innerHTML = c.length ? c.slice(0, 20).map((r) =>
-    '<div class="row"><span class="t">' + r.occurred_at.slice(5) + '</span>' +
-    '<span class="n">' + (name[r.type] || r.type) + (r.value ? " " + r.value + (r.unit || "") : "") + '</span></div>'
+    '<div class="row"><span class="t">' + esc(r.occurred_at.slice(5)) + '</span>' +
+    '<span class="n">' + esc((name[r.type] || r.type) + (r.value ? " " + r.value + (r.unit || "") : "")) + '</span></div>'
   ).join("") : '<div style="color:#3a4a63;font-size:22px;padding:8px 0">还没有记录</div>';
 }
 
@@ -418,15 +470,18 @@ function runCheck() {
   const cs = getComputedStyle(document.body);
   const fs = Math.round(parseFloat(cs.fontSize));
   // 主按钮：今天页里既不是链接也不是小按钮的那些
-  const primary = Array.from(document.querySelectorAll("#viewToday button"))
+  const primary = Array.from(document.querySelectorAll("#viewToday button, .head button.sos"))
     .filter((b) => !b.classList.contains("link") && !b.classList.contains("small"));
-  // 切到别的页签时 #viewToday 是隐藏的，拿不到 boundingRect，退回读 CSS min-height
+  // 呼救键在 .head 里、不在 #viewToday 内，原选择器把它漏了 → 自检永远"通过"，掩盖了它偏小的问题
   const bh = primary.length
     ? Math.round(Math.max.apply(null, primary.map((b) => {
         const h = b.getBoundingClientRect().height;
         return h > 0 ? h : parseFloat(getComputedStyle(b).minHeight) || 0;
       })))
     : (parseFloat(getComputedStyle(document.querySelector(".tabbar").parentElement).getPropertyValue("--tap")) || 0);
+  const tap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--tap")) || 0;
+  const cos = document.querySelector("button.sos");
+  const sosH = cos ? Math.round(cos.getBoundingClientRect().height || parseFloat(getComputedStyle(cos).minHeight) || 0) : 0;
   const card = document.querySelector(".card") || document.querySelector(".idle") || document.body;
   const csCard = getComputedStyle(card);
   const ratio = contrast(cs.color, csCard.backgroundColor === "rgba(0, 0, 0, 0)" ? "rgb(255,255,255)" : csCard.backgroundColor);
@@ -436,6 +491,7 @@ function runCheck() {
   const rows = [
     ["正文字号（≥24pt）", fs + " px", fs >= 32],
     ["主按钮高度（≥48）", bh + " px", bh >= 48],
+    ["呼救键高度（≥84）", sosH + " px", sosH >= 84],
     ["文字/背景对比（≥7:1）", ratio + ":1", ratio >= 7],
     ["当前屏可点选项（≤4）", visibleOptions + " 个", visibleOptions <= 4]
   ];
@@ -445,19 +501,25 @@ function runCheck() {
   ).join("");
 }
 
-// 函数 load：首次加载：拉计划与记录
+// 函数 load：首次加载：先补传队列，再拉计划与记录
 async function load() {
   // 没令牌就别打接口：旧版默认的演示令牌轮换后已失效，只会得到 401「令牌无效」
   if (!token) {
     lastErr = "未配置令牌";
+    plans = []; due = []; occurrences = []; records = []; current = null;   // 旧老人的数据不能留在页面上
     $("sync").textContent = "未配置令牌";
     $("stage").innerHTML = '<div class="idle">还没填设备令牌<small>点底部「我的」→「设备令牌」填好后点「保存并同步」</small></div>';
+    $("plans").innerHTML = ""; $("log").innerHTML = ""; $("records").innerHTML = ""; $("stats").innerHTML = "";
+    $("planCount").textContent = "";
     return;
   }
   try {
+    await flushQueue();   // 断网时排队的确认动作，联网后按 event_id 幂等补传
     const b = await api("/api/v1/app/bundle");
     plans = b.plans || [];
-    due = b.due || [];
+    // snoozed 的实例服务端仍算在 due 里（5 分钟后才转 notified），
+    // 不过滤的话老人点「等会儿再做」卡片立刻原样重现，等于没稍后
+    due = (b.due || []).filter((o) => o.state !== "snoozed");
     occurrences = b.occurrences || [];
     records = b.records || [];
     lastErr = "";
@@ -499,7 +561,9 @@ document.addEventListener("click", async (ev) => {
     try {
       await api("/api/v1/records", { method: "POST", body: JSON.stringify({
         type: type, value: value, unit: type === "water" ? "ml" : "",
-        occurred_at: new Date().toISOString().slice(0, 16).replace("T", " "), note: "老人端一键记录"
+        // 用完整 ISO（带 T/Z）：后端只对含 T 的字符串做时区换算，
+        // 原来 toISOString().slice(0,16).replace("T"," ") 会被当成本地墙钟入库，东八区偏 8 小时
+        occurred_at: new Date().toISOString(), note: "老人端一键记录"
       }) });
       toast("记下了");
       await load();
