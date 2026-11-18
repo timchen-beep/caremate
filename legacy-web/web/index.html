@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 作用：落地页：介绍与入口（/app、/dashboard、/kiosk） --> -->
+<!-- 作用：落地页：项目介绍与三个入口（/app、/dashboard、/kiosk） -->
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -55,7 +55,7 @@
 
   <div class="meta">
     <div><span class="dot ok"></span>云端服务 <span id="health">检查中…</span></div>
-    <div>App 令牌 <code>app-elder-001</code> ｜ 家属令牌 <code>fam-demo-2026</code> ｜ 绑定码 <code>8823</code></div>
+    <div>令牌不在页面上明文写死：老人端填<strong>设备令牌</strong>，家属看板填<strong>家属令牌</strong>，均向项目负责人索取（每套部署各自一套，写在服务端 <code>server/.env</code>）</div>
     <div>手机访问：<code id="lan">把地址里的 127.0.0.1 换成电脑局域网 IP</code></div>
   </div>
 </div>
@@ -74,4 +74,3 @@ fetch("/api/v1/health").then(r => r.json()).then(j => {
 </body>
 </html>
 
-<!-- 文件：legacy-web/web/index.html -->
