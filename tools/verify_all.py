@@ -1,6 +1,6 @@
-# 作用：一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 十套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze）
+# 作用：一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 全部套件 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze）
 # -*- coding: utf-8 -*-
-"""一键全量验证：语法检查 + 十套验收 + 三个页面 HTTP 检查 + 完整性守卫。
+"""一键全量验证：语法检查 + 全部套件 + 三个页面 HTTP 检查 + 完整性守卫。
 
 用法:
     python tools/verify_all.py              # 标准验证
@@ -287,7 +287,7 @@ def check_build_refs():
            "；".join(problems[:3]) or "检查 %d 处引用" % checked)
 
 
-# ---------------------------------------------------------------- 3) 服务与十套
+# ---------------------------------------------------------------- 3) 服务与套件
 def wait_health(timeout=30):
     for _ in range(timeout * 2):
         try:
@@ -322,6 +322,10 @@ def run_server():
 SUITES = ["test_contract.py", "test_p2.py", "test_align.py", "test_steps.py",
           "test_v06.py", "test_extra.py", "test_sync.py", "test_v1.py",
           "test_bridge.py", "test_accept.py"]
+# 不是每条分支都带全部套件：web / qt 分支没有 MQTT 桥，就没有 test_bridge.py。
+# 按实际存在的文件过滤，文档数字守卫也跟着用过滤后的长度（否则分支上永远差一套）。
+_MISSING_SUITES = [s for s in SUITES if not os.path.isfile(os.path.join(SERVER, s))]
+SUITES = [s for s in SUITES if os.path.isfile(os.path.join(SERVER, s))]
 
 
 def run_suites():
@@ -409,6 +413,10 @@ def main():
     print("=" * 78)
     print("CareMate 全量验证")
     print("=" * 78)
+    if _MISSING_SUITES:
+        print("提示：本分支没有 %s，按 %d 套跑（main 是 %d 套）"
+              % ("、".join(_MISSING_SUITES), len(SUITES),
+                 len(SUITES) + len(_MISSING_SUITES)))
     check_truncation()
     check_binaries()
     check_syntax()
