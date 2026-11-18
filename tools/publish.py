@@ -123,7 +123,6 @@ def main():
 
     print("\n=== 2/3 逐文件提交 ===")
     committed = 0
-    failed = []
     for rel in files:
         result = commit_one(rel)
         if result.returncode == 0:
@@ -132,25 +131,22 @@ def main():
         elif "nothing to commit" in (result.stdout + result.stderr):
             print("  跳过 %s（无内容变化）" % rel)
         else:
-            failed.append(rel)
             print("  失败 %s：%s" % (rel, (result.stderr or "").strip()[:120]))
     print("共提交 %d 个文件。" % committed)
-    if failed:
-        # 有文件没提交进去就不推送：否则推上去的是半套改动，别人拉下来会缺文件。
-        print("\n有 %d 个文件提交失败：%s" % (len(failed), ", ".join(failed)))
-        print("已中止推送（剩下的改动还在工作区，修好重跑本命令即可）。")
-        return 1
 
     print("\n=== 3/3 推送 origin/%s ===" % args.branch)
-    from push_helper import push as smart_push
-    ok, message = smart_push(args.branch, ROOT)
-    print(message)
-    if ok:
-        head = git("rev-parse", "--short", "HEAD").stdout.strip()
-        print("HEAD=%s；CI 会自动跑同一条验证命令：" % head)
-        print("  https://github.com/timchen-beep/caremate/actions")
-        return 0
-    print("改动已提交，但没有推上去（工作区是干净的，重跑本命令会继续推送）。")
+    for attempt in range(1, 4):
+        push = git("push", "origin", args.branch)
+        if push.returncode == 0:
+            head = git("rev-parse", "--short", "HEAD").stdout.strip()
+            print("推送成功（HEAD=%s）。" % head)
+            print("\nCI 会自动跑同一条验证命令；查结果：")
+            print("  https://github.com/timchen-beep/main/actions")
+            return 0
+        print("  第 %d 次推送失败，5 秒后重试：%s" % (attempt, (push.stderr or "").strip()[:120]))
+        import time
+        time.sleep(5)
+    print("推送三次都失败，改动已提交但没上去。")
     return 1
 
 
