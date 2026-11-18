@@ -29,7 +29,7 @@
 | `caremate-cloud/web/dashboard.html` | 家属看板：5 秒刷新今日进度、长轮询收告警弹红条、计划/记录/告警/统计/云端五个分区 --> --> |
 | `caremate-cloud/web/icon-192.png` | PWA 图标 192×192 |
 | `caremate-cloud/web/icon-512.png` | PWA 图标 512×512 |
-| `caremate-cloud/web/index.html` | 落地页：介绍与入口（/app、/dashboard、/kiosk） --> --> |
+| `caremate-cloud/web/index.html` | 落地页：介绍与入口（/app、/dashboard、/kiosk） |
 | `caremate-cloud/web/kiosk.html` | 专注模式页面：四个大按钮，长按左上角 5 秒退出 --> --> |
 | `caremate-cloud/web/manifest.webmanifest` | PWA 清单：名称、图标、显示方式 |
 | `caremate-cloud/web/sw.js` | Service Worker：缓存静态页，让老人端可离线打开 |
