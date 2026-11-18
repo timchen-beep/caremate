@@ -53,8 +53,8 @@
 
 | 分支 | 文件数 | 是什么 | 什么时候看它 |
 |---|---|---|---|
-| [`main`](../../tree/main) | 154 | 整合版：网页端 + Qt 骨架 + Flutter 验证版 + 硬件脚本 | 交付与答辩用这个 |
-| [`web`](../../tree/web) | 49 | **网页端迭代分支**：只有后端 + 三个网页 + PWA + 九套验收 | 改网页端就来这里 |
+| [`main`](../../tree/main) | 163 | 整合版：网页端 + Qt 骨架 + Flutter 验证版 + 硬件脚本 | 交付与答辩用这个 |
+| [`web`](../../tree/web) | 49 | **网页端迭代分支**：只有后端 + 三个网页 + PWA + 十套验收 | 改网页端就来这里 |
 | [`qt`](../../tree/qt) | 75 | **Qt 老人端迭代分支**：`qt/` 客户端 + 后端 + 对接补丁 | 改 Qt 端就来这里 |
 | [`v1-web`](../../tree/v1-web) | 64 | 归档：最早的纯 Web 实现（后端 + 看板 + PWA） | 对照"纯 Web 长什么样" |
 | [`v2-qt`](../../tree/v2-qt) | 70 | 归档：Qt/QML 老人端 + 树莓派 broker + ESP32 雷达 + root 安卓 | 对照课程文档的 Qt 路线 |
@@ -137,7 +137,8 @@ python3 server.py --port 8000
 | 家属看板 | `/dashboard` | 今日进度、告警、统计、计划管理 |
 | 大屏 kiosk | `/kiosk` | 只有这一个 App 的设备级演示 |
 
-默认账号（**仅本地演示**，上公网前必须改）：
+默认账号（**这是没有 `.env` 时程序里的兜底值，仅本地演示**；真实令牌一律写在服务端 `server/.env`，
+不进仓库、不写文档、不发群。上公网前必须轮换，旧默认值会被 401 拒绝）：
 
 | 角色 | 令牌 |
 |---|---|
@@ -150,6 +151,8 @@ python3 server.py --port 8000
 > 关机再开机：Tailscale 服务自动起、启动文件夹的 VBS 会拉起后端（需登录 Windows 一次），地址自动恢复；详见 `docs/固定域名上线_Tailscale.md`。
 
 > 上公网前先轮换令牌：`python tools/rotate_tokens.py`（写入 `server/.env`，重启生效；旧默认值会被拒 401）。
+> 手抄嫌麻烦可以要短令牌：`python tools/rotate_tokens.py --easy --length 8`（去掉 0O1Il 的 8 位），或者直接用一次性交接链接 `/dashboard?token=…`、`/app?token=…&base=…`、`/kiosk?token=…`——
+> 页面会先存进浏览器再把令牌从地址栏抹掉，不用打字。
 
 ## 验收
 
@@ -173,6 +176,7 @@ python tools/verify_all.py --flutter  # 额外跑 flutter analyze
 | `test_extra.py` | 扩展 7 项 |
 | `test_sync.py` | 端云同步 5 项 |
 | `test_v1.py` | 手机端 v1.1 契约 9 项 |
+| `test_bridge.py` | MQTT 桥：订阅雷达 presence 转 HTTP（假 broker，14 项） |
 
 > `test_accept.py` 与 `test_v1.py` 需要**先有服务在跑**；`verify_all.py` 会自己起。
 
