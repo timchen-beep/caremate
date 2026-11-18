@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（157 个）
+# 函数索引（159 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -125,8 +125,10 @@
 | `server/server.py` | `plan_times` | 取计划的提醒时刻列表（已归一成 HH:MM） |
 | `server/server.py` | `publish` | 把事件写进 outbox（MQTT 桥和长轮询从这里取） |
 | `server/server.py` | `raise_alarm` | 生成一条告警：写库 + 入 outbox + 触发通知 |
+| `server/server.py` | `reset_data` | 清空业务数据（账号、绑定、令牌保留），演示库重来不用删文件 |
 | `server/server.py` | `scheduler_loop` | 后台调度线程，按 TICK 周期跑 scheduler_tick |
 | `server/server.py` | `scheduler_tick` | 每 30 秒扫一次到期实例——到点置 notified，迟到 THRESHOLD_1 置 escalated（通知家属），迟到 THRESHOLD_2 再发一条 level 3 告 |
+| `server/server.py` | `seed_demo_plans` | 写入三条演示计划（首次建库与 --reset-data --seed 共用） |
 | `server/server.py` | `send_body` | 统一响应输出：CORS 头、内容类型、长度 |
 | `server/server.py` | `slots_on` | 某天某计划应产生的全部提醒时刻（含餐前偏移、间隔/每周/一次性规则） |
 | `server/server.py` | `sos` | 呼救：建告警 + 立即推给家属端（<1 秒到达） |
