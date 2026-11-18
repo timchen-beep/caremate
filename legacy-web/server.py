@@ -535,17 +535,51 @@ def init_db():
                      ("u-family", "u-elder", 1, t))
         conn.execute("INSERT INTO links (family_id,elder_id,can_edit,created_at) VALUES (?,?,?,?)",
                      ("u-community", "u-elder", 0, t))
-        conn.executemany(
-            "INSERT INTO plans (id,user_id,title,kind,times,weekdays,rule,dose,note,active,created_at,updated_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            [("p-amlodipine", "u-elder", "苯磺酸氨氯地平 5mg", "medication", "08:00,20:00",
-              "1,2,3,4,5,6,7", json.dumps({"kind": "daily"}), "1 片", "餐后", 1, t, t),
-             ("p-metformin", "u-elder", "二甲双胍 0.5g", "medication", "12:30",
-              "1,2,3,4,5,6,7", json.dumps({"kind": "mealOffset", "anchor": "lunch", "offset": 30}),
-              "1 片", "随餐", 1, t, t),
-             ("p-water", "u-elder", "喝水 200ml", "water", "10:00,15:30",
-              "1,2,3,4,5,6,7", json.dumps({"kind": "daily"}), "200 ml", "", 1, t, t)],
-        )
+        seed_demo_plans(conn, t)
+
+
+# 函数 seed_demo_plans：写入三条演示计划（首次建库与 --reset-data --seed 共用）
+def seed_demo_plans(conn, t=None):
+    t = t or iso(utc_now())
+    conn.executemany(
+        "INSERT INTO plans (id,user_id,title,kind,times,weekdays,rule,dose,note,active,created_at,updated_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        [("p-amlodipine", "u-elder", "苯磺酸氨氯地平 5mg", "medication", "08:00,20:00",
+          "1,2,3,4,5,6,7", json.dumps({"kind": "daily"}), "1 片", "餐后", 1, t, t),
+         ("p-metformin", "u-elder", "二甲双胍 0.5g", "medication", "12:30",
+          "1,2,3,4,5,6,7", json.dumps({"kind": "mealOffset", "anchor": "lunch", "offset": 30}),
+          "1 片", "随餐", 1, t, t),
+         ("p-water", "u-elder", "喝水 200ml", "water", "10:00,15:30",
+          "1,2,3,4,5,6,7", json.dumps({"kind": "daily"}), "200 ml", "", 1, t, t)],
+    )
+
+
+# 函数 reset_data：清空业务数据（账号、绑定、令牌保留），演示库重来不用删文件
+def reset_data(reseed=False):
+    """删除计划/实例/事件/记录/告警/待发队列，保留 users 与 links。
+
+    用途：演示库跑几天后看板上全是 missed/inactivity（那是数据不是 bug），
+    答辩或换场景前一条命令回到干净状态：`python server.py --reset-data --yes`。
+    """
+    biz = ("outbox", "alarms", "records", "events", "occurrences", "plans")
+    v1 = ("v1_map", "v1_seq", "v1_rowseq", "v1_events")
+    counts = {}
+    with connect() as conn:
+        for table in biz:
+            counts[table] = conn.execute("SELECT COUNT(*) c FROM %s" % table).fetchone()["c"]
+            conn.execute("DELETE FROM %s" % table)
+        for table in v1:                     # 增量同步的游标表由 v1_adapter 建，可能还没建
+            try:
+                counts[table] = conn.execute("SELECT COUNT(*) c FROM %s" % table).fetchone()["c"]
+                conn.execute("DELETE FROM %s" % table)
+            except sqlite3.OperationalError:
+                pass
+        if reseed:
+            seed_demo_plans(conn)
+        conn.commit()
+        left = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
+    print("已清空业务数据：%s" % "，".join("%s %d 条" % (k, v) for k, v in counts.items() if v))
+    print("保留账号 %d 个（%s）" % (left, "并重建三条演示计划" if reseed else "计划表为空"))
 
 
 # ================================================================ 账号与权限
@@ -755,7 +789,8 @@ def occ_row(conn, oid):
 ACTIONS = {"confirmed", "missed", "snoozed", "notified", "escalated", "reopen", "undo"}
 
 
-def transition(oid, action, actor="", source="app", client_ts="", payload=None, conn=None):
+def transition(oid, action, actor="", source="app", client_ts="", payload=None, conn=None,
+               silent=False):
     """唯一允许改 occurrences.state 的函数（文档 4.2.5）。"""
     own = conn is None
     conn = conn or connect()
@@ -852,7 +887,9 @@ def transition(oid, action, actor="", source="app", client_ts="", payload=None, 
 
             if action == "confirmed":
                 _ack_open_alarms(conn, oid)
-            if state in ("missed", "escalated"):
+            # silent=True 用于"补建"的实例：计划是 15:47 建的，档位是当天 08:00，
+            # 用户从没收到过这条提醒，再给他家属打一条 level 3「未确认」只会刷屏。
+            if state in ("missed", "escalated") and not silent:
                 row = conn.execute("SELECT title FROM plans WHERE id=?", (occ["plan_id"],)).fetchone()
                 title = row["title"] if row else occ["plan_id"]
                 msg = ("未确认：" if state == "missed" else "仍未确认，已升级：") + \
@@ -1062,6 +1099,20 @@ def scheduler_tick(now=None):
             #   迟到 th1 分钟   → escalated（通知家属，告警 level 2）
             #   迟到 th2 分钟   → 再提醒家属一次（告警 level 3，状态仍是 escalated）
             #   迟到 th3 分钟   → missed（记未确认）
+            # 补建实例（backfill）：计划建好之前就过去很长一段时间的时间点。
+            # 判据：这条实例从没被通知过（notified_at 为空）+ 建得比到点还晚 +
+            # 已经迟到超过两倍升级窗口（th3*2 = 30 分钟，且不超过 30 分钟下限）。
+            # 命中就直接静默记「未确认」：不 notify、不 escalate、不打告警。
+            # 以前这里走完整升级链，老人下午新加一条早上 8 点的药，家属立刻收到一串
+            # level 3「未确认」；而"刚过点十几分钟"的积压仍按正常升级链走，
+            # 这样验收里的 1/6/16 分钟三条档位行为不变。
+            backfill_gap = max(CONFIG["th3"] * 2, 30)
+            if (not row["notified_at"] and row["created_at"] > row["due_at"]
+                    and late >= backfill_gap):
+                if row["state"] != "missed":
+                    transition(row["id"], "missed", actor="scheduler", source="scheduler", silent=True)
+                    stats["missed"] += 1
+                continue
             if not row["notified_at"]:
                 transition(row["id"], "notified", actor="scheduler", source="scheduler")
                 stats["notified"] += 1
@@ -1984,9 +2035,18 @@ class Handler(BaseHTTPRequestHandler):
             # 表里没有 user_id 列，归属写在 payload JSON 里；读不出来的一律不展示（宁可少给）。
             if user["role"] == "community":
                 return self.json(403, {"error": "社区账号不能读取待发队列"})
+            # 归属过滤必须在 SQL 里做。以前是先 `ORDER BY id LIMIT 200` 再在 Python 里筛 user_id，
+            # 全局待发超过 200 条时（演示库跑几天就会到），本站最新的消息会被旧消息挤出窗口，
+            # 桥上永远发不出去。payload 由 json.dumps(..., ensure_ascii=False) 生成，
+            # 固定形态是 `{"user_id": "u-elder", ...}`，所以能直接 LIKE 定位。
+            # 内层按 id DESC 取最新 200 条，外层再按 id 升序返回（保持原来的阅读顺序）。
+            # 注意：这里不能用 % 格式化（payload 里的 % 和 " 会被当成转换符），一律用字符串拼接。
+            esc_target = target.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            like = '%"user_id": "' + esc_target + '"%'
             with connect() as conn:
                 rows = [dict(r) for r in conn.execute(
-                    "SELECT * FROM outbox WHERE delivered_at='' ORDER BY id LIMIT 200").fetchall()]
+                    "SELECT * FROM (SELECT * FROM outbox WHERE delivered_at='' AND payload LIKE ? ESCAPE '\\'"
+                    " ORDER BY id DESC LIMIT 200) ORDER BY id", (like,)).fetchall()]
 
             def _owner(row):
                 try:
@@ -2421,9 +2481,20 @@ def main():
                     help="真的往这个地址 POST 一条通知，验证通道（用你自己的 webhook/短信网关）")
     ap.add_argument("--preview", type=int, metavar="DAYS",
                     help="打印未来 N 天的排程表后退出（第 1 步「拿纸对一遍」）")
+    ap.add_argument("--reset-data", action="store_true",
+                    help="清空业务数据（计划/实例/事件/记录/告警/待发队列），保留账号；必须同时给 --yes")
+    ap.add_argument("--seed", action="store_true", help="配合 --reset-data：清完重建三条演示计划")
+    ap.add_argument("--yes", action="store_true", help="确认执行破坏性操作（--reset-data 需要）")
     args = ap.parse_args()
 
     init_db()
+    if args.reset_data:
+        if not args.yes:
+            print("--reset-data 会删除全部业务数据（账号和绑定保留）。确认请加 --yes：")
+            print("  python server.py --reset-data --yes%s" % (" --seed" if args.seed else ""))
+            return 2
+        reset_data(reseed=args.seed)
+        return 0
     if args.backup:
         do_backup()
         return
@@ -2477,5 +2548,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
 
