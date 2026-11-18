@@ -5,7 +5,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| `对接后端.patch` | 对 `fspro7967/yiban_android_app` 的两个提交（git format-patch，可直接 `git am`） |
+| `对接后端.patch` | 对 `fspro7967/yiban_android_app` 的三个提交（git format-patch，可直接 `git am`） |
 | `对接后端_改动说明.md` | 改了什么、怎么配置、验证到哪一步（含"没编译过"的如实说明） |
 
 ## 应用方法
@@ -32,8 +32,11 @@ git am /path/to/对接后端.patch          # 或 git apply --3way
 
 ```bash
 export YIBAN_API=http://<电脑局域网IP>:8400
-export YIBAN_TOKEN=app-elder-001
+export YIBAN_TOKEN=<服务端 server/.env 里的老人令牌>     # 或走设置页配对，换一个 30 天的会话令牌
 ```
+
+> 别用仓库里写死的演示令牌（`app-elder-001`）：部署只要轮换过令牌它就 401，
+> 真实值在服务端 `server/.env` 的 `CAREMATE_ELDER_TOKEN`。
 
 ## 验证到哪一步
 
