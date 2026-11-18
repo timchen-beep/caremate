@@ -46,6 +46,17 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const API = location.origin;
+// kiosk 自己没有输入框，令牌一直是从 /app 里读的（同一个 localStorage 键）。
+// 这里也认一次 /kiosk?token=xxx：单独给大屏开机时不用先去 /app 配一遍，直接把链接设成主页即可。
+(function handoffToken() {
+  const q = new URLSearchParams(location.search);
+  const t = q.get("token");
+  if (!t) return;
+  localStorage.setItem("caremate.app.token", t.trim());
+  q.delete("token");
+  const rest = q.toString();
+  history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+})();
 let token = localStorage.getItem("caremate.app.token") || "";
 const hdr = () => ({ "Content-Type": "application/json", "Authorization": "Bearer " + token });
 
