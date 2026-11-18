@@ -1,4 +1,4 @@
-<!-- 作用：项目总览：架构、目录、九条分支、怎么迭代（web/qt + 合并）、快速开始、验收、设计取舍、已知限制 -->
+﻿<!-- 作用：项目总览：架构、目录、九条分支、怎么迭代（web/qt + 合并）、快速开始、验收、设计取舍、已知限制 -->
 # CareMate · 独居老人生活助手
 
 > 老人端 App + 家属 Web 看板 + 一个云端服务。提醒到点必响，未确认会升级，家属随时可看。
@@ -153,6 +153,9 @@ python3 server.py --port 8000
 > 上公网前先轮换令牌：`python tools/rotate_tokens.py`（写入 `server/.env`，重启生效；旧默认值会被拒 401）。
 > 手抄嫌麻烦可以要短令牌：`python tools/rotate_tokens.py --easy --length 8`（去掉 0O1Il 的 8 位），或者直接用一次性交接链接 `/dashboard?token=…`、`/app?token=…&base=…`、`/kiosk?token=…`——
 > 页面会先存进浏览器再把令牌从地址栏抹掉，不用打字。
+> 演示数据脏了（看板一屏红条、想重来一遍）：
+> `python3 server.py --reset-data --yes` 清空计划/实例/事件/记录/告警/待发队列（账号与令牌保留），
+> 加 `--seed` 会再放回三条演示计划；不带 `--yes` 只打印提示、退出码 2，防止在云上手滑。
 
 ## 验收
 
@@ -216,3 +219,4 @@ CAREMATE_OFFLINE=1 ./build/appCareMate     # 只看离线演示
 ## License
 
 MIT
+
