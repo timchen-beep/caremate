@@ -51,11 +51,11 @@ open(p, "w").write(text)
 | 级别 | 什么时候做 | 命令 |
 |---|---|---|
 | L1 语法 | 每次改完 | `python -m py_compile`、`bash -n`、`flutter analyze` |
-| L2 全量验收 | 每次改后端/页面/测试 | **`python tools/verify_all.py`**（21 项：截断守卫 + 二进制魔数 + 语法 + 服务 + 九套验收 + 产物卫生 + 构建引用一致 + 四个页面 + 文档数字一致） |
+| L2 全量验收 | 每次改后端/页面/测试 | **`python tools/verify_all.py`**（22 项：截断守卫 + 二进制魔数 + 语法 + 服务 + 十套验收 + 产物卫生 + 构建引用一致 + 四个页面 + 文档数字一致） |
 | L3 真机 | 交付前 | 见 `docs/验收清单.md` |
 
 ```bash
-python tools/verify_all.py            # 21 项
+python tools/verify_all.py            # 22 项
 python tools/verify_all.py --flutter  # 额外跑 flutter analyze
 ```
 
@@ -81,7 +81,7 @@ GitHub 文件列表的 "Last commit message" 列取的是**最后一次改动该
 任何改动完成后，**只跑一条命令**：
 
 ```bash
-python tools/publish.py              # 验证 21 项 → 逐文件提交 → 推送**当前分支**
+python tools/publish.py              # 验证 22 项 → 逐文件提交 → 推送**当前分支**
 python tools/publish.py --dry-run    # 只看会提交什么
 ```
 
@@ -197,7 +197,7 @@ python tools/sync_branches.py --only qt --dry-run   # 只看会覆盖哪些文�
 
 ```
 [ ] 改的文件是完整读写，没有截断
-[ ] python tools/verify_all.py 全绿（21 项）
+[ ] python tools/verify_all.py 全绿（22 项）
 [ ] 改了 .dart 就跑 flutter analyze（--flutter）
 [ ] 新文件头有「作用：」，新函数上方有「函数 X：」
 [ ] FILES.md / FUNCTIONS.md 已重新生成
