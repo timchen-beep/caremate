@@ -1,4 +1,4 @@
-﻿<!-- 作用：项目总览：架构、目录、九条分支、怎么迭代（web/qt + 合并）、快速开始、验收、设计取舍、已知限制 -->
+<!-- 作用：项目总览：架构、目录、九条分支、怎么迭代（web/qt + 合并）、快速开始、验收、设计取舍、已知限制 -->
 # CareMate · 独居老人生活助手
 
 > 老人端 App + 家属 Web 看板 + 一个云端服务。提醒到点必响，未确认会升级，家属随时可看。
@@ -53,15 +53,15 @@
 
 | 分支 | 文件数 | 是什么 | 什么时候看它 |
 |---|---|---|---|
-| [`main`](../../tree/main) | 163 | 整合版：网页端 + Qt 骨架 + Flutter 验证版 + 硬件脚本 | 交付与答辩用这个 |
-| [`web`](../../tree/web) | 49 | **网页端迭代分支**：只有后端 + 三个网页 + PWA + 十套验收 | 改网页端就来这里 |
-| [`qt`](../../tree/qt) | 75 | **Qt 老人端迭代分支**：`qt/` 客户端 + 后端 + 对接补丁 | 改 Qt 端就来这里 |
-| [`v1-web`](../../tree/v1-web) | 64 | 归档：最早的纯 Web 实现（后端 + 看板 + PWA） | 对照"纯 Web 长什么样" |
-| [`v2-qt`](../../tree/v2-qt) | 70 | 归档：Qt/QML 老人端 + 树莓派 broker + ESP32 雷达 + root 安卓 | 对照课程文档的 Qt 路线 |
-| [`v3-flash`](../../tree/v3-flash) | 61 | 归档：LineageOS + Magisk kiosk 定制层 + 8 项系统自检 | 需要"只有这一个 App"的设备级演示 |
-| [`v1-web-core`](../../tree/v1-web-core) | 42 | 归档核心版：只留实现代码，无文档/APK/测试产物 | 想读代码、复用某一块 |
-| [`v2-qt-core`](../../tree/v2-qt-core) | 52 | 归档核心版 | 同上 |
-| [`v3-flash-core`](../../tree/v3-flash-core) | 45 | 归档核心版 | 同上 |
+| [`main`](https://github.com/timchen-beep/caremate/tree/main) | 163 | 整合版：网页端 + Qt 骨架 + Flutter 验证版 + 硬件脚本 | 交付与答辩用这个 |
+| [`web`](https://github.com/timchen-beep/caremate/tree/web) | 49 | **网页端迭代分支**：只有后端 + 三个网页 + PWA + 九套验收 | 改网页端就来这里 |
+| [`qt`](https://github.com/timchen-beep/caremate/tree/qt) | 75 | **Qt 老人端迭代分支**：`qt/` 客户端 + 后端 + 对接补丁 | 改 Qt 端就来这里 |
+| [`v1-web`](https://github.com/timchen-beep/caremate/tree/v1-web) | 64 | 归档：最早的纯 Web 实现（后端 + 看板 + PWA） | 对照"纯 Web 长什么样" |
+| [`v2-qt`](https://github.com/timchen-beep/caremate/tree/v2-qt) | 70 | 归档：Qt/QML 老人端 + 树莓派 broker + ESP32 雷达 + root 安卓 | 对照课程文档的 Qt 路线 |
+| [`v3-flash`](https://github.com/timchen-beep/caremate/tree/v3-flash) | 61 | 归档：LineageOS + Magisk kiosk 定制层 + 8 项系统自检 | 需要"只有这一个 App"的设备级演示 |
+| [`v1-web-core`](https://github.com/timchen-beep/caremate/tree/v1-web-core) | 42 | 归档核心版：只留实现代码，无文档/APK/测试产物 | 想读代码、复用某一块 |
+| [`v2-qt-core`](https://github.com/timchen-beep/caremate/tree/v2-qt-core) | 52 | 归档核心版 | 同上 |
+| [`v3-flash-core`](https://github.com/timchen-beep/caremate/tree/v3-flash-core) | 45 | 归档核心版 | 同上 |
 
 ### 每条分支里有什么（找不到文件时看这张表）
 
