@@ -163,7 +163,7 @@ python tools/publish.py                # 验证 + 逐文件提交 + 推送当前
 python tools/merge_from_branches.py    # 在 main 上：把 web/qt 的成果合回整合版
 ```
 
-它会依次做：截断守卫 → 二进制魔数 → 语法 → 起服务 → 九套验收 → 产物卫生 → 四个页面 HTTP 检查 → Flutter analyze → 文档数字一致，最后打印 `总计：X/X 通过`；任何一项失败就以非零退出码结束。CI 跑的是同一条命令。
+它会依次做：截断守卫 → 二进制魔数 → 语法 → 起服务 → 十套验收 → 产物卫生 → 四个页面 HTTP 检查 → Flutter analyze → 文档数字一致，最后打印 `总计：X/X 通过`；任何一项失败就以非零退出码结束。CI 跑的是同一条命令。
 
 ---
 
