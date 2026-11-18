@@ -1,10 +1,10 @@
 <!-- 作用：文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->
-# 文件索引（162 个）
+# 文件索引（163 个）
 
 | 文件 | 作用 |
 |---|---|
 | `.gitattributes` | 行尾规则：仓库存 LF、bat 用 CRLF、二进制文件不做转换 |
-| `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 九套验收 + 页面检查 + 完整性守卫） |
+| `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 十套验收 + 页面检查 + 完整性守卫） |
 | `.github/workflows/flutter-build.yml` | 手动触发的 APK 构建（release/debug 可选，产物上传为 artifact） |
 | `.gitignore` | 忽略规则：数据库、签名私钥、构建产物、APK、CI 临时文件 |
 | `CONTRIBUTING.md` | 开发规约：三条铁律、改完就发、迭代分支与 main 合并、提交与分支规范、踩过的坑 |
@@ -136,6 +136,7 @@
 | `server/test_accept.py` | 可靠性验收 6 项：P95 派发、断网补传、越权 403、升级链自驱、10 次重启不丢不重 |
 | `server/test_align.py` | 一致性 9 项：from/to 反序 400、改计划历史不变、换时区不新增行、单入口检查 |
 | `server/test_auto_scheduler.py` | 调度器手动验证脚本：不碰页面也能自己升级（开发用） |
+| `server/test_bridge.py` | 验证 MQTT 桥的上行（订阅 home/sensor/presence → POST /api/v1/sensor/presence）与防回环，不用真的装 mosquitto |
 | `server/test_contract.py` | 契约验收 18 项：鉴权、from/to、事件提交幂等、数组/信封、错误码 |
 | `server/test_extra.py` | 新增能力 7 项：七天预览、传感器事件、通知通道、专注模式、--demo/--preview |
 | `server/test_p2.py` | 令牌与权限 9 项：配对换令牌、越权访问、一次性规则、角色边界 |
@@ -156,7 +157,7 @@
 | `server/web/sw.js` | Service Worker：缓存静态页，让老人端可离线打开 |
 | `tools/README.md` | 辅助工具的说明：怎么跑十套验收并生成一份证据文件 |
 | `tools/cloudflared-config.yml.template` | Cloudflare 命名隧道（固定域名）配置模板：本机服务 → 你自己的域名，重启不变 |
-| `tools/collect_evidence.py` | 跑九套验收并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据） |
+| `tools/collect_evidence.py` | 跑十套验收并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据） |
 | `tools/gen_index.py` | 生成 FILES.md（每个文件一行说明）与 FUNCTIONS.md（每个函数一行说明），需在仓库根目录运行 |
 | `tools/merge_from_branches.py` | 按"分支迭代、main 定期合并"的流程，把 web / qt 分支的成果合并回 main（按归属路径拉取，验证后提交推送） |
 | `tools/publish.py` | 一条命令发布：先全量验证，再逐文件提交（说明取自文件自己的「作用」注释），最后推送并等 CI |
@@ -164,4 +165,4 @@
 | `tools/rotate_tokens.py` | 生成随机令牌与配对码并写入 server/.env（已被 .gitignore 忽略），供上公网时替换演示值 |
 | `tools/sample_p95.py` | 一键取 P95 真实样本：干净端口 + 临时库 → 建 40 秒后的计划 → 等调度器派发 → 打印派发延迟 |
 | `tools/sync_branches.py` | 一条命令把 main 的服务端核心同步到八条分支（六条归档 + web/qt）：差异核对 → 覆盖 → 起服务验证 → 逐文件提交 → 推送 |
-| `tools/verify_all.py` | 一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 九套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze） |
+| `tools/verify_all.py` | 一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 十套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze） |
