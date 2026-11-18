@@ -6,7 +6,7 @@
 | `.gitattributes` | 行尾规则：仓库存 LF、bat 用 CRLF、二进制文件不做转换 |
 | `.github/workflows/ci.yml` | CI：push/PR 时在 Ubuntu 上跑 tools/verify_all.py（语法 + 十套验收 + 页面检查 + 完整性守卫） |
 | `.github/workflows/flutter-build.yml` | 手动触发的 APK 构建（release/debug 可选，产物上传为 artifact） |
-| `.gitignore` | 忽略规则：数据库、签名私钥、构建产物、APK、CI 临时文件 |
+| `.gitignore` | 忽略规则：数据库、令牌文件、签名私钥、构建产物、APK、CI 临时文件 |
 | `CONTRIBUTING.md` | 开发规约：三条铁律、改完就发、迭代分支与 main 合并、提交与分支规范、踩过的坑 |
 | `FILES.md` | 文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） |
 | `FUNCTIONS.md` | 函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） |
@@ -138,7 +138,7 @@
 | `server/test_auto_scheduler.py` | 调度器手动验证脚本：不碰页面也能自己升级（开发用） |
 | `server/test_bridge.py` | 验证 MQTT 桥的上行（订阅 home/sensor/presence → POST /api/v1/sensor/presence）与防回环，不用真的装 mosquitto |
 | `server/test_contract.py` | 契约验收 18 项：鉴权、from/to、事件提交幂等、数组/信封、错误码 |
-| `server/test_extra.py` | 新增能力 7 项：七天预览、传感器事件、通知通道、专注模式、--demo/--preview |
+| `server/test_extra.py` | 新增能力 9 项：七天预览、传感器事件、通知通道、专注模式、--demo/--preview、补建静默、outbox 窗口 |
 | `server/test_p2.py` | 令牌与权限 9 项：配对换令牌、越权访问、一次性规则、角色边界 |
 | `server/test_steps.py` | 交互 7 项：呼救、5 秒撤销、记录撤销留痕、久未活动、专注模式页 |
 | `server/test_sync.py` | 端云同步验收 5 项：批量上行、幂等去重、越权拒绝、回灌游标、端侧告警 |
