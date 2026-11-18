@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（148 个）
+# 函数索引（157 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -51,18 +51,27 @@
 | `scripts/50-verify-system.sh` | `bad` | 打印失败项并累加失败计数 |
 | `scripts/50-verify-system.sh` | `ok` | 打印通过项并累加通过计数 |
 | `server/bridge.py` | `__init__` | 保存 broker 地址与 dry-run 标记 |
+| `server/bridge.py` | `_recv_exact` | 读满 n 字节（broker 的报文可能被拆成多次 TCP 包） |
 | `server/bridge.py` | `_remaining` | MQTT 剩余长度字段的变长编码 |
+| `server/bridge.py` | `_utf8` | MQTT 字符串字段（两字节长度 + UTF-8 内容） |
 | `server/bridge.py` | `api_post` | 调用后端接口（JSON POST） |
 | `server/bridge.py` | `close` | 优雅断开并关闭 socket |
 | `server/bridge.py` | `connect` | 建立 TCP 连接并校验 CONNACK 返回码 |
 | `server/bridge.py` | `drain` | 把 outbox 里已发的事件标记为已消费 |
+| `server/bridge.py` | `forward_presence` | 把一条 presence 报文转成 POST /api/v1/sensor/presence |
+| `server/bridge.py` | `handle_inbox` | 收一轮 broker 推来的消息，presence 的转成 HTTP |
+| `server/bridge.py` | `parse_publish` | 从 PUBLISH 报文里取出 (topic, payload) |
 | `server/bridge.py` | `ping` | 发送心跳，保活连接 |
 | `server/bridge.py` | `pkt_connect` | 构造 CONNECT 报文（协议名/级别/keepalive/clientId） |
 | `server/bridge.py` | `pkt_disconnect` | 构造断开报文 |
 | `server/bridge.py` | `pkt_pingreq` | 构造心跳报文 |
 | `server/bridge.py` | `pkt_publish` | 构造 PUBLISH 报文（QoS0，topic + payload） |
+| `server/bridge.py` | `pkt_subscribe` | 构造 SUBSCRIBE 报文（QoS0，单个 topic filter） |
+| `server/bridge.py` | `poll` | 等 broker 推来的 PUBLISH，返回 [(topic, payload_bytes)] |
 | `server/bridge.py` | `publish` | 发送一条 PUBLISH；失败时重连一次再发 |
-| `server/bridge.py` | `pump` | 主循环：拉 outbox → publish → drain |
+| `server/bridge.py` | `pump` | 主循环：拉 outbox → publish → 标记已消费；每轮再收一次 presence |
+| `server/bridge.py` | `read_packet` | 读一个完整 MQTT 报文，返回 (首字节, 报文体) |
+| `server/bridge.py` | `subscribe` | 订阅一个 topic filter，等 SUBACK |
 | `server/server.py` | `_ack_open_alarms` | 把该实例所有未处理告警标记为已处理 |
 | `server/server.py` | `_alarm_once` | 同一实例的同级告警只发一次，避免刷屏 |
 | `server/server.py` | `_alarm_view` | 告警对外视图 |
