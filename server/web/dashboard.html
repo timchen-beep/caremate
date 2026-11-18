@@ -260,7 +260,8 @@
     <div class="panel">
       <h2>社区上报（模拟 webhook）</h2>
       <form class="inline" id="webForm">
-        <label>社区令牌<input id="cToken" value="comm-demo-2026" style="width:160px"></label>
+        <!-- 令牌不写默认值：轮换后写死的演示令牌会 401，用户还以为是服务坏了 -->
+        <label>社区令牌<input id="cToken" value="" placeholder="向项目负责人索取" style="width:160px"></label>
         <label>内容<input id="cMsg" value="今日上门发现老人未按计划服药" style="width:280px"></label>
         <button class="btn" type="submit">上报一条</button>
       </form>
@@ -271,13 +272,14 @@
   <!-- 云端 -->
   <div id="v-cloud" class="hide">
     <div class="panel">
-      <h2>云服务接口 <span class="sub">预留位：改这里就能上云</span></h2>
+      <h2>云服务接口 <span class="sub">版本 / 阈值 / 出口都在这页</span></h2>
       <div class="kv" id="cloudInfo">读取中…</div>
     </div>
     <div class="panel">
       <h2>用配对码换令牌 <span class="sub">文档 4.2.7：不发账号密码</span></h2>
       <form class="inline" id="pairForm">
-        <label>老人配对码<input id="pairCode" value="8823" style="width:110px"></label>
+        <!-- 配码由服务端 .env 决定（每套部署各一个），页面不写死：写死 8823 会让人一直对不上 -->
+        <label>老人配对码<input id="pairCode" value="" placeholder="6 位数字" style="width:110px"></label>
         <label>备注<input id="pairLabel" value="家属-女儿" style="width:140px"></label>
         <button class="btn" type="submit">换取令牌</button>
         <button class="btn line" type="button" id="btnUnpair">清除本机令牌</button>
@@ -290,9 +292,9 @@
     <div class="panel">
       <h2>事件出口（outbox）</h2>
       <div class="kv">
-        <div class="k">topic 约定</div><div>home/reminder/{user}/state、home/record/{user}、home/alarm/{user}、home/sensor/presence、home/terminal/ack</div>
-        <div class="k">本地模式</div><div>写 SQLite <code>outbox</code> 表，桥进程拉取后转发 MQTT</div>
-        <div class="k">云模式</div><div>把 <code>publish()</code> 换成 paho-mqtt publish 或 Webhook POST，调用方不用改</div>
+        <div class="k">topic 约定</div><div>home/reminder/{user}/state、home/record/{user}、home/alarm/{user}、home/sensor/presence（上行）、home/sensor/presence/seen（回显，桥不订阅，防回环）</div>
+        <div class="k">本地模式</div><div>写 SQLite <code>outbox</code> 表，<code>bridge.py</code> 拉取后转发 MQTT（零依赖，不装 paho）</div>
+        <div class="k">云模式</div><div>同上；<code>bridge.py</code> 部署到能连 broker 的机器上，<code>--api</code> 指向服务端即可</div>
       </div>
       <div style="margin-top:12px">
         <button class="btn line" id="btnOutbox">查看待发事件</button>
@@ -303,11 +305,11 @@
     <div class="panel">
       <h2>上云清单</h2>
       <div class="hint">
-        1. 数据库：<code>CAREMATE_DB</code> 换 PostgreSQL 连接串（本文件 <code>connect()</code> 是唯一切换点）；<br>
-        2. 鉴权：<code>CAREMATE_JWT_SECRET</code> 非空后改为签发/校验 JWT（当前固定令牌，便于演示）；<br>
-        3. 事件出口：<code>CAREMATE_MQTT_URL=mqtt://127.0.0.1:1883</code>，<code>publish()</code> 内改为真实发布；<br>
-        4. 社区上报：<code>CAREMATE_WEBHOOK_URL</code> 指向社区后台；<br>
-        5. 成本口径（文档 R7-5）：1 核 2G 学生机 50–100 元/月，演示场景零成本。
+        1. 数据库：<code>CAREMATE_DB</code> 是 SQLite 文件路径，换路径即可；要换 PostgreSQL 只改 <code>connect()</code> 一个函数；<br>
+        2. 鉴权：现在是固定令牌 + <code>/v1/pair</code> 配对会话；<code>CAREMATE_JWT_SECRET</code> 只是开关（健康检查回 <code>jwt</code>），签发/校验 JWT 还没实现；<br>
+        3. 事件出口：<code>publish()</code> 只写 outbox，真实 MQTT 由 <code>bridge.py</code> 拉取后发布（<code>--mqtt-host</code> 指 broker）；<br>
+        4. 社区上报：<code>CAREMATE_WEBHOOK_URL</code> 已实现，<code>notify()</code> 真发 POST、5 秒超时，指向社区后台即可；<br>
+        5. 成本口径（文档 R7-5）：1 核 2G 学生机 50–100 元/月；本机 + Tailscale 演示零成本。
       </div>
     </div>
   </div>
@@ -525,8 +527,10 @@ async function renderCloud() {
       '<div class="k">实例状态</div><div>' + (v.states || []).join(" / ") + "</div>" +
       '<div class="k">升级阈值</div><div>' + (th.t1 || 2) + " / " + (th.t2 || 5) + " / " + (th.t3 || 15) +
         " 分钟（稍后上限 " + (th.snooze_max || 3) + " 次）</div>" +
-      '<div class="k">MQTT</div><div>' + (v.cloud.mqtt ? "已配置" : "未配置（走本地 outbox）") + "</div>" +
-      '<div class="k">JWT</div><div>' + (v.cloud.jwt ? "已配置" : "未配置（用配对码换的会话令牌）") + "</div>" +
+      '<div class="k">补建口径</div><div>计划建得比到点还晚 ' + Math.max((th.t3 || 15) * 2, 30) +
+        ' 分钟以上的档位，只记「未确认」，不通知、不升级、不告警（家属不会被一屏红条刷到）</div>' +
+      '<div class="k">MQTT</div><div>' + (v.cloud.mqtt ? "已配置" : "未配置（消息写在 outbox，由 bridge.py 转发）") + "</div>" +
+      '<div class="k">JWT</div><div>' + (v.cloud.jwt ? "已配置" : "未配置（用配对码换的会话令牌；JWT 签发/校验未实现）") + "</div>" +
       '<div class="k">Webhook</div><div>' + (v.cloud.webhook || "未配置") + "</div>";
   } catch (e) {
     $("cloudInfo").textContent = "读取失败：" + e.message;
@@ -693,9 +697,15 @@ $("recForm").onsubmit = async (ev) => {
 
 $("webForm").onsubmit = async (ev) => {
   ev.preventDefault();
+  const cTok = $("cToken").value.trim();
+  if (!cTok) {
+    msg($("webMsg"), "先填社区令牌（由项目负责人提供，与家属令牌不是同一个）", "bad");
+    $("cToken").focus();
+    return;
+  }
   try {
     const r = await api("/api/v1/community/webhook", {
-      method: "POST", headers: { "X-Token": $("cToken").value.trim() },
+      method: "POST", headers: { "X-Token": cTok },
       body: JSON.stringify({ user_id: ELDER, kind: "community", level: 2, message: $("cMsg").value })
     });
     msg($("webMsg"), "已上报：" + r.id + "（webhook：" + r.webhook + "）", "ok");
@@ -748,11 +758,18 @@ document.querySelectorAll("button[data-export]").forEach((b) => {
 
 $("pairForm").onsubmit = async (ev) => {
   ev.preventDefault();
+  // 配码由服务端 .env 决定，页面不再预填；没填就直接提示，不发一个空码请求
+  const code = $("pairCode").value.trim();
+  if (!code) {
+    msg($("pairMsg"), "先填老人配对码（由项目负责人提供，写在服务端 server/.env）", "bad");
+    $("pairCode").focus();
+    return;
+  }
   try {
     const r = await fetch("/api/v1/auth/pair", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: $("pairCode").value.trim(), label: $("pairLabel").value })
+      body: JSON.stringify({ code: code, label: $("pairLabel").value })
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
