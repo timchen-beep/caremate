@@ -63,8 +63,9 @@ fi
 echo "== 3.5/6 Python 虚拟环境（单元里的 ExecStart 指向 .venv）"
 if [[ ! -x "$APP_DIR/.venv/bin/python" ]]; then
   sudo -u "$SVC_USER" python3 -m venv "$APP_DIR/.venv"
-  sudo -u "$SVC_USER" "$APP_DIR/.venv/bin/pip" install -q --upgrade pip
-  echo "   已建 $APP_DIR/.venv"
+  # 不装任何 pip 包：本项目只用标准库。这里原来有一句 pip install --upgrade pip，
+  # 它会去连 pypi.org，国内云主机经常几分钟没响应，整台机器就卡在这一步。
+  echo "   已建 $APP_DIR/.venv（本项目零第三方依赖，不装 pip 包）"
 else
   echo "   已有 .venv，跳过"
 fi
