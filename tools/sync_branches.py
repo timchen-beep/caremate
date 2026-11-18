@@ -20,6 +20,7 @@
                              或 <分支>/server/server.py（web / qt 两个迭代分支）
     server/v1_adapter.py   → 同上
     server/test_v1.py      → 同上
+    server/web/*.html      → 同上目录下的 web/（看板、老人端、kiosk、首页各一份）
     docs/客户端框架说明.md  → docs/ 或分支根目录
 
 验证（每个有改动的分支）：
@@ -52,6 +53,12 @@ SYNC = [
     ("server/server.py", "server.py"),
     ("server/v1_adapter.py", "v1_adapter.py"),
     ("server/test_v1.py", "test_v1.py"),
+    # 页面也在各分支里各存一份：不改的话分支上的看板还写着写死的演示令牌、
+    # 事件出口还留着 home/terminal/ack，和 main 说的不是一回事。
+    ("server/web/dashboard.html", "web/dashboard.html"),
+    ("server/web/app.html", "web/app.html"),
+    ("server/web/kiosk.html", "web/kiosk.html"),
+    ("server/web/index.html", "web/index.html"),
 ]
 DOC = ("docs/客户端框架说明.md", "客户端框架说明.md")
 PORT = 8400
@@ -124,6 +131,7 @@ def copy_shared(worktree, with_tools=False):
         src = os.path.join(ROOT, src_rel.replace("/", os.sep))
         dst = os.path.join(worktree, sub, name) if sub else os.path.join(worktree, name)
         if os.path.isfile(src):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copyfile(src, dst)
             touched.append(os.path.relpath(dst, worktree).replace(os.sep, "/"))
     if with_tools:
