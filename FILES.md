@@ -46,7 +46,7 @@
 | `legacy-web/deploy/caremate.service` | systemd 单元：以单进程跑后端（多进程会有两个调度循环） |
 | `legacy-web/deploy/setup.sh` | 服务器一键部署：装 Python/tzdata、建 systemd 单元、起服务并用 curl 自检 |
 | `legacy-web/docs/HARDWARE.md` | 硬件接入：香橙派/树莓派/ESP32 分工、接线、topic 表 |
-| `legacy-web/evidence-验收汇总.md` | 七套验收的汇总证据（由 tools/collect_evidence.py 生成） --> --> |
+| `legacy-web/evidence-验收汇总.md` | 七套验收的汇总证据（由 tools/collect_evidence.py 生成） |
 | `legacy-web/firmware/esp32_node.ino` | ESP32 传感器节点：读 LD2410C 雷达并上报 presence，收告警按语义表点灯/蜂鸣（不含业务判断） |
 | `legacy-web/server.py` | CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度、统计、备份、页面路由（零第三方依赖） |
 | `legacy-web/start.bat` | Windows 本地启动器：ASCII 输出，避免中文代码页乱码 |
@@ -63,7 +63,7 @@
 | `legacy-web/web/dashboard.html` | 家属看板：5 秒刷新今日进度、长轮询收告警弹红条、计划/记录/告警/统计/云端五个分区 --> --> |
 | `legacy-web/web/icon-192.png` | 图片资源 |
 | `legacy-web/web/icon-512.png` | 图片资源 |
-| `legacy-web/web/index.html` | 落地页：介绍与入口（/app、/dashboard、/kiosk） --> --> |
+| `legacy-web/web/index.html` | 落地页：介绍与入口（/app、/dashboard、/kiosk） |
 | `legacy-web/web/kiosk.html` | 专注模式页面：四个大按钮，长按左上角 5 秒退出 --> --> |
 | `legacy-web/web/manifest.webmanifest` | PWA 清单：名称、图标、显示方式 |
 | `legacy-web/web/sw.js` | Service Worker：缓存静态页，让老人端可离线打开 |
