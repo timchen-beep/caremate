@@ -74,7 +74,7 @@
 | `docs/自查报告_2026-11-12.md` | 本轮自查/修复记录：查了什么、修了什么、怎么验证的、还有什么没验证 |
 | `docs/评审答复_4.2.md` | 对 4.2 评审意见的答复：三条报告修改的结论、四个接口问题的取舍、方案 B 的实施与实测 |
 | `docs/路线对照_R1-R8.md` | 需求编号 R1–R8 → 落地位置与状态（已有实现/骨架/未做） |
-| `docs/验收清单.md` | 验收清单：后端九套、App 真机、硬件、系统改造四类检查项 |
+| `docs/验收清单.md` | 验收清单：后端十套、App 真机、硬件、系统改造四类检查项 |
 | `integration/yiban_client/README.md` | 把颐伴手机端（fspro7967/yiban_android_app）接到本后端的改动包：补丁、说明、应用方法 |
 | `integration/yiban_client/对接后端.patch` | 给颐伴手机端仓库的补丁（git am 可用）：真 HTTP 传输 + 同步引擎 + 端上灌入入口 |
 | `integration/yiban_client/对接后端_改动说明.md` | 对接 CareMate 后端（本次改动说明） |
@@ -121,13 +121,13 @@
 | `scripts/README.md` | Android 系统级改造脚本的说明：每个脚本做什么、按什么顺序执行、怎么回滚 |
 | `server/DEMO.md` | 8 分钟演示脚本（后端侧）：怎么起服务、怎么演到点与呼救 |
 | `server/README.md` | 后端说明：接口清单、部署方式、验收命令与设计取舍 |
-| `server/bridge.py` | MQTT 桥：把 outbox 里的事件用零依赖 MQTT 3.1.1 客户端 publish 到 broker，再标记已消费 |
+| `server/bridge.py` | MQTT 桥：把 outbox 里的事件用零依赖 MQTT 3.1.1 客户端 publish 到 broker，再标记已消费；并订阅 home/sensor/presence 把雷达上报转成一次 HTTP POST |
 | `server/deploy/Caddyfile` | 反向代理与自动 HTTPS：把域名转发到 127.0.0.1:8000 |
 | `server/deploy/README.md` | 部署说明：反代终止 TLS、应用单进程的原因与步骤 |
 | `server/deploy/caremate.service` | systemd 单元：以单进程跑后端（多进程会有两个调度循环） |
 | `server/deploy/setup.sh` | 服务器一键部署：装依赖、建账号目录、生成/复用 .env 令牌、systemd、可选 Caddy、自检 |
 | `server/docs/HARDWARE.md` | 硬件接入：香橙派/树莓派/ESP32 分工、接线、topic 表 |
-| `server/evidence-验收汇总.md` | 九套验收的汇总证据：命令、时间、通过数（由 tools/collect_evidence.py 生成） |
+| `server/evidence-验收汇总.md` | 十套验收的汇总证据：命令、时间、通过数（由 tools/collect_evidence.py 生成） |
 | `server/firmware/esp32_node.ino` | ESP32 传感器节点：读 LD2410C 雷达并上报 presence，收告警按语义表点灯/蜂鸣（不含业务判断） |
 | `server/server.py` | CareMate 云端唯一服务：规则展开、实例物化、状态迁移、升级链调度（到点 notified→2 分钟 escalated→5 分钟再提醒家属→15 分钟 missed）、统计、备份、页面路由、端云同步三接口（零第三方依赖） |
 | `server/start-caremate.bat` | 开机/登录时静默拉起 CareMate 后端（配合 Tailscale Funnel 提供固定公网地址） |
@@ -154,7 +154,7 @@
 | `server/web/kiosk.html` | 专注模式页面：四个大按钮，长按左上角 5 秒退出 |
 | `server/web/manifest.webmanifest` | PWA 清单：应用名、图标、显示模式（装到桌面像原生 App） |
 | `server/web/sw.js` | Service Worker：缓存静态页，让老人端可离线打开 |
-| `tools/README.md` | 辅助工具的说明：怎么跑九套验收并生成一份证据文件 |
+| `tools/README.md` | 辅助工具的说明：怎么跑十套验收并生成一份证据文件 |
 | `tools/cloudflared-config.yml.template` | Cloudflare 命名隧道（固定域名）配置模板：本机服务 → 你自己的域名，重启不变 |
 | `tools/collect_evidence.py` | 跑九套验收并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据） |
 | `tools/gen_index.py` | 生成 FILES.md（每个文件一行说明）与 FUNCTIONS.md（每个函数一行说明），需在仓库根目录运行 |
