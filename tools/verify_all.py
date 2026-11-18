@@ -1,6 +1,6 @@
-# 作用：一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 九套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze）
+# 作用：一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 全部套件 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze）
 # -*- coding: utf-8 -*-
-"""一键全量验证：语法检查 + 九套验收 + 三个页面 HTTP 检查 + 完整性守卫。
+"""一键全量验证：语法检查 + 全部套件 + 三个页面 HTTP 检查 + 完整性守卫。
 
 用法:
     python tools/verify_all.py              # 标准验证
@@ -185,8 +185,19 @@ def check_artifacts():
 CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6,
           "七": 7, "八": 8, "九": 9, "十": 10}
 
-DOC_FILES = ["README.md", "GUIDE.md", "CONTRIBUTING.md",
-             "tools/README.md", "docs/验收清单.md", "docs/评审答复_4.2.md"]
+# 检查范围：全仓所有被 git 追踪的文本文件（不再只查 6 个文档）。
+# 为什么改成全仓：加了 test_bridge 之后，`tools/*.py` 的表头注释、`.github/workflows/ci.yml`、
+# 自动生成的 FILES.md 里还留着「九套」，而它们都不在原来那份手写清单里 —— 手工维护清单必然漏。
+TEXT_EXT = (".md", ".py", ".yml", ".yaml", ".html", ".js", ".json", ".sh",
+            ".txt", ".dart", ".qml", ".cpp", ".h", ".hpp", ".ini", ".cfg")
+
+
+def tracked_text_files():
+    r = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        return []
+    return [f for f in r.stdout.splitlines() if f.lower().endswith(TEXT_EXT)]
 
 
 def check_doc_counts():
@@ -198,13 +209,19 @@ def check_doc_counts():
     problems = []
     expected_suites = len(SUITES)
     expected_items = len(RESULTS) + 1        # +1：本项守卫自身
-    for rel in DOC_FILES:
+    for rel in tracked_text_files():
         p = os.path.join(ROOT, rel.replace("/", os.sep))
         if not os.path.isfile(p):
             continue
+        section = ""
         with io.open(p, encoding="utf-8", errors="replace") as f:
             for no, line in enumerate(f, 1):
-                if "分支" in line:          # 分支说明里的套数不受 main 影响
+                if line.startswith("## "):
+                    section = line
+                # 两处豁免：
+                #  1) 「分支」说明行写的是那条分支自己的套数（web/qt 只有部分套件），不该按 main 要求；
+                #  2) 变更记录（`## v0.x` 之类）里的数字是当时的事实，改掉就是篡改历史。
+                if "分支" in line or "历史" in section or section.startswith("## v"):
                     continue
                 for m in re.finditer(r"([一二三四五六七八九十\d]+)\s*套验收", line):
                     raw = m.group(1)
@@ -270,7 +287,7 @@ def check_build_refs():
            "；".join(problems[:3]) or "检查 %d 处引用" % checked)
 
 
-# ---------------------------------------------------------------- 3) 服务与九套
+# ---------------------------------------------------------------- 3) 服务与套件
 def wait_health(timeout=30):
     for _ in range(timeout * 2):
         try:
@@ -281,13 +298,19 @@ def wait_health(timeout=30):
     return False
 
 
+DB_PATH = ""      # run_server 用的临时库；子进程复用，避免和生产实例抢同一个 SQLite 文件
+
+
 def run_server():
+    global DB_PATH
     db = os.path.join(tempfile.gettempdir(), "caremate_verify.db")
+    DB_PATH = db
     for suf in ("", "-wal", "-shm"):
         p = db + suf
         if os.path.exists(p):
             os.remove(p)
-    env = dict(os.environ, CAREMATE_DB=db, CAREMATE_TZ="Asia/Shanghai")
+    env = dict(os.environ, CAREMATE_DB=db, CAREMATE_TZ="Asia/Shanghai",
+               CAREMATE_SKIP_ENV="1")     # 验证用演示令牌，不读 server/.env
     proc = subprocess.Popen([sys.executable, "server.py", "--port", str(PORT)],
                             cwd=SERVER, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -297,12 +320,22 @@ def run_server():
 
 
 SUITES = ["test_contract.py", "test_p2.py", "test_align.py", "test_steps.py",
-          "test_v06.py", "test_extra.py", "test_sync.py", "test_v1.py", "test_accept.py"]
+          "test_v06.py", "test_extra.py", "test_sync.py", "test_v1.py",
+          "test_bridge.py", "test_accept.py"]
+# 不是每条分支都带全部套件：web / qt 分支没有 MQTT 桥，就没有 test_bridge.py。
+# 按实际存在的文件过滤，文档数字守卫也跟着用过滤后的长度（否则分支上永远差一套）。
+_MISSING_SUITES = [s for s in SUITES if not os.path.isfile(os.path.join(SERVER, s))]
+SUITES = [s for s in SUITES if os.path.isfile(os.path.join(SERVER, s))]
 
 
 def run_suites():
     # 子进程统一输出 UTF-8，否则 Windows 下是 GBK，判定与显示都会乱
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    # 关键：把临时库传给套件。否则子进程默认用 server/caremate.db，
+    # 而生产实例（开机自启）可能正占着它 —— SQLite 锁会让套件自起的服务起不来。
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", CAREMATE_TZ="Asia/Shanghai",
+               CAREMATE_SKIP_ENV="1")
+    if DB_PATH:
+        env["CAREMATE_DB"] = DB_PATH
     for suite in SUITES:
         r = subprocess.run([sys.executable, suite], cwd=SERVER, env=env,
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -314,6 +347,35 @@ def run_suites():
 
 
 # ---------------------------------------------------------------- 4) 页面
+# 函数 ensure_server：页面检查前确认 8400 上有服务。
+# 为什么要这步：test_accept 的"10 次强制重启"用例会杀掉占着 8400 的进程（正是本脚本起的服务），
+# 跑完不留服务；不补起一个的话，后面的页面检查会全部 connection refused。
+_ensure_proc = None          # ensure_server 补起的服务，退出前要关掉
+
+
+def ensure_server():
+    global _ensure_proc
+    import socket as _socket
+    def alive():
+        try:
+            with _socket.create_connection(("127.0.0.1", PORT), timeout=1.0):
+                return True
+        except OSError:
+            return False
+    if alive():
+        return True
+    db = os.path.join(tempfile.gettempdir(), "caremate_verify.db")
+    env = dict(os.environ, CAREMATE_DB=db, CAREMATE_TZ="Asia/Shanghai")
+    _ensure_proc = subprocess.Popen([sys.executable, "server.py", "--port", str(PORT)],
+                                    cwd=SERVER, env=env,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(40):
+        if alive():
+            return True
+        time.sleep(0.3)
+    return False
+
+
 PAGES = [
     ("/dashboard", 30000, "watchAlarms"),
     ("/app", 20000, "speak"),
@@ -351,6 +413,10 @@ def main():
     print("=" * 78)
     print("CareMate 全量验证")
     print("=" * 78)
+    if _MISSING_SUITES:
+        print("提示：本分支没有 %s，按 %d 套跑（main 是 %d 套）"
+              % ("、".join(_MISSING_SUITES), len(SUITES),
+                 len(SUITES) + len(_MISSING_SUITES)))
     check_truncation()
     check_binaries()
     check_syntax()
@@ -359,17 +425,26 @@ def main():
         run_suites()
         check_artifacts()
         check_build_refs()
+        ensure_server()
         check_pages()
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except Exception:
-            proc.kill()
+        for target in (proc, _ensure_proc):
+            if target is None:
+                continue
+            target.terminate()
+            try:
+                target.wait(timeout=5)
+            except Exception:
+                target.kill()
+        # Windows 上文件可能还被句柄占着：删不掉只提示，不让整轮验证失败
         for suf in ("", "-wal", "-shm"):
-            p = db + suf
-            if os.path.exists(p):
-                os.remove(p)
+            path = db + suf
+            if not os.path.exists(path):
+                continue
+            try:
+                os.remove(path)
+            except PermissionError:
+                print("  [提示] 临时库还被占用，稍后自动清理：%s" % os.path.basename(path))
     if USE_FLUTTER:
         check_flutter()
     check_doc_counts()
