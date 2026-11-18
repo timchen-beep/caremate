@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- 作用：家属看板：5 秒刷新今日进度、长轮询收告警弹红条、计划/记录/告警/统计/云端五个分区 --> -->
+<!-- 作用：家属看板：5 秒刷新今日进度、长轮询收告警弹红条、计划/记录/告警/统计五个业务分区，
+     外加云端分区（版本/阈值/补建口径、配对码换令牌、outbox 出口、上云清单）；令牌不写死，从右上角框或 ?token= 交接链接来 -->
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -91,7 +92,7 @@
   <span class="spacer"></span>
   <div class="tok">
     <span>令牌</span>
-    <input id="token" value="fam-demo-2026">
+    <input id="token" value="" placeholder="填家属令牌" title="向项目负责人索取家属令牌，填一次会自动记住">
     <span id="role" class="pill info">—</span>
     <button class="btn" id="btnReload">刷新</button>
     
@@ -108,6 +109,7 @@
 <div class="toastline" id="toastLine"></div>
 
 <div class="wrap">
+  <div class="msg" id="tokHint"></div>
   <div class="cards">
     <div class="card"><div class="k">今日实例</div><div class="v" id="kTotal">–</div></div>
     <div class="card"><div class="k">已完成</div><div class="v" id="kDone">–</div></div>
@@ -245,7 +247,7 @@
         <thead><tr><th>时间</th><th>类型</th><th>级别</th><th>说明</th><th>状态</th><th>操作</th></tr></thead>
         <tbody id="alarmRows"><tr><td colspan="6">加载中…</td></tr></tbody>
       </table>
-      <div class="hint">升级链：到点 → 2 分钟本机语音 → 5 分钟通知家属 → 15 分钟强制提醒并记未确认（分钟数用 <code>CAREMATE_THRESHOLD_1/2/3</code> 调整）。</div>
+      <div class="hint">升级链：到点手机端本机提醒 → 迟到 2 分钟通知家属 → 迟到 5 分钟再提醒一次 → 迟到 15 分钟记未确认（阈值见 <code>CAREMATE_THRESHOLD_1/2/3</code>）。</div>
     </div>
     <div class="panel">
       <h2>未确认升级清单 <span class="sub" id="alertSub"></span></h2>
@@ -259,7 +261,8 @@
     <div class="panel">
       <h2>社区上报（模拟 webhook）</h2>
       <form class="inline" id="webForm">
-        <label>社区令牌<input id="cToken" value="comm-demo-2026" style="width:160px"></label>
+        <!-- 令牌不写默认值：轮换后写死的演示令牌会 401，用户还以为是服务坏了 -->
+        <label>社区令牌<input id="cToken" value="" placeholder="向项目负责人索取" style="width:160px"></label>
         <label>内容<input id="cMsg" value="今日上门发现老人未按计划服药" style="width:280px"></label>
         <button class="btn" type="submit">上报一条</button>
       </form>
@@ -270,13 +273,14 @@
   <!-- 云端 -->
   <div id="v-cloud" class="hide">
     <div class="panel">
-      <h2>云服务接口 <span class="sub">预留位：改这里就能上云</span></h2>
+      <h2>云服务接口 <span class="sub">版本 / 阈值 / 出口都在这页</span></h2>
       <div class="kv" id="cloudInfo">读取中…</div>
     </div>
     <div class="panel">
       <h2>用配对码换令牌 <span class="sub">文档 4.2.7：不发账号密码</span></h2>
       <form class="inline" id="pairForm">
-        <label>老人配对码<input id="pairCode" value="8823" style="width:110px"></label>
+        <!-- 配码由服务端 .env 决定（每套部署各一个），页面不写死：写死 8823 会让人一直对不上 -->
+        <label>老人配对码<input id="pairCode" value="" placeholder="6 位数字" style="width:110px"></label>
         <label>备注<input id="pairLabel" value="家属-女儿" style="width:140px"></label>
         <button class="btn" type="submit">换取令牌</button>
         <button class="btn line" type="button" id="btnUnpair">清除本机令牌</button>
@@ -289,9 +293,9 @@
     <div class="panel">
       <h2>事件出口（outbox）</h2>
       <div class="kv">
-        <div class="k">topic 约定</div><div>home/reminder/{user}/state、home/record/{user}、home/alarm/{user}、home/sensor/presence、home/terminal/ack</div>
-        <div class="k">本地模式</div><div>写 SQLite <code>outbox</code> 表，桥进程拉取后转发 MQTT</div>
-        <div class="k">云模式</div><div>把 <code>publish()</code> 换成 paho-mqtt publish 或 Webhook POST，调用方不用改</div>
+        <div class="k">topic 约定</div><div>home/reminder/{user}/state、home/record/{user}、home/alarm/{user}、home/sensor/presence（上行）、home/sensor/presence/seen（回显，桥不订阅，防回环）</div>
+        <div class="k">本地模式</div><div>写 SQLite <code>outbox</code> 表，<code>bridge.py</code> 拉取后转发 MQTT（零依赖，不装 paho）</div>
+        <div class="k">云模式</div><div>同上；<code>bridge.py</code> 部署到能连 broker 的机器上，<code>--api</code> 指向服务端即可</div>
       </div>
       <div style="margin-top:12px">
         <button class="btn line" id="btnOutbox">查看待发事件</button>
@@ -302,11 +306,11 @@
     <div class="panel">
       <h2>上云清单</h2>
       <div class="hint">
-        1. 数据库：<code>CAREMATE_DB</code> 换 PostgreSQL 连接串（本文件 <code>connect()</code> 是唯一切换点）；<br>
-        2. 鉴权：<code>CAREMATE_JWT_SECRET</code> 非空后改为签发/校验 JWT（当前固定令牌，便于演示）；<br>
-        3. 事件出口：<code>CAREMATE_MQTT_URL=mqtt://127.0.0.1:1883</code>，<code>publish()</code> 内改为真实发布；<br>
-        4. 社区上报：<code>CAREMATE_WEBHOOK_URL</code> 指向社区后台；<br>
-        5. 成本口径（文档 R7-5）：1 核 2G 学生机 50–100 元/月，演示场景零成本。
+        1. 数据库：<code>CAREMATE_DB</code> 是 SQLite 文件路径，换路径即可；要换 PostgreSQL 只改 <code>connect()</code> 一个函数；<br>
+        2. 鉴权：现在是固定令牌 + <code>/v1/pair</code> 配对会话；<code>CAREMATE_JWT_SECRET</code> 只是开关（健康检查回 <code>jwt</code>），签发/校验 JWT 还没实现；<br>
+        3. 事件出口：<code>publish()</code> 只写 outbox，真实 MQTT 由 <code>bridge.py</code> 拉取后发布（<code>--mqtt-host</code> 指 broker）；<br>
+        4. 社区上报：<code>CAREMATE_WEBHOOK_URL</code> 已实现，<code>notify()</code> 真发 POST、5 秒超时，指向社区后台即可；<br>
+        5. 成本口径（文档 R7-5）：1 核 2G 学生机 50–100 元/月；本机 + Tailscale 演示零成本。
       </div>
     </div>
   </div>
@@ -315,14 +319,34 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const ELDER = "u-elder";
+// 一次性令牌交接：/dashboard?token=xxx 自动填好，然后把 token 从地址栏抹掉。
+// 为什么要么这个：令牌 24~32 位，让家属手抄基本会抄错；发一条链接点开即用更方便。
+// 为什么用完要抹：留在地址栏会进浏览器历史、代理日志、截图里，等于把令牌写在明面上。
+(function handoffToken() {
+  const q = new URLSearchParams(location.search);
+  const t = q.get("token");
+  if (!t) return;
+  localStorage.setItem("caremate.dash.token", t.trim());
+  q.delete("token");
+  const rest = q.toString();
+  history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+})();
 const savedTok = localStorage.getItem("caremate.dash.token");
 const tok = () => $("token").value.trim();
 const pad = (n) => String(n).padStart(2, "0");
 const nowText = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
 
+// 函数 esc：把任意值转义成可以安全拼进 innerHTML 的文本
+// 为什么必须有：计划标题、告警 message、记录备注都由外部写入（家属/社区令牌/接口），
+// 原样拼 HTML 时一条 <img src=x onerror=...> 就能在别人的会话里执行脚本、读走 localStorage 里的令牌。
+function esc(v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 const STATE = {
   confirmed: ["已完成", "ok"], missed: ["未确认", "bad"], pending: ["待提醒", "idle"],
-  notified: ["已到点", "warn"], escalated: ["已升级", "bad"]
+  notified: ["已到点", "warn"], escalated: ["已升级", "bad"], snoozed: ["稍后提醒", "warn"]
 };
 const KIND = { medication: "用药", water: "饮水", activity: "活动", meal: "餐食" };
 const RULE = { daily: "每天", weekly: "指定星期", interval: "隔 N 天", monthly: "每月某日",
@@ -374,17 +398,18 @@ function renderToday(ov) {
   $("todaySub").textContent = (ov.date || "") + " · 共 " + occ.length + " 条 · 时区 " + (ov.tz || "Asia/Shanghai");
   $("todayRows").innerHTML = occ.length ? occ.map((o) => {
     const ops = [];
-    const nowLocal = new Date().toISOString().slice(0, 10) + " " +
-      String(new Date().getHours()).padStart(2, "0") + ":" + String(new Date().getMinutes()).padStart(2, "0");
+    // 本地墙钟（getFullYear/getMonth/...）：以前用 toISOString() 取日期是 UTC，东八区 0–8 点会差一天，
+    // 今天的实例全被判成 future，过期的药也点不了「代确认」。
+    const nowLocal = nowText();
     const future = (o.due_at_local || o.slot) > nowLocal;
     // 文档：代确认要写 actor，走 /occurrences/{id}/events
     if (!future && o.state !== "confirmed") ops.push('<button class="btn tiny" data-occ="' + o.id + '|confirmed">代确认</button>');
     if (!future && o.state !== "confirmed" && o.state !== "missed") ops.push('<button class="btn tiny warn" data-occ="' + o.id + '|missed">记未确认</button>');
     const lv = o.level >= 2 ? ' <span class="pill bad">L' + o.level + "</span>" : "";
-    const sent = o.notified_local ? '<span class="pill idle">通知 ' + o.notified_local + "</span>" : "";
-    return "<tr><td>" + (o.time_local || o.slot.slice(11)) + "</td><td>" + o.title +
-      (o.dose ? ' <span class="pill idle">' + o.dose + "</span>" : "") + "</td>" +
-      "<td>" + (KIND[o.kind] || o.kind) + "</td><td>" + pill(o.state) + lv + "</td>" +
+    const sent = o.notified_local ? '<span class="pill idle">通知 ' + esc(o.notified_local) + "</span>" : "";
+    return "<tr><td>" + esc(o.time_local || o.slot.slice(11)) + "</td><td>" + esc(o.title) +
+      (o.dose ? ' <span class="pill idle">' + esc(o.dose) + "</span>" : "") + "</td>" +
+      "<td>" + esc(KIND[o.kind] || o.kind) + "</td><td>" + pill(o.state) + lv + "</td>" +
       "<td>" + sent + " " + (o.snooze_count || 0) + " / " + ((o.snooze_count || 0) + (o.snooze_left || 0)) + "</td>" +
       "<td>" + (ops.join("") || '<span class="pill ok">—</span>') + "</td></tr>";
   }).join("") : '<tr><td colspan="6">今天没有实例</td></tr>';
@@ -401,10 +426,10 @@ function renderPlans(plans) {
     if (r.kind === "monthly") detail += " " + (r.day || 1) + " 号";
     if (r.kind === "course") detail += " " + (r.start || "") + " 起 " + (r.days || 7) + " 天";
     if (r.kind === "mealOffset") detail += " " + ({ breakfast: "早餐", lunch: "午餐", dinner: "晚餐" }[r.anchor] || "") + " " + (r.offset || 0) + " 分";
-    return "<tr><td>" + p.title + "</td><td>" + (KIND[p.kind] || p.kind) + "</td><td>" + detail + "</td>" +
-      "<td>" + (p.times || "—").replace(/,/g, " / ") + "</td><td>" + (p.dose || "—") + "</td>" +
+    return "<tr><td>" + esc(p.title) + "</td><td>" + esc(KIND[p.kind] || p.kind) + "</td><td>" + esc(detail) + "</td>" +
+      "<td>" + esc((p.times || "—").replace(/,/g, " / ")) + "</td><td>" + esc(p.dose || "—") + "</td>" +
       "<td>" + (p.active ? '<span class="pill ok">启用</span>' : '<span class="pill idle">停用</span>') +
-      (p.paused_until ? ' <span class="pill warn">暂停至 ' + p.paused_until + "</span>" : "") + "</td>" +
+      (p.paused_until ? ' <span class="pill warn">暂停至 ' + esc(p.paused_until) + "</span>" : "") + "</td>" +
       '<td><button class="btn tiny line" data-plan="' + p.id + "|" + (p.active ? 0 : 1) + '">' +
       (p.active ? "停用" : "启用") + '</button>' +
       '<button class="btn tiny line" data-pause="' + p.id + '">暂停 1 天</button>' +
@@ -416,9 +441,9 @@ function renderPlans(plans) {
 function renderRecords(items) {
   $("recCount").textContent = "共 " + items.length + " 条";
   $("recRows").innerHTML = items.length ? items.map((r) =>
-    "<tr><td>" + r.occurred_at + "</td><td>" + (RTYPE[r.type] || r.type) + "</td>" +
-    "<td>" + (r.value == null ? "—" : r.value) + " " + (r.unit || "") + "</td>" +
-    "<td>" + (r.note || "") + "</td><td>" + (r.created_by || "") + "</td>" +
+    "<tr><td>" + esc(r.occurred_at) + "</td><td>" + esc(RTYPE[r.type] || r.type) + "</td>" +
+    "<td>" + esc(r.value == null ? "—" : r.value) + " " + esc(r.unit || "") + "</td>" +
+    "<td>" + esc(r.note || "") + "</td><td>" + esc(r.created_by || "") + "</td>" +
     "<td>v" + (r.revision || 1) + (r.deleted ? ' <span class="pill bad">已撤销</span>' : "") + "</td>" +
     '<td><button class="btn tiny line" data-rec-edit="' + r.id + '">改</button>' +
     '<button class="btn tiny warn" data-rec-del="' + r.id + '">撤销</button></td></tr>'
@@ -436,12 +461,12 @@ async function renderAlerts() {
     $("alertSub").textContent = "共 " + items.length + " 条 · 阈值 " +
       th.t1 + "/" + th.t2 + "/" + th.t3 + " 分钟";
     $("alertRows").innerHTML = items.length ? items.map((o) =>
-      "<tr><td>" + (o.time_local || (o.due_at_local || "").slice(11)) + "</td><td>" + o.title + "</td>" +
-      "<td>" + pill(o.state) + "</td><td>L" + o.level + "</td><td>" + o.late_min + " 分</td>" +
-      "<td>" + (o.notified_local || "—") + "</td></tr>").join("")
+      "<tr><td>" + esc(o.time_local || (o.due_at_local || "").slice(11)) + "</td><td>" + esc(o.title) + "</td>" +
+      "<td>" + pill(o.state) + "</td><td>L" + esc(o.level) + "</td><td>" + esc(o.late_min) + " 分</td>" +
+      "<td>" + esc(o.notified_local || "—") + "</td></tr>").join("")
       : '<tr><td colspan="6">没有未确认的实例</td></tr>';
   } catch (e) {
-    $("alertRows").innerHTML = '<tr><td colspan="6">读取失败：' + e.message + "</td></tr>";
+    $("alertRows").innerHTML = '<tr><td colspan="6">读取失败：' + esc(e.message) + "</td></tr>";
   }
 }
 
@@ -449,10 +474,10 @@ async function renderAlerts() {
 function renderAlarms(items) {
   $("alarmCount").textContent = "共 " + items.length + " 条";
   $("alarmRows").innerHTML = items.length ? items.map((a) =>
-    "<tr><td>" + (a.created_local || String(a.created_at).replace("T", " ")) + "</td><td>" + a.kind + "</td>" +
-    "<td>" + a.level + "</td><td>" + a.message + "</td>" +
+    "<tr><td>" + esc(a.created_local || String(a.created_at).replace("T", " ")) + "</td><td>" + esc(a.kind) + "</td>" +
+    "<td>" + esc(a.level) + "</td><td>" + esc(a.message) + "</td>" +
     "<td>" + (a.acked_at ? '<span class="pill idle">已读</span>' : '<span class="pill bad">待处理</span>') + "</td>" +
-    '<td><button class="btn tiny line" data-ack="' + a.id + '">标为已读</button></td></tr>'
+    '<td><button class="btn tiny line" data-ack="' + esc(a.id) + '">标为已读</button></td></tr>'
   ).join("") : '<tr><td colspan="6">暂无告警</td></tr>';
 }
 
@@ -503,8 +528,10 @@ async function renderCloud() {
       '<div class="k">实例状态</div><div>' + (v.states || []).join(" / ") + "</div>" +
       '<div class="k">升级阈值</div><div>' + (th.t1 || 2) + " / " + (th.t2 || 5) + " / " + (th.t3 || 15) +
         " 分钟（稍后上限 " + (th.snooze_max || 3) + " 次）</div>" +
-      '<div class="k">MQTT</div><div>' + (v.cloud.mqtt ? "已配置" : "未配置（走本地 outbox）") + "</div>" +
-      '<div class="k">JWT</div><div>' + (v.cloud.jwt ? "已配置" : "未配置（用配对码换的会话令牌）") + "</div>" +
+      '<div class="k">补建口径</div><div>计划建得比到点还晚 ' + Math.max((th.t3 || 15) * 2, 30) +
+        ' 分钟以上的档位，只记「未确认」，不通知、不升级、不告警（家属不会被一屏红条刷到）</div>' +
+      '<div class="k">MQTT</div><div>' + (v.cloud.mqtt ? "已配置" : "未配置（消息写在 outbox，由 bridge.py 转发）") + "</div>" +
+      '<div class="k">JWT</div><div>' + (v.cloud.jwt ? "已配置" : "未配置（用配对码换的会话令牌；JWT 签发/校验未实现）") + "</div>" +
       '<div class="k">Webhook</div><div>' + (v.cloud.webhook || "未配置") + "</div>";
   } catch (e) {
     $("cloudInfo").textContent = "读取失败：" + e.message;
@@ -512,10 +539,34 @@ async function renderCloud() {
 }
 
 /* ---------------- 加载 ---------------- */
-// 函数 refresh：每 5 秒拉一次数据并重渲染
+// 函数 clearAll：把四张表和统计数字清空
+// 为什么要有：清空令牌或令牌失效后，旧数据继续留在页面上就等于冒充最新数据
+function clearAll() {
+  state = { overview: null };
+  ["todayRows", "planRows", "recRows", "alarmRows", "alertRows"].forEach((id) => { $(id).innerHTML = ""; });
+  ["kTotal", "kDone", "kMiss", "kRate", "kStreak", "kAlarm"].forEach((id) => { $(id).textContent = "—"; });
+  ["todaySub", "planCount", "recCount", "alarmCount", "alertSub", "statsSub"].forEach((id) => { $(id).textContent = ""; });
+  $("caliber").innerHTML = "";
+  $("chart").innerHTML = "";
+  $("role").textContent = "未填令牌";
+}
+
+let refreshSeq = 0;
+
+// 函数 refresh：每 5 秒拉一次数据并重渲染（带并发保护）
 async function refresh() {
+  // 没令牌就不发请求：旧版默认的演示令牌在轮换后已失效，直接打接口只会得到 401
+  if (!tok()) {
+    clearAll();
+    msg($("tokHint"), "还没填令牌：在上面「令牌」框粘贴家属令牌（向项目负责人索取）后点「刷新」，填一次会自动记住。", "bad");
+    return;
+  }
+  // 5 秒定时器和「操作后立即刷新」会并发：后发出的请求先返回时，旧响应不能把新状态覆盖回去
+  const mine = ++refreshSeq;
+  msg($("tokHint"), "");
   try {
     const ov = await api("/api/v1/overview?user_id=" + ELDER + "&days=7");
+    if (mine !== refreshSeq) return;
     state.overview = ov;
     const occ = ov.occurrences || [];
     $("kTotal").textContent = occ.length;
@@ -528,9 +579,16 @@ async function refresh() {
     renderAlerts();
     renderStats(ov.stats);
     const me = await api("/api/v1/me");
+    if (mine !== refreshSeq) return;
     $("role").textContent = { elder: "老人", family: "家属", community: "社区" }[me.role] || me.role;
   } catch (e) {
-    msg($("planMsg"), "读取失败：" + e.message, "bad");
+    if (mine !== refreshSeq) return;
+    if (/令牌/.test(e.message)) {
+      clearAll();
+      msg($("tokHint"), "令牌无效或已过期：请重新填写家属令牌后点「刷新」。", "bad");
+    } else {
+      msg($("tokHint"), "读取失败：" + e.message, "bad");
+    }
   }
 }
 
@@ -640,9 +698,15 @@ $("recForm").onsubmit = async (ev) => {
 
 $("webForm").onsubmit = async (ev) => {
   ev.preventDefault();
+  const cTok = $("cToken").value.trim();
+  if (!cTok) {
+    msg($("webMsg"), "先填社区令牌（由项目负责人提供，与家属令牌不是同一个）", "bad");
+    $("cToken").focus();
+    return;
+  }
   try {
     const r = await api("/api/v1/community/webhook", {
-      method: "POST", headers: { "X-Token": $("cToken").value.trim() },
+      method: "POST", headers: { "X-Token": cTok },
       body: JSON.stringify({ user_id: ELDER, kind: "community", level: 2, message: $("cMsg").value })
     });
     msg($("webMsg"), "已上报：" + r.id + "（webhook：" + r.webhook + "）", "ok");
@@ -668,17 +732,45 @@ $("btnDrain").onclick = async () => {
 };
 
 document.querySelectorAll("button[data-export]").forEach((b) => {
-  b.onclick = () => window.open("/api/v1/export.csv?type=" + b.dataset.export +
-    "&days=7&user_id=" + ELDER + "&token=" + encodeURIComponent(tok()), "_blank");
+  // 用 fetch + Blob 下载：令牌走 X-Token 头，不再拼进 URL
+  // （?token= 会留在浏览器历史、代理与访问日志里，公开入口上等于泄露令牌）
+  b.onclick = async () => {
+    const kind = b.dataset.export;
+    try {
+      const r = await fetch("/api/v1/export.csv?type=" + kind + "&days=7&user_id=" + encodeURIComponent(ELDER),
+        { headers: { "X-Token": tok() } });
+      if (!r.ok) {
+        let j = {};
+        try { j = await r.json(); } catch (_) { /* 非 JSON 就用状态码 */ }
+        throw new Error(j.error || ("HTTP " + r.status));
+      }
+      const name = "caremate-" + kind + "-" + new Date().toISOString().slice(0, 10) + ".csv";
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(await r.blob());
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      msg($("recMsg"), "已导出 " + name, "ok");
+    } catch (e) {
+      msg($("recMsg"), "导出失败：" + e.message, "bad");
+    }
+  };
 });
 
 $("pairForm").onsubmit = async (ev) => {
   ev.preventDefault();
+  // 配码由服务端 .env 决定，页面不再预填；没填就直接提示，不发一个空码请求
+  const code = $("pairCode").value.trim();
+  if (!code) {
+    msg($("pairMsg"), "先填老人配对码（由项目负责人提供，写在服务端 server/.env）", "bad");
+    $("pairCode").focus();
+    return;
+  }
   try {
     const r = await fetch("/api/v1/auth/pair", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: $("pairCode").value.trim(), label: $("pairLabel").value })
+      body: JSON.stringify({ code: code, label: $("pairLabel").value })
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
@@ -695,12 +787,21 @@ $("pairForm").onsubmit = async (ev) => {
 $("btnUnpair").onclick = () => {
   localStorage.removeItem("caremate.dash.token");
   $("token").value = "";
+  clearAll();   // 旧数据必须一起清掉，否则页面上还挂着上一位老人的计划和记录
   msg($("pairMsg"), "已清除本机令牌（服务端会话 30 天后过期）", "ok");
 };
 
 $("btnReload").onclick = refresh;
+// 手动改令牌后回车/失焦即生效，并记住（否则刷新页面就丢，只能重填）
+$("token").onchange = () => {
+  const v = tok();
+  if (v) localStorage.setItem("caremate.dash.token", v);
+  else localStorage.removeItem("caremate.dash.token");
+  refresh();
+};
 $("rAt").value = nowText();
 if (savedTok) $("token").value = savedTok;
+else $("role").textContent = "未填令牌";
 /* ================= 求救实时反馈 ================= */
 let alarmSeq = 0;
 let sosAlarm = null;
@@ -785,11 +886,19 @@ $("sosAck").onclick = async () => {
 
 // 函数 watchAlarms：长轮询 /alarms/wait，有新告警立即回调（<1 秒到达）
 async function watchAlarms() {
+  // 首轮只把游标对齐到当前，不重放历史：以前 since=0 会把早已处理过的旧呼救再弹一次红条 + 响 5 声
+  let first = true;
   for (;;) {
+    if (!tok()) {
+      // 没令牌时不要 3 秒一次地打 401（等于每分钟 20 个无效请求）
+      await new Promise((res) => setTimeout(res, 5000));
+      continue;
+    }
     try {
       const r = await api("/api/v1/alarms/wait?user_id=" + ELDER + "&since=" + alarmSeq + "&timeout=20");
       alarmSeq = r.seq || alarmSeq;
-      (r.items || []).forEach(incoming);
+      if (first) { first = false; continue; }
+      (r.items || []).filter((a) => !a.acked_at).forEach(incoming);
     } catch (e) {
       await new Promise((res) => setTimeout(res, 3000));
     }
@@ -810,5 +919,3 @@ if (new URLSearchParams(location.search).get("nowatch") !== "1") watchAlarms();
 </script>
 </body>
 </html>
-
-<!-- 文件：caremate-cloud/web/dashboard.html -->
