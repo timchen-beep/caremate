@@ -24,10 +24,13 @@ python3 test_v1.py            # 手机端契约 9 项（先起服务）
 cd qt
 cmake -S . -B build -DCMAKE_PREFIX_PATH=/opt/Qt/6.11.1/gcc_64
 cmake --build build -j6
-CAREMATE_API=http://127.0.0.1:8400 CAREMATE_TOKEN=app-elder-001 ./build/appCareMate
+CAREMATE_API=http://127.0.0.1:8400 CAREMATE_TOKEN=<服务端 server/.env 的 CAREMATE_ELDER_TOKEN> ./build/appCareMate
 # 只看离线演示：
 CAREMATE_OFFLINE=1 ./build/appCareMate
 ```
+
+> 别用仓库里写死的 `app-elder-001`：部署轮换过令牌它就 401，真实值在 `server/.env`；
+> 也可以在设置页输 6 位配对码，走 `POST /v1/pair` 换一个 30 天的会话令牌。
 
 Android：换 `-DCMAKE_TOOLCHAIN_FILE=.../android_arm64_v8a/lib/cmake/Qt6/qt.toolchain.cmake`
 
