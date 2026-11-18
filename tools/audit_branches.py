@@ -101,6 +101,10 @@ def audit(branch):
             continue
         head = "\n".join(body.splitlines()[:3])
 
+        # 本文件把待查的字面量写在模式里，会把自己查出来，跳过
+        if path.endswith("tools/audit_branches.py"):
+            continue
+
         for bad in MOJI:
             if bad in body:
                 issues.append((path, "乱码", "含 %r（编码坏了）" % bad))
@@ -128,7 +132,12 @@ def audit(branch):
                         continue
                     raw = m.group(1)
                     num = int(raw) if raw.isdigit() else CN.get(raw, -1)
-                    if num > 0 and num != suite_count:
+                    start = body.rfind("\n", 0, m.start()) + 1
+                    end = body.find("\n", m.start())
+                    line = body[start:end if end > 0 else len(body)]
+                    # 讲别的分支有几套、或已经加了"未纳入汇总"的限定，都不算漂移
+                    quoted = ("分支" in line or "未纳入" in line or "另有" in line)
+                    if num > 0 and num != suite_count and not quoted:
                         issues.append((path, "数字漂移",
                                        "写「%s 套」，本分支实际 %d 套" % (raw, suite_count)))
                         break
