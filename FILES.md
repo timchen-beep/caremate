@@ -155,7 +155,7 @@
 | `server/web/kiosk.html` | 专注模式页面：四个大按钮，长按左上角 5 秒退出 |
 | `server/web/manifest.webmanifest` | PWA 清单：应用名、图标、显示模式（装到桌面像原生 App） |
 | `server/web/sw.js` | Service Worker：缓存静态页，让老人端可离线打开 |
-| `tools/README.md` | 辅助工具的说明：怎么跑十套验收并生成一份证据文件 |
+| `tools/README.md` | tools/ 下每个脚本干什么、什么时候跑、失败怎么读；改完代码一律先 verify_all 再 publish |
 | `tools/audit_branches.py` | 逐分支静态体检：乱码/缺作用头/语法错/过期数字/写死令牌/失效链接/文件被截断，输出清单供逐条修 |
 | `tools/cloudflared-config.yml.template` | Cloudflare 命名隧道（固定域名）配置模板：本机服务 → 你自己的域名，重启不变 |
 | `tools/collect_evidence.py` | 跑全部套件并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据） |
