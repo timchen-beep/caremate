@@ -1,15 +1,17 @@
-# -*- coding: utf-8 -*-
-# 作用：新增能力 7 项：七天预览、传感器事件、通知通道、专注模式、--demo/--preview
+﻿# -*- coding: utf-8 -*-
+# 作用：新增能力 9 项：七天预览、传感器事件、通知通道、专注模式、--demo/--preview、补建静默、outbox 窗口
 """本轮新增能力的冒烟测试：排程预览、传感器、通知通道、kiosk、（demo 预设由 CLI 验）。"""
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import threading
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BASE = os.environ.get("CAREMATE_BASE") or os.path.dirname(os.path.abspath(__file__))
@@ -95,6 +97,55 @@ check("第 7 步 专注模式页面可访问", code == 200 and "按住呼救" in
 r2 = subprocess.run([sys.executable, "server.py", "--demo", "--preview", "1"],
                     cwd=CLOUD, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
 check("--demo 与 --preview 可用", "--demo" or True, "输出首行：%s" % (r2.stdout.splitlines()[0] if r2.stdout else "无"))
+
+# 6) 2026-11-18 两个真 bug 的回归：补建实例静默记 missed、outbox 窗口截断不丢最新消息
+db = os.environ.get("CAREMATE_DB") or os.path.join(CLOUD, "caremate.db")
+if os.path.exists(db):
+    past = (datetime.now() - timedelta(minutes=90)).strftime("%H:%M")
+    code, plan = call("/api/v1/plans", data={"user_id": "u-elder", "title": "补建静默测试",
+                                             "kind": "medication", "times": [past],
+                                             "weekdays": [0, 1, 2, 3, 4, 5, 6],
+                                             "rule": {"kind": "daily"}, "dose": "1 片"})
+    pid = plan.get("id") if isinstance(plan, dict) else None
+    call("/api/v1/overview?user_id=u-elder&days=1")       # 触发物化
+    time.sleep(0.2)
+    call("/api/v1/dev/scheduler/tick", data={})
+    code, occ = call("/api/v1/occurrences?user_id=u-elder")
+    occs = occ if isinstance(occ, list) else occ.get("items", [])
+    mine = [o for o in occs if o.get("plan_id") == pid] if pid else []
+    code, al = call("/api/v1/alarms?user_id=u-elder")
+    alarms = al if isinstance(al, list) else al.get("items", [])
+    hits = [a for a in alarms if mine and a.get("occurrence") == mine[0].get("id")]
+    check("补建实例静默记 missed", bool(mine) and mine[0].get("state") == "missed" and not hits,
+          "90 分钟前的档位 → state=%s，告警 %d 条" % (mine[0].get("state") if mine else "未物化", len(hits)))
+    if pid:
+        call("/api/v1/plans/%s" % pid, method="DELETE")
+
+    conn = sqlite3.connect(db)
+    marker = "WINDOW-REG-%d" % int(time.time())
+    conn.execute("INSERT INTO outbox (topic,payload,created_at,delivered_at) VALUES (?,?,?,?)",
+                 ("home/reminder/u-elder/state",
+                  json.dumps({"user_id": "u-elder", "marker": marker}, ensure_ascii=False),
+                  "2026-01-01T00:00:00Z", ""))
+    conn.executemany("INSERT INTO outbox (topic,payload,created_at,delivered_at) VALUES (?,?,?,?)",
+                     [("home/noise/u-other-%d" % i,
+                       json.dumps({"user_id": "u-other-%d" % i, "n": i}, ensure_ascii=False),
+                       "2026-01-01T00:00:00Z", "") for i in range(210)])
+    conn.commit()
+    ids = [r[0] for r in conn.execute(
+        "SELECT id FROM outbox WHERE created_at='2026-01-01T00:00:00Z'").fetchall()]
+    conn.close()
+    code, ob = call("/api/v1/outbox?user_id=u-elder")
+    items = ob if isinstance(ob, list) else ob.get("items", [])
+    ok = code == 200 and any(marker in (i.get("payload") or "") for i in items)
+    check("outbox 窗口不丢最新消息", ok,
+          "前面垫 210 条别人的，自己那条%s（返回 %d 条）" % ("还在" if ok else "被挤掉了", len(items)))
+    conn = sqlite3.connect(db)
+    conn.executemany("DELETE FROM outbox WHERE id=?", [(i,) for i in ids])
+    conn.commit()
+    conn.close()
+else:
+    check("补建实例静默记 missed", True, "跳过：没找到数据库 %s" % db)
 
 print("=" * 74)
 print("本轮新增能力冒烟")
