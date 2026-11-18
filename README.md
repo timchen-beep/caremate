@@ -31,7 +31,7 @@ cmake --build build
 - `app-qt/`：**骨架，未编译**。搭建工具链时 `download.qt.io` 与镜像返回的 qtbase 包校验失败，所以没验证过编译。
 - `pi/`：脚本齐全；`bridge.py` 只做过**报文级**自测（CONNECT/PUBLISH 编码正确），未连真实 broker。
 - `esp32/`：源码完整，**未烧录**。
-- `legacy-web/`：**已跑通**，七套验收 56/56。
+- `legacy-web/`：**已跑通**，七套验收 56/56（另有 	est_v1.py 手机族契约 9 项，归档时没纳入这次汇总；本分支里它是第 8 个套件）
 
 ## 与完整分支的关系
 
