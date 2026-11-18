@@ -36,7 +36,7 @@
 
 | 目录 | 内容 |
 |---|---|
-| `server/` | Python 后端、三个网页（老人端/看板/kiosk）、PWA、九套验收、`/v1/*` 适配层 |
+| `server/` | Python 后端、三个网页（老人端/看板/kiosk）、PWA、十套验收、`/v1/*` 适配层 |
 | `qt/` | **Qt/QML 老人端（4.1 交付路线）**：本地 SQLite 主副本 + 端上 tick + `/v1/*` 对接层 |
 | `app/` | Flutter 老人端（**早期验证版，非交付物**）：先跑通本地三表 + 端上 30 秒 tick |
 | `integration/` | 给正式客户端仓库（`fspro7967/yiban_android_app`）的补丁与改动说明 |
@@ -86,7 +86,7 @@
 # 1) 改网页端：在 web 分支上干活
 git checkout web
 #   …改代码…
-python tools/publish.py            # 验证 21 项 → 逐文件提交 → 推送 web
+python tools/publish.py            # 验证 22 项 → 逐文件提交 → 推送 web
 
 # 2) 改 Qt 老人端：在 qt 分支上干活
 git checkout qt
@@ -102,13 +102,13 @@ python tools/merge_from_branches.py
 
 | 工具 | 干什么 |
 |---|---|
-| `tools/verify_all.py` | 21 项全量验证（截断、二进制、语法、服务、九套验收、产物卫生、构建引用、页面、文档数字） |
+| `tools/verify_all.py` | 22 项全量验证（截断、二进制、语法、服务、十套验收、产物卫生、构建引用、页面、文档数字） |
 | `tools/publish.py` | 验证 → 逐文件提交 → 推送**当前分支**（验证不过不提交） |
 | `tools/sync_branches.py` | 把 `server/` 核心同步到 `web`/`qt`/六条归档分支（起服务验证后提交推送） |
 | `tools/merge_from_branches.py` | 在 `main` 上按归属把 `web`/`qt` 拉回来（不删除 main 独有文件） |
 | `tools/gen_index.py` | 生成 `FILES.md` / `FUNCTIONS.md` |
 | `tools/sample_p95.py` | 取 P95 真实样本（对齐下一分钟 + 等调度） |
-| `tools/collect_evidence.py` | 跑九套验收并汇总成证据文件 |
+| `tools/collect_evidence.py` | 跑十套验收并汇总成证据文件 |
 
 > 详细规约见 [CONTRIBUTING.md](CONTRIBUTING.md)：三条铁律、迭代流程、分支归属、14 条踩过的坑。
 
@@ -156,7 +156,7 @@ python3 server.py --port 8000
 一条命令跑全部：
 
 ```bash
-python tools/verify_all.py            # 21 项
+python tools/verify_all.py            # 22 项
 python tools/verify_all.py --flutter  # 额外跑 flutter analyze
 ```
 
