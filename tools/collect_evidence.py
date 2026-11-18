@@ -32,6 +32,7 @@ SUITES = [
     ("test_extra", "越权、导出、告警确认、社区 webhook"),
     ("test_sync", "端云同步三条接口（上行事件 / 下行增量 / 呼救）"),
     ("test_v1", "手机族 /v1/* 七个端点与 ID 映射"),
+    ("test_bridge", "MQTT 桥：订阅 presence 转 HTTP + 防回环（假 broker，不装 mosquitto）"),
     ("test_accept", "4.2.6 五条（接口延迟、重放、10 次重启、403、升级链）"),
 ]
 
