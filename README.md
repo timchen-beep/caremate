@@ -25,8 +25,8 @@ python3 server.py --port 8000
 |---|---|
 | `server/server.py` | 唯一后端：规则展开、实例物化、状态迁移、三档升级链、统计、备份、页面路由、端云同步 |
 | `server/v1_adapter.py` | 手机端 `/v1/*` 契约适配层（后端仍由它 import，保留以免服务起不来） |
-| `server/web/` | 四个页面 + PWA 清单/Service Worker/图标 |
-| `server/test_*.py` | 九套验收（契约、可靠性、一致性、步骤、离线、扩展、同步、手机端契约、验收） |
+| `server/web/` | 四个页面 + PWA 清单/Service Worker/图标 + 页面说明（`README.md`：令牌从哪来、哪些不写死） |
+| `server/test_*.py` | 九套验收（契约、可靠性、一致性、步骤、离线、扩展、同步、手机端契约、验收）；MQTT 桥的 `test_bridge.py` 与 `bridge.py` 只在 `main`，本分支不含 |
 | `docs/` | 接口口径、验收清单、部署、演示脚本、4.2 报告正文 |
 | `tools/` | `verify_all.py`（21 项全量验证）、`publish.py`（验证+提交+推送）、索引生成、P95 采样、证据汇总 |
 
@@ -49,8 +49,17 @@ python tools/verify_all.py
 ## 5. 设计上要知道的三件事
 
 1. **唯一状态入口** `transition()`：任何接口都不直接写 `occurrences.state`。
-2. **三次升级**：到点 `notified` → 2 分钟 `escalated`（通知家属）→ 5 分钟再提醒 → 15 分钟 `missed`。
+2. **升级链四档**：到点 `notified` → 迟到 2 分钟 `escalated`（level 2 告警）→ 5 分钟 level 3 再提醒 → 15 分钟 `missed`。
+   另外一条边界：**计划建得比到点晚 `max(th3*2, 30)` 分钟以上的档位只记 `missed`，不通知、不升级、不告警**——
+   否则用户下午补一条早上的药，会瞬间收到一串"未确认"（`transition(..., silent=True)`）。
 3. **接口前缀**：网页与看板用 `/api/v1/*`，手机端用 `/v1/*`（同一真相来源，两套壳）。
+
+## 5.1 令牌与演示数据
+
+- 页面**不写死令牌**：家属看板右上角框、老人端「我的」→「设备令牌」，或一次性交接链接 `/dashboard?token=…`（先存 localStorage 再把 token 从地址栏抹掉）；
+- 真实令牌只在 `server/.env`（`CAREMATE_ELDER_TOKEN` / `FAMILY` / `COMMUNITY` / `PAIR_CODE`），仓库里的 `app-elder-001` 之类只是**没配 .env 时的兜底值**；
+- 演示数据炸成一片红条、想重来：`python server.py --reset-data --yes`（不带 `--yes` 只打印提示、退出码 2），加 `--seed` 会放回三条演示计划；
+- 换短令牌：`python tools/rotate_tokens.py --easy --length 8`。
 
 ## 6. 与 main 的关系
 
