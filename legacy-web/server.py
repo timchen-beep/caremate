@@ -941,13 +941,20 @@ def sos(user_id, actor, note="", device=""):
 # 函数 ingest_presence：传感器上报有人/无人，写事件并影响久未活动判断
 def ingest_presence(user_id, present=True, source="sensor"):
     """第 8 步接口层：屋里有没有人。presence 事件会自动压制「没动静」告警。"""
+    stamp = iso(utc_now())
     with connect() as conn:
         conn.execute(
             "INSERT OR IGNORE INTO events (event_id,occurrence_id,user_id,action,actor,source,"
             "payload,at_utc,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            ("presence:%s:%s" % (user_id, iso(utc_now())), "", user_id, "presence", source, "sensor",
-             json.dumps({"present": bool(present)}, ensure_ascii=False), iso(utc_now()), iso(utc_now())))
-    publish("home/sensor/presence", {"user_id": user_id, "present": bool(present), "source": source})
+            # event_id 里带上 present 与 source：iso() 只到秒，若只用「用户+时间」，
+            # 同一秒内先报「有人」再报「无人」会被当重复丢掉，久未活动判断就用了错的状态。
+            ("presence:%s:%s:%s:%s" % (user_id, "1" if present else "0", source, stamp),
+             "", user_id, "presence", source, "sensor",
+             json.dumps({"present": bool(present)}, ensure_ascii=False), stamp, stamp))
+    # 回显必须用 /seen 这个子 topic：bridge 订阅的是 home/sensor/presence，
+    # 如果回显也发到同一个 topic，桥会把服务端刚写进去的 presence 再 POST 一遍，形成无限回环。
+    publish("home/sensor/presence/seen",
+            {"user_id": user_id, "present": bool(present), "source": source})
     return {"user_id": user_id, "present": bool(present), "source": source, "at": iso(utc_now())}
 
 
@@ -966,9 +973,16 @@ def inactivity_check(now=None):
             uid = u["id"]
             # 只算「人做的动作」：调度器自己写的 notified/escalated/missed 事件不是老人有动静，
             # 否则每响一次提醒就把计时器清零，老人整天不按也会显示「刚有活动」，告警永远不发。
-            last_ev = conn.execute(
-                "SELECT at_utc FROM events WHERE user_id=? AND actor<>'' AND actor<>'scheduler'"
-                " ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
+            # presence 也要分两种：雷达报「有人」算动静，报「无人」不能算——人都走了还清零计时器，
+            # 恰恰会和「独居老人半天没动静要报警」的立意相反。
+            last_ev = None
+            for row in conn.execute(
+                    "SELECT at_utc, action, payload FROM events WHERE user_id=?"
+                    " AND actor<>'' AND actor<>'scheduler' ORDER BY id DESC LIMIT 200", (uid,)):
+                if row["action"] == "presence" and '"present": true' not in (row["payload"] or ""):
+                    continue
+                last_ev = (row["at_utc"],)
+                break
             last_rec = conn.execute("SELECT created_at FROM records WHERE user_id=?"
                                    " ORDER BY created_at DESC LIMIT 1", (uid,)).fetchone()
             stamps = [r[0] for r in (last_ev, last_rec) if r and r[0]]
