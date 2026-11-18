@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# 作用：跑九套验收并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据）
-"""证据包：跑九套验收 + 抓关键数字，生成一份验收汇总 markdown。
+# 作用：跑十套验收并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据）
+"""证据包：跑十套验收 + 抓关键数字，生成一份验收汇总 markdown。
 
 用法（先起后端，默认 8400）：
     python server.py --port 8400          # 另一个窗口
@@ -22,7 +22,7 @@ SERVER = os.path.join(ROOT, "server")
 PY = sys.executable
 API = os.environ.get("CAREMATE_API") or "http://127.0.0.1:8400"
 
-# 九套：名字 → 覆盖范围（与 server/ 下的文件名一一对应）
+# 十套：名字 → 覆盖范围（与 server/ 下的文件名一一对应）
 SUITES = [
     ("test_contract", "手机端对接契约 v0.1 七条 + 认证 + 错误码"),
     ("test_p2", "配对换 token、越界、one-off、登出"),
