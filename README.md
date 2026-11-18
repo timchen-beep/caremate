@@ -12,7 +12,7 @@
 | magisk-module/ | 模块文件齐（module.prop / customize.sh / service.sh / privapp 权限 xml），**未在真机安装** |
 | scripts/ | 5 个脚本齐（priv-app、kiosk on/off、chaos、8 项自检），**未在真机执行** |
 | device/ | 选机对照 + 刷机/回滚脚本骨架，**未在真机刷过** |
-| legacy-web/ | Python 服务 + 看板 + 七套测试，**已验收 56/56** |
+| legacy-web/ | Python 服务 + 看板 + 七套测试，**已验收 56/56（另有 test_v1.py 手机族契约 9 项，未纳入这次汇总）** |
 
 **一句话：脚本和模块是齐的，但没有任何一步在真机上跑过。** 报告里必须这么写。
 
