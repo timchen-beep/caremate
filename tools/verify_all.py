@@ -1,6 +1,6 @@
-# 作用：一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 九套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze）
+# 作用：一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 十套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze）
 # -*- coding: utf-8 -*-
-"""一键全量验证：语法检查 + 九套验收 + 三个页面 HTTP 检查 + 完整性守卫。
+"""一键全量验证：语法检查 + 十套验收 + 三个页面 HTTP 检查 + 完整性守卫。
 
 用法:
     python tools/verify_all.py              # 标准验证
@@ -185,8 +185,19 @@ def check_artifacts():
 CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6,
           "七": 7, "八": 8, "九": 9, "十": 10}
 
-DOC_FILES = ["README.md", "GUIDE.md", "CONTRIBUTING.md",
-             "tools/README.md", "docs/验收清单.md", "docs/评审答复_4.2.md"]
+# 检查范围：全仓所有被 git 追踪的文本文件（不再只查 6 个文档）。
+# 为什么改成全仓：加了 test_bridge 之后，`tools/*.py` 的表头注释、`.github/workflows/ci.yml`、
+# 自动生成的 FILES.md 里还留着「九套」，而它们都不在原来那份手写清单里 —— 手工维护清单必然漏。
+TEXT_EXT = (".md", ".py", ".yml", ".yaml", ".html", ".js", ".json", ".sh",
+            ".txt", ".dart", ".qml", ".cpp", ".h", ".hpp", ".ini", ".cfg")
+
+
+def tracked_text_files():
+    r = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        return []
+    return [f for f in r.stdout.splitlines() if f.lower().endswith(TEXT_EXT)]
 
 
 def check_doc_counts():
@@ -198,13 +209,19 @@ def check_doc_counts():
     problems = []
     expected_suites = len(SUITES)
     expected_items = len(RESULTS) + 1        # +1：本项守卫自身
-    for rel in DOC_FILES:
+    for rel in tracked_text_files():
         p = os.path.join(ROOT, rel.replace("/", os.sep))
         if not os.path.isfile(p):
             continue
+        section = ""
         with io.open(p, encoding="utf-8", errors="replace") as f:
             for no, line in enumerate(f, 1):
-                if "分支" in line:          # 分支说明里的套数不受 main 影响
+                if line.startswith("## "):
+                    section = line
+                # 两处豁免：
+                #  1) 「分支」说明行写的是那条分支自己的套数（web/qt 只有部分套件），不该按 main 要求；
+                #  2) 变更记录（`## v0.x` 之类）里的数字是当时的事实，改掉就是篡改历史。
+                if "分支" in line or "历史" in section or section.startswith("## v"):
                     continue
                 for m in re.finditer(r"([一二三四五六七八九十\d]+)\s*套验收", line):
                     raw = m.group(1)
@@ -270,7 +287,7 @@ def check_build_refs():
            "；".join(problems[:3]) or "检查 %d 处引用" % checked)
 
 
-# ---------------------------------------------------------------- 3) 服务与九套
+# ---------------------------------------------------------------- 3) 服务与十套
 def wait_health(timeout=30):
     for _ in range(timeout * 2):
         try:
