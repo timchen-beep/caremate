@@ -316,6 +316,18 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const ELDER = "u-elder";
+// 一次性令牌交接：/dashboard?token=xxx 自动填好，然后把 token 从地址栏抹掉。
+// 为什么要么这个：令牌 24~32 位，让家属手抄基本会抄错；发一条链接点开即用更方便。
+// 为什么用完要抹：留在地址栏会进浏览器历史、代理日志、截图里，等于把令牌写在明面上。
+(function handoffToken() {
+  const q = new URLSearchParams(location.search);
+  const t = q.get("token");
+  if (!t) return;
+  localStorage.setItem("caremate.dash.token", t.trim());
+  q.delete("token");
+  const rest = q.toString();
+  history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+})();
 const savedTok = localStorage.getItem("caremate.dash.token");
 const tok = () => $("token").value.trim();
 const pad = (n) => String(n).padStart(2, "0");
