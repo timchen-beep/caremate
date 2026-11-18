@@ -1,5 +1,5 @@
 <!-- 作用：文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->
-# 文件索引（163 个）
+# 文件索引（164 个）
 
 | 文件 | 作用 |
 |---|---|
@@ -77,7 +77,7 @@
 | `docs/验收清单.md` | 验收清单：后端十套、App 真机、硬件、系统改造四类检查项 |
 | `integration/yiban_client/README.md` | 把颐伴手机端（fspro7967/yiban_android_app）接到本后端的改动包：补丁、说明、应用方法 |
 | `integration/yiban_client/对接后端.patch` | 给颐伴手机端仓库的补丁（git am 可用）：真 HTTP 传输 + 同步引擎 + 端上灌入入口 |
-| `integration/yiban_client/对接后端_改动说明.md` | 对接 CareMate 后端（本次改动说明） |
+| `integration/yiban_client/对接后端_改动说明.md` | 颐伴手机端接入 CareMate 后端的改动说明：三个补丁各改了什么、怎么打、怎么配、怎么排错 |
 | `magisk-module/README.md` | Magisk 定制层的说明：模块结构、安装方式、为什么能一键回滚 |
 | `magisk-module/customize.sh` | Magisk 安装时执行：检查 APK 是否就位、设置 priv-app 权限 |
 | `magisk-module/module.prop` | Magisk 模块元信息（id、名称、版本、描述），安装器据此识别本模块 |
@@ -145,10 +145,10 @@
 | `server/test_v06.py` | 工程性 7 项：派发延迟、限流 429、磁盘水位 507、备份、单实例保护 |
 | `server/test_v1.py` | 颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式 |
 | `server/v1_adapter.py` | 颐伴手机端（Qt/QML，fspro7967/yiban_android_app）对接层：把 /v1/* 的冻结契约翻译到本服务的领域模型 |
-| `server/web/README.md` | 服务端页面的说明：三个页面各给谁用、各自的关键函数 |
+| `server/web/README.md` | 服务端页面的说明：四个页面各给谁用、关键函数、令牌从哪来、哪些东西不写死在页面里 |
 | `server/web/app.html` | 老人端网页/PWA：大字高对比、语音播报、长按呼救、确认/稍后、记录与自检 |
 | `server/web/apple-touch-icon.png` | 二进制资源 |
-| `server/web/dashboard.html` | 家属看板：5 秒刷新今日进度、长轮询收告警弹红条、计划/记录/告警/统计/云端五个分区 |
+| `server/web/dashboard.html` | 家属看板：5 秒刷新今日进度、长轮询收告警弹红条、计划/记录/告警/统计五个业务分区， |
 | `server/web/icon-192.png` | 二进制资源 |
 | `server/web/icon-512.png` | 二进制资源 |
 | `server/web/index.html` | 落地页：项目介绍与三个入口（/app、/dashboard、/kiosk） |
@@ -156,8 +156,9 @@
 | `server/web/manifest.webmanifest` | PWA 清单：应用名、图标、显示模式（装到桌面像原生 App） |
 | `server/web/sw.js` | Service Worker：缓存静态页，让老人端可离线打开 |
 | `tools/README.md` | 辅助工具的说明：怎么跑十套验收并生成一份证据文件 |
+| `tools/audit_branches.py` | 逐分支静态体检：乱码/缺作用头/语法错/过期数字/写死令牌/失效链接/文件被截断，输出清单供逐条修 |
 | `tools/cloudflared-config.yml.template` | Cloudflare 命名隧道（固定域名）配置模板：本机服务 → 你自己的域名，重启不变 |
-| `tools/collect_evidence.py` | 跑十套验收并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据） |
+| `tools/collect_evidence.py` | 跑全部套件并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据） |
 | `tools/gen_index.py` | 生成 FILES.md（每个文件一行说明）与 FUNCTIONS.md（每个函数一行说明），需在仓库根目录运行 |
 | `tools/merge_from_branches.py` | 按"分支迭代、main 定期合并"的流程，把 web / qt 分支的成果合并回 main（按归属路径拉取，验证后提交推送） |
 | `tools/publish.py` | 一条命令发布：先全量验证，再逐文件提交（说明取自文件自己的「作用」注释），最后推送并等 CI |
@@ -165,4 +166,4 @@
 | `tools/rotate_tokens.py` | 生成随机令牌与配对码并写入 server/.env（已被 .gitignore 忽略），供上公网时替换演示值 |
 | `tools/sample_p95.py` | 一键取 P95 真实样本：干净端口 + 临时库 → 建 40 秒后的计划 → 等调度器派发 → 打印派发延迟 |
 | `tools/sync_branches.py` | 一条命令把 main 的服务端核心同步到八条分支（六条归档 + web/qt）：差异核对 → 覆盖 → 起服务验证 → 逐文件提交 → 推送 |
-| `tools/verify_all.py` | 一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 十套验收 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze） |
+| `tools/verify_all.py` | 一键全量验证：截断守卫 + 二进制魔数 + 语法 + 起服务 + 全部套件 + 产物卫生 + 四个页面 HTTP 检查（可选 flutter analyze） |
