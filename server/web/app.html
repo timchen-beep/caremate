@@ -203,6 +203,21 @@
 const $ = (id) => document.getElementById(id);
 const LS = { token: "caremate.app.token", base: "caremate.app.base" };
 const DEFAULT_BASE = "http://127.0.0.1:8000";
+// 一次性令牌交接：/app?token=xxx&base=http://ip:8000 会自动填好并从地址栏抹掉。
+// 老人端令牌 24~32 位，让老人或家属在手机上抄很容易错一位（错一位就是 401），
+// 发一条链接点开即用；token 留在地址栏会进历史与截图，所以用完立刻 replaceState 掉。
+(function handoffToken() {
+  const q = new URLSearchParams(location.search);
+  const t = q.get("token");
+  const b = q.get("base");
+  if (t) localStorage.setItem(LS.token, t.trim());
+  if (b) localStorage.setItem(LS.base, b.trim().replace(/\/+$/, ""));
+  if (!t && !b) return;
+  q.delete("token");
+  q.delete("base");
+  const rest = q.toString();
+  history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+})();
 let token = localStorage.getItem(LS.token) || "";
 let base = localStorage.getItem(LS.base) || "";
 const openedAsFile = location.protocol === "file:";
