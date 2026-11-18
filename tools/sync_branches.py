@@ -48,7 +48,8 @@ BRANCHES = ["v1-web", "v1-web-core", "v2-qt", "v2-qt-core", "v3-flash", "v3-flas
 # 迭代分支（web/qt）的 server/ 在仓库根，归档分支在 caremate-cloud/ 或 legacy-web/ 下
 ITER_BRANCHES = {"web", "qt"}
 TOOL_FILES = ["tools/verify_all.py", "tools/publish.py", "tools/gen_index.py",
-              "tools/sample_p95.py", "tools/collect_evidence.py", "tools/README.md"]
+              "tools/sample_p95.py", "tools/collect_evidence.py", "tools/audit_branches.py",
+              "tools/rotate_tokens.py", "tools/README.md"]
 SYNC = [
     ("server/server.py", "server.py"),
     ("server/v1_adapter.py", "v1_adapter.py"),
@@ -59,6 +60,8 @@ SYNC = [
     ("server/web/app.html", "web/app.html"),
     ("server/web/kiosk.html", "web/kiosk.html"),
     ("server/web/index.html", "web/index.html"),
+    # 页面说明也跟着走，否则分支上的 web/README.md 还在讲三个页面、没有令牌交接
+    ("server/web/README.md", "web/README.md"),
 ]
 DOC = ("docs/客户端框架说明.md", "客户端框架说明.md")
 PORT = 8400
