@@ -11,6 +11,17 @@
     python tools/rotate_tokens.py --print    # 只打印当前 .env 里的值
     python tools/rotate_tokens.py --dry-run  # 只生成看结果，不写文件
 
+    # 想短一点、好念一点（去掉 0O1Il 这类易混字符，8 位）：
+    python tools/rotate_tokens.py --easy --length 8
+
+    # 想让家属/老人不用抄令牌：发带 token 的链接，点开自动填好并抹掉地址栏
+    #   http://<服务器>/dashboard?token=<家属令牌>
+    #   http://<服务器>/app?token=<老人令牌>&base=http://<服务器>
+
+长度怎么选：24 位以上基本不可猜；`--easy --length 8` 约 40 bit，抗在线爆破够用
+（配合 /v1/pair 的 10 次/10 分钟限速），但**别把 6 位的当安全令牌**——6 位数字
+一秒钟能试好几万次，只适合配对码这种一次性短码。
+
 生成后需要重启服务（`server/start-caremate.bat` 会自动读取 .env）。
 """
 
@@ -43,7 +54,28 @@ def main():
     ap = argparse.ArgumentParser(description="生成随机令牌，写入 server/.env")
     ap.add_argument("--print", dest="show", action="store_true", help="只打印现有值")
     ap.add_argument("--dry-run", action="store_true", help="不写文件")
+    ap.add_argument("--length", type=int, default=32, help="令牌长度，默认 32 位")
+    ap.add_argument("--easy", action="store_true",
+                    help="只用不易看错的字符（去掉 0 O 1 I l），适合要手抄/口述的场景")
+    ap.add_argument("--pair-len", type=int, default=6, help="配对码位数，默认 6")
     args = ap.parse_args()
+
+    # 默认 24 字节的 urlsafe base64 ≈ 32 位；--length 控制位数。
+    # --easy 用一套去掉易混字符的字母表：0/O、1/I/l 在纸上和屏幕上都会认错，
+    # 老人端要靠家属念/抄令牌，错一位就是 401。
+    alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ" if args.easy else None
+
+    def make(length):
+        if alphabet:
+            return "".join(secrets.choice(alphabet) for _ in range(length))
+        return secrets.token_urlsafe(max(8, length))[:length]
+
+    if args.length < 6:
+        print("--length 至少 6 位（再短就接近可猜了）")
+        return 2
+    if args.easy and args.length < 8:
+        print("--easy 模式下建议至少 8 位（32 个字符的字母表，8 位约 40 bit）")
+        return 2
 
     current = read_env()
     if args.show:
@@ -54,8 +86,8 @@ def main():
             print("%s=%s" % (key, value))
         return 0
 
-    tokens = {key: secrets.token_urlsafe(24) for key in KEYS}
-    pair_code = "".join(secrets.choice("0123456789") for _ in range(6))
+    tokens = {key: make(args.length) for key in KEYS}
+    pair_code = "".join(secrets.choice("0123456789") for _ in range(max(4, args.pair_len)))
 
     # 只替换这四个键，其余键（CAREMATE_DB / CAREMATE_TZ / CAREMATE_JWT_SECRET …
     # 别人手工加的）原样保留：以前整文件重建，一次轮换就把库路径等配置抹掉了。
