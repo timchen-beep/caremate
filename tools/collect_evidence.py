@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# 作用：跑十套验收并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据）
-"""证据包：跑十套验收 + 抓关键数字，生成一份验收汇总 markdown。
+# 作用：跑全部套件并把结果汇总成一份 markdown 证据文件（自动定位仓库、缺套件就报错，不再产出"0/0 通过"的假证据）
+"""证据包：跑全部套件 + 抓关键数字，生成一份验收汇总 markdown。
 
 用法（先起后端，默认 8400）：
     python server.py --port 8400          # 另一个窗口
@@ -22,7 +22,7 @@ SERVER = os.path.join(ROOT, "server")
 PY = sys.executable
 API = os.environ.get("CAREMATE_API") or "http://127.0.0.1:8400"
 
-# 十套：名字 → 覆盖范围（与 server/ 下的文件名一一对应）
+# 套件清单：名字 → 覆盖范围（分支上少一两套也能跑，缺的会明说）（与 server/ 下的文件名一一对应）
 SUITES = [
     ("test_contract", "手机端对接契约 v0.1 七条 + 认证 + 错误码"),
     ("test_p2", "配对换 token、越界、one-off、登出"),
@@ -52,9 +52,15 @@ def main():
     ap.add_argument("--api", default=API, help="被测后端地址")
     args = ap.parse_args()
 
+    # 分支上未必带全部套件（web / qt 没有 MQTT 桥 → 没有 test_bridge.py）：
+    # 按实际存在的过滤并明说，而不是一刀切报错退出。
     missing = [s for s, _ in SUITES if not os.path.exists(os.path.join(SERVER, s + ".py"))]
     if missing:
-        print("缺少套件文件：%s（不在 %s 下）" % (", ".join(missing), SERVER))
+        print("提示：本分支没有 %s，按 %d 套收证据"
+              % ("、".join(missing), len(SUITES) - len(missing)))
+    present = [(s, c) for s, c in SUITES if s not in missing]
+    if not present:
+        print("一个套件文件都没有：%s 下没有 test_*.py" % SERVER)
         return 2
 
     # 没有后端就自己起一个（临时库），这样每次都是干净数据；
@@ -99,7 +105,7 @@ def main():
     if own is not None:
         run_env["CAREMATE_DB"] = db        # 套件里自起服务的用例也要落在同一个临时库
     try:
-        for suite, cover in SUITES:
+        for suite, cover in present:
             path = os.path.join(SERVER, suite + ".py")
             # 注意：CAREMATE_BASE 在套件里是**目录**（有的套件用它做 cwd 起自己的服务），
             # 想改被测地址用 CAREMATE_API；多数套件仍固定 8400，所以本工具默认就跑 8400。
