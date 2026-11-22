@@ -2200,7 +2200,9 @@ class Handler(BaseHTTPRequestHandler):
 
                              % CONFIG["pair_per_min"],
                     "retry_after": 60})
-            code = str(body.get("pairing_code") or body.get("code") or "").strip()
+            # 三种写法都认：pairing_code（看板表单）、pair_code（手机族 /v1/pair 的字段名）、code
+            code = str(body.get("pairing_code") or body.get("pair_code")
+                       or body.get("code") or "").strip()
             with connect() as conn:
                 elder = conn.execute("SELECT * FROM users WHERE bind_code=? AND role='elder'",
                                      (code,)).fetchone()
