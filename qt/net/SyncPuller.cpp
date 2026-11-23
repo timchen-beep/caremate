@@ -172,17 +172,38 @@ void SyncPuller::onReplied(const QString &tag, int status, const QJsonObject &bo
         QVariantList acks;
         for (const QJsonValue &value : accepted) {
             const QJsonObject item = value.toObject();
-            if (!item.value(QStringLiteral("applied")).toBool(false))
+            // applied=false 表示"这条之前就写过了"（去重命中），server_seq 照样有效：
+            // 之前这里 continue 掉了，去重的事件永远拿不到回执，队列永远清不空。
+            const qint64 seq = static_cast<qint64>(item.value(QStringLiteral("server_seq")).toDouble());
+            if (seq <= 0)
                 continue;
             QVariantMap ack;
             ack[QStringLiteral("eventId")] = item.value(QStringLiteral("event_id")).toString();
-            ack[QStringLiteral("serverSeq")] =
-                static_cast<qint64>(item.value(QStringLiteral("server_seq")).toDouble());
+            ack[QStringLiteral("serverSeq")] = seq;
             acks.append(ack);
         }
         if (!acks.isEmpty())
             m_model->markEventsSent(acks);
-        setState(QStringLiteral("idle"));
+        // 被服务端拒收的事件：retryable=false 的是终态（状态冲突/参数不认），必须就地丢弃，
+        // 否则整条队列永远重发同一批、每次都失败（这就是"同步状态老是 error"的由来）。
+        // retryable=true 的是服务端在忙（锁等待超时），保留在队列里让下一轮重试。
+        bool retryLater = false;
+        QVariantList failed;
+        const QJsonArray rejected = body.value(QStringLiteral("rejected")).toArray();
+        for (const QJsonValue &value : rejected) {
+            const QJsonObject item = value.toObject();
+            if (item.value(QStringLiteral("retryable")).toBool(false)) {
+                retryLater = true;
+                continue;
+            }
+            QVariantMap bad;
+            bad[QStringLiteral("eventId")] = item.value(QStringLiteral("event_id")).toString();
+            bad[QStringLiteral("detail")] = item.value(QStringLiteral("detail")).toString();
+            failed.append(bad);
+        }
+        if (!failed.isEmpty())
+            m_model->markEventsFailed(failed);
+        setState(retryLater ? QStringLiteral("error") : QStringLiteral("idle"));
     } else if (tag == QLatin1String("alarm")) {
         setState(QStringLiteral("idle"));
         emit notice(QStringLiteral("已通知家人"));
