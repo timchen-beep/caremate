@@ -41,8 +41,9 @@ public:
 
     void applyRemotePlans(const QVariantList &plans);
     void applyRemoteOccurrences(const QVariantList &occurrences);
-    QVariantList pendingEvents() const;                   // serverSeq == 0 的事件
+    QVariantList pendingEvents() const;                   // serverSeq == 0 的事件（未上传、且没被终态拒绝）
     void markEventsSent(const QVariantList &acks);        // [{eventId, serverSeq}]
+    void markEventsFailed(const QVariantList &failed);    // [{eventId, detail}]：服务端终态拒绝，别再重发
     void setSyncState(const QString &state);
 
 signals:
