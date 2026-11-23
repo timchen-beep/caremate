@@ -420,36 +420,109 @@ def _events(handler, body, elder):
                 accepted.append({"event_id": event_id, "server_seq": int(dup["seq"]), "applied": False})
                 continue
             oid = _resolve_occurrence(conn, oid_int, elder)
+        # 手机端到点弹提醒发 action="fire"（app_core.cpp 的 appendEvent(occurrenceId,"fire","")）。
+        # 语义只是"我把这条显出来了"，**不改服务端状态**：服务端自己按 th1/th3 判 notified/missed。
+        # 旧版词表没有 fire → 每条都 bad_request 终态拒收，队列越堆越多；
+        # 若把 fire 当 notified 去 transition，实例已被判 missed 或已确认时又会 409，手机每 15 秒重发同一批。
+        if str(item.get("action") or "").lower() == "fire" and oid:
+            stamp = S.iso(S.utc_now())
+            with S.connect() as conn:
+                ensure_tables(conn)
+                conn.execute(
+                    "INSERT OR IGNORE INTO events (event_id,occurrence_id,user_id,action,actor,source,"
+                    "payload,at_utc,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (event_id, oid, elder, "fire", elder, "app-sync",
+                     json.dumps({"device_id": item.get("device_id") or "",
+                                 "client_ts": item.get("ts")}, ensure_ascii=False), stamp, stamp))
+                seq = next_seq(conn)
+                conn.execute("INSERT OR IGNORE INTO v1_events(event_id, seq) VALUES (?,?)", (event_id, seq))
+                conn.commit()
+            accepted.append({"event_id": event_id, "server_seq": seq, "applied": True})
+            continue
         if not action:
             rejected.append({"index": idx, "event_id": event_id,
-                             "code": "bad_request", "detail": "action 不在契约内"})
+                             "code": "bad_request", "detail": "action 不在契约内",
+                             "retryable": False})
             continue
         if str(item.get("action") or "").lower() in PLAN_ACTIONS:
             rejected.append({"index": idx, "event_id": event_id,
-                             "code": "bad_request", "detail": "create/edit 走 /v1/plans"})
+                             "code": "bad_request", "detail": "create/edit 走 /v1/plans",
+                             "retryable": False})
+            continue
+        # 手机端呼救发的是 escalate + occurrence_id=0（app_core.cpp 的 appendEvent(0,"escalate","sos")）。
+        # 旧版落到下面 occurrence_not_found 终态拒收：老人按了呼救，手机永远重发、家属端永远收不到。
+        # 没有实例的 escalate 只可能是手动呼救，直接走 sos()。
+        if not oid and action == "escalated":
+            reason = str(item.get("reason") or "").strip()
+            S.sos(elder, actor=elder, note="" if reason in ("", "sos") else reason,
+                  device=str(item.get("device_id") or ""))
+            with S.connect() as conn:
+                ensure_tables(conn)
+                seq = next_seq(conn)
+                conn.execute("INSERT OR IGNORE INTO v1_events(event_id, seq) VALUES (?,?)", (event_id, seq))
+                conn.commit()
+            accepted.append({"event_id": event_id, "server_seq": seq, "applied": True})
             continue
         if not oid:
             rejected.append({"index": idx, "event_id": event_id,
-                             "code": "occurrence_not_found", "detail": "找不到该提醒"})
+                             "code": "occurrence_not_found", "detail": "找不到该提醒",
+                             "retryable": False})
             continue
         try:
             S.transition(oid, action, actor=elder, source="app-sync",
                          client_ts=iso_of_ms(item.get("ts")) or S.iso(S.utc_now()),
                          payload={"event_id": event_id, "note": item.get("reason", "")})
-        except (ChildProcessError, TimeoutError) as exc:
+        except ChildProcessError as exc:
+            # 状态冲突（比如对已确认的实例再 confirm）：**这一条**永远不会成功，重发也没用。
+            # 批量上报时必须只拒这一条：整批 409 会让后面的事件跟着卡死，手机端永远在重试。
             with S.connect() as conn:
                 ensure_tables(conn)
                 st = conn.execute("SELECT state FROM occurrences WHERE id=?", (oid,)).fetchone()
                 seq = current_seq(conn)
+            rejected.append({"index": idx, "event_id": event_id, "code": "state_conflict",
+                             "detail": str(exc), "retryable": False,
+                             "server_state": st["state"] if st else "", "server_seq": seq})
+            if batch:
+                continue
             handler.json(409, {"error": {"code": "state_conflict", "message": str(exc),
                                          "occurrence_id": int(oid_int or 0),
                                          "server_state": st["state"] if st else "",
-                                         "server_seq": seq}})
+                                         "server_seq": seq, "retryable": False}})
+            return True
+        except TimeoutError as exc:
+            # 锁等待超时：服务端在忙，不是这条事件的问题，重发有意义（别标成终态）
+            if batch:
+                rejected.append({"index": idx, "event_id": event_id, "code": "busy",
+                                 "detail": str(exc), "retryable": True})
+                continue
+            handler.json(503, {"error": {"code": "busy", "message": str(exc), "retryable": True}})
+            return True
+        except ValueError as exc:
+            # 参数/状态机不认（例如动作名拼错）：也是终态，重发一样失败
+            if batch:
+                rejected.append({"index": idx, "event_id": event_id, "code": "bad_request",
+                                 "detail": str(exc), "retryable": False})
+                continue
+            handler.json(400, {"error": {"code": "bad_request", "message": str(exc), "retryable": False}})
             return True
         except LookupError as exc:
             rejected.append({"index": idx, "event_id": event_id,
-                             "code": "occurrence_not_found", "detail": str(exc)})
+                             "code": "occurrence_not_found", "detail": str(exc),
+                             "retryable": False})
             continue
+        except Exception as exc:  # noqa: BLE001
+            # 兜底：任何没预料到的问题都只影响这一条，不能让整批 500 ——
+            # 手机端遇到 5xx 会把整批原样重发，一条坏事件就能堵死整个队列。
+            # retryable=True 是因为这类问题多半是服务端临时状况（磁盘忙、锁、未知状态），值得再试一次。
+            if batch:
+                rejected.append({"index": idx, "event_id": event_id, "code": "internal_error",
+                                 "detail": "%s: %s" % (type(exc).__name__, exc),
+                                 "retryable": True})
+                continue
+            handler.json(500, {"error": {"code": "internal_error",
+                                         "message": "%s: %s" % (type(exc).__name__, exc),
+                                         "retryable": True}})
+            return True
         with S.connect() as conn:
             ensure_tables(conn)
             seq = next_seq(conn)
