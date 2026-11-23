@@ -222,12 +222,13 @@ void ReminderModel::queueEvent(const QString &occId, const QString &action, cons
     emit eventQueued();
 }
 
-// 函数 pendingEvents：还没拿到 server_seq 的事件
+// 函数 pendingEvents：还没拿到 server_seq、也没被服务端终态拒绝的事件
 QVariantList ReminderModel::pendingEvents() const
 {
     QVariantList out;
     for (const PendingEvent &event : m_events) {
-        if (event.serverSeq > 0)
+        // 0 = 还没上传；-1 = 服务端明确拒了（状态冲突等），重发永远失败，不能再进队列
+        if (event.serverSeq != 0)
             continue;
         QVariantMap map;
         map[QStringLiteral("eventId")] = event.eventId;
@@ -257,8 +258,29 @@ void ReminderModel::markEventsSent(const QVariantList &acks)
     }
 }
 
-// 函数 setSyncState：同步状态透给界面（offline / idle / syncing / error）
-void ReminderModel::setSyncState(const QString &state)
+// 函数 markEventsFailed：服务端明确拒收（retryable=false）的事件标成终态，别再重发
+//   以前只处理 accepted，rejected 被整个忽略：一条状态冲突的事件会永远躺在队列里，
+//   每次都跟着新事件一起重发、每次都失败，同步状态就在 error 和 idle 之间来回跳。
+void ReminderModel::markEventsFailed(const QVariantList &failed)
+{
+    touchPersist();
+    for (const QVariant &entry : failed) {
+        const QVariantMap bad = entry.toMap();
+        const QString eventId = bad.value(QStringLiteral("eventId")).toString();
+        const QString detail = bad.value(QStringLiteral("detail")).toString();
+        for (PendingEvent &event : m_events) {
+            if (event.eventId == eventId) {
+                event.serverSeq = -1;   // -1 = 终态拒绝，pendingEvents() 不再返回它
+                if (!detail.isEmpty())
+                    event.reason = detail;
+                break;
+            }
+        }
+    }
+    emit changed();
+}
+
+// 函数 setSyncState：同步状态透给界面（offline / idle / syncing / error）void ReminderModel::setSyncState(const QString &state)
 {
     if (m_syncState == state)
         return;
