@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（159 个）
+# 函数索引（160 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -34,17 +34,18 @@
 | `qt/core/ReminderModel.cpp` | `loadDemo` | 写入演示规则（用药/喝水/散步） |
 | `qt/core/ReminderModel.cpp` | `loadFromStoreOrDemo` | 冷启动读库；库里没数据才写演示规则 |
 | `qt/core/ReminderModel.cpp` | `localDbPath` | 本地库路径（设置页/排障用） |
+| `qt/core/ReminderModel.cpp` | `markEventsFailed` | 服务端明确拒收（retryable=false）的事件标成终态，别再重发 |
 | `qt/core/ReminderModel.cpp` | `markEventsSent` | 把服务端回执的 server_seq 写回本地事件 |
 | `qt/core/ReminderModel.cpp` | `matches` | 判断某条规则在某天是否生效（每天/每周/间隔/一次） |
 | `qt/core/ReminderModel.cpp` | `missed` | 标记这次没做（对应后端 missed） |
-| `qt/core/ReminderModel.cpp` | `pendingEvents` | 还没拿到 server_seq 的事件 |
+| `qt/core/ReminderModel.cpp` | `pendingEvents` | 还没拿到 server_seq、也没被服务端终态拒绝的事件 |
 | `qt/core/ReminderModel.cpp` | `persistNow` | 把规则/实例/事件整表写进 SQLite（单事务） |
 | `qt/core/ReminderModel.cpp` | `queueEvent` | 把一次动作记进待上传队列（eventId 固定，重试不变） |
 | `qt/core/ReminderModel.cpp` | `rebuild` | 规则 → 未来三天实例列表 |
 | `qt/core/ReminderModel.cpp` | `recompute` | 按当前时间算出到期列表与今日列表 |
 | `qt/core/ReminderModel.cpp` | `refresh` | 30 秒定时重算（与后端调度节奏一致） |
 | `qt/core/ReminderModel.cpp` | `setState` | 改实例状态并发出变更信号 |
-| `qt/core/ReminderModel.cpp` | `setSyncState` | 同步状态透给界面（offline / idle / syncing / error） |
+| `qt/core/ReminderModel.cpp` | `setSyncState` | 同步状态透给界面（offline / idle / syncing / error）void ReminderModel::setSyncState(const QString & |
 | `qt/core/ReminderModel.cpp` | `snooze` | 稍后再提醒，超过次数记为未确认 |
 | `qt/core/ReminderModel.cpp` | `sos` | 触发呼救（由界面层发出请求） |
 | `qt/core/ReminderModel.cpp` | `touchPersist` | 变更后 1 秒防抖落盘 |
