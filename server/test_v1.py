@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
-# 作用：颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式
+# 作用：颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式 + 批量拒收 + 手机端 fire/呼救两种真实动作
 """端上契约验收（对齐 fspro7967/yiban_android_app 的 docs/fixtures/*.json）。
 
-9 项：
+12 项：
 1. 形状：GET /v1/state 的 occurrence 字段（与 state_since.json 逐键比对）
 2. 形状：GET /v1/plans 的 plan 字段（与 plans_since.json 逐键比对）
 3. 游标：同一次变化的第二次拉取返回空（增量语义）
 4. 事件：POST /v1/events 单条 → 201 {accepted:true, server_seq}
 5. 去重：同一 event_id 再来 → 200 {accepted:false, dedup:true}，序号不增
 6. 冲突：对已确认实例再 confirm → 409 {error:{code:state_conflict,…}}（error_conflict.json 形状）
-7. 配对：POST /v1/pair 用 6 位码换 token + cursor
-8. 告警：POST /v1/alarm（occurrence_id 可空、source=manual）→ {sent, channel}
-9. ID 公式：端上算的 occurrenceId 能反查到我们下发的同一条
+7. 批量拒收：一批里只有一条冲突时 → 200，冲突那条进 rejected（retryable=false），其余照常 accepted
+8. 到点提醒：action="fire"（手机端点开提醒时发）→ 201 接受，且不动服务端状态（对已确认实例也不 409）
+9. 呼救：escalate + occurrence_id=0（手机端 SOS）→ 201 接受，并在 alarms 里落下 kind=sos 的 level 3
+10. 配对：POST /v1/pair 用 6 位码换 token + cursor
+11. 告警：POST /v1/alarm（occurrence_id 可空、source=manual）→ {sent, channel}
+12. ID 公式：端上算的 occurrenceId 能反查到我们下发的同一条
 """
 
 import json
@@ -126,6 +129,45 @@ def main():
     err = (conflict or {}).get("error") or {}
     ok_conf = st == 409 and err.get("code") == "state_conflict" and "server_state" in err
     check("409 冲突形状", ok_conf, "status=%s code=%s state=%s" % (st, err.get("code"), err.get("server_state")))
+
+    # ⑥b 批量里有一条冲突：只拒那一条，其余照常收（整批 409 会让手机端永远重试）
+    other = next((o for o in occs if o["state"] in ("pending", "notified")
+                  and o["occurrence_id"] != target["occurrence_id"]), None)
+    if other:
+        st, mix = call("/v1/events", data={"events": [
+            {"event_id": eid + "-mix-bad", "occurrence_id": target["occurrence_id"],
+             "action": "miss", "ts": 0, "device_id": "test-device"},
+            {"event_id": eid + "-mix-ok", "occurrence_id": other["occurrence_id"],
+             "action": "confirm", "ts": int(time.time() * 1000), "device_id": "test-device"},
+        ]})
+        rej = (mix.get("rejected") or [{}])[0]
+        acc = mix.get("accepted") or []
+        ok_mix = (st == 200 and rej.get("code") == "state_conflict"
+                  and rej.get("retryable") is False and len(acc) == 1)
+        check("批量只拒冲突那条", ok_mix,
+              "status=%s rejected=%s retryable=%s accepted=%d"
+              % (st, rej.get("code"), rej.get("retryable"), len(acc)))
+    else:
+        check("批量只拒冲突那条", False, "没有第二条可确认的实例，无法验证")
+
+    # ⑥c 手机端到点弹提醒发 action="fire"：必须被接受，且不能改状态、不能撞状态机。
+    # 这里故意对已确认（terminal）的实例发 fire —— 旧版会 409/拒收，手机就会永远重发这一条。
+    st, fire = call("/v1/events", data={"event_id": eid + "-fire", "occurrence_id": target["occurrence_id"],
+                                        "action": "fire", "ts": int(time.time() * 1000),
+                                        "device_id": "android-test"})
+    ok_fire = st == 201 and fire.get("accepted") is True
+    check("action=fire 被接受且不改状态", ok_fire, "status=%s body=%s" % (st, json.dumps(fire, ensure_ascii=False)[:80]))
+
+    # ⑥d 呼救：手机端发 escalate + occurrence_id=0（app_core.cpp: appendEvent(0,"escalate","sos")）
+    st, sos_ev = call("/v1/events", data={"event_id": eid + "-sos", "occurrence_id": 0,
+                                          "action": "escalate", "reason": "sos",
+                                          "ts": int(time.time() * 1000), "device_id": "android-test"})
+    st_al, alarms = call("/api/v1/alarms?limit=20", FAM)
+    killed = [a for a in (alarms if isinstance(alarms, list) else alarms.get("items") or [])
+              if a.get("kind") == "sos"]
+    ok_sos = st == 201 and sos_ev.get("accepted") is True and bool(killed)
+    check("呼救事件（occurrence_id=0）落成 sos 告警", ok_sos,
+          "status=%s 告警 %d 条" % (st, len(killed)))
 
     # ⑦ 配对：6 位码换 token
     st, pair = call("/v1/pair", token=FAM, data={"pair_code": "8823", "device_id": "android-test", "role": "elder"})
