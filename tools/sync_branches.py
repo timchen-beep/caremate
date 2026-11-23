@@ -264,7 +264,7 @@ def describe(rel, worktree):
     fixed = {
         "server.py": "服务端：三档升级链 + 端云同步三接口 + /v1 适配挂载",
         "v1_adapter.py": "颐伴手机端（Qt/QML）对接层：/v1/* 契约翻译到本分支的领域模型",
-        "test_v1.py": "手机端 v1.1 契约验收 9 项",
+        "test_v1.py": "手机端 v1.1 契约验收 12 项",
         "客户端框架说明.md": "4.1 = Qt/QML 的依据与两套代码定位",
     }
     base = os.path.basename(rel)
