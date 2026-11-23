@@ -143,7 +143,7 @@
 | `server/test_steps.py` | 交互 7 项：呼救、5 秒撤销、记录撤销留痕、久未活动、专注模式页 |
 | `server/test_sync.py` | 端云同步验收 5 项：批量上行、幂等去重、越权拒绝、回灌游标、端侧告警 |
 | `server/test_v06.py` | 工程性 7 项：派发延迟、限流 429、磁盘水位 507、备份、单实例保护 |
-| `server/test_v1.py` | 颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式 |
+| `server/test_v1.py` | 颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式 + 批量拒收 + 手机端 fire/呼救两种真实动作 |
 | `server/v1_adapter.py` | 颐伴手机端（Qt/QML，fspro7967/yiban_android_app）对接层：把 /v1/* 的冻结契约翻译到本服务的领域模型 |
 | `server/web/README.md` | 服务端页面的说明：四个页面各给谁用、关键函数、令牌从哪来、哪些东西不写死在页面里 |
 | `server/web/app.html` | 老人端网页/PWA：大字高对比、语音播报、长按呼救、确认/稍后、记录与自检 |
