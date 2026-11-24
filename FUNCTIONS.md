@@ -1,5 +1,5 @@
 <!-- 作用：函数索引：每个函数一行说明（由代码里的「函数 xxx：…」注释生成，勿手改） -->
-# 函数索引（160 个）
+# 函数索引（161 个）
 
 | 文件 | 函数 | 说明 |
 |---|---|---|
@@ -76,6 +76,7 @@
 | `server/server.py` | `_ack_open_alarms` | 把该实例所有未处理告警标记为已处理 |
 | `server/server.py` | `_alarm_once` | 同一实例的同级告警只发一次，避免刷屏 |
 | `server/server.py` | `_alarm_view` | 告警对外视图 |
+| `server/server.py` | `_bump_plan_sync` | 计划一改/一删，手机端的增量拉取必须看得见 |
 | `server/server.py` | `_delete` | DELETE 的具体处理（删记录/删计划） |
 | `server/server.py` | `_dispatch` | 路由分发：按方法 + 路径前缀匹配到具体处理 |
 | `server/server.py` | `_export` | 导出 CSV（按月/按人） |
