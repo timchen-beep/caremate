@@ -402,8 +402,8 @@ CREATE TABLE IF NOT EXISTS records (
     client_id TEXT NOT NULL DEFAULT '',       -- 端上生成的幂等键：重发只落一条
     created_at TEXT NOT NULL
 );
--- 同一老人同一 client_id 只能有一条记录；空串不参与（看板/网页建的记录没有这个键）
-CREATE UNIQUE INDEX IF NOT EXISTS idx_rec_client ON records (user_id, client_id) WHERE client_id <> '';
+-- 注：同一老人同一 client_id 的唯一索引不写在这里——老库的 records 表还没有 client_id 列，
+-- executescript 会在建索引那行直接报 no such column。索引统一放在 migrate() 里建（每次启动都跑）。
 CREATE TABLE IF NOT EXISTS alarms (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL,
     level INTEGER NOT NULL DEFAULT 1, occurrence TEXT NOT NULL DEFAULT '',
@@ -1865,6 +1865,18 @@ class Handler(BaseHTTPRequestHandler):
 
     # 函数 do_DELETE：HTTP DELETE 入口
     def do_DELETE(self):
+        # DELETE 的处理函数只读 query、不读 body。浏览器/脚本偶尔仍会带一个 body，
+        # 不读走就会留在 keep-alive 连接里，被当成下一个请求行（实测报
+        # Unsupported method '{"user_id":"u-elder"}GET'）。所以先丢弃再分发。
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        if length > 0:
+            try:
+                self.rfile.read(length)
+            except Exception:
+                pass
         self._dispatch(self._delete)
 
     # 函数 do_OPTIONS：CORS 预检请求
