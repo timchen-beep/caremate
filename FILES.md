@@ -1,5 +1,5 @@
 <!-- 作用：文件索引：每个文件一行说明（由 tools/gen_index.py 生成，勿手改） -->
-# 文件索引（164 个）
+# 文件索引（165 个）
 
 | 文件 | 作用 |
 |---|---|
@@ -60,6 +60,7 @@
 | `docs/Opening_Report_Web_Cloud_修订版_v4.docx` | 二进制资源 |
 | `docs/README.md` | 文档目录的说明：每份文档解决什么问题、什么时候看 |
 | `docs/topics.md` | MQTT topic 与 payload 约定，含发布方/订阅方与频率说明 |
+| `docs/云端同步_11-23四个问题_处理记录.md` | 云组对 11-23 待办清单（1124TODO §五）四个同步问题的处理记录：根因、改了哪几行、怎么验、哪些要端上配合 |
 | `docs/云部署.md` | 上云部署完整手册：选机、无域名/有域名两条路、令牌、systemd、HTTPS、备份、防火墙、排错 |
 | `docs/固定域名上线_Cloudflare隧道.md` | 把本机 CareMate 服务挂到固定域名的操作手册（Cloudflare 命名隧道），含每步命令与排错 |
 | `docs/固定域名上线_Tailscale.md` | 用 Tailscale Funnel 给本机 CareMate 一个固定公网地址（免域名、免服务器），含实测步骤与排错 |
@@ -143,7 +144,7 @@
 | `server/test_steps.py` | 交互 7 项：呼救、5 秒撤销、记录撤销留痕、久未活动、专注模式页 |
 | `server/test_sync.py` | 端云同步验收 5 项：批量上行、幂等去重、越权拒绝、回灌游标、端侧告警 |
 | `server/test_v06.py` | 工程性 7 项：派发延迟、限流 429、磁盘水位 507、备份、单实例保护 |
-| `server/test_v1.py` | 颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式 + 批量拒收 + 手机端 fire/呼救两种真实动作 |
+| `server/test_v1.py` | 颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式 + 批量拒收 + 手机端 fire/呼救两种真实动作 + 看板改删计划的增量同步 + 记录幂等/撤销 |
 | `server/v1_adapter.py` | 颐伴手机端（Qt/QML，fspro7967/yiban_android_app）对接层：把 /v1/* 的冻结契约翻译到本服务的领域模型 |
 | `server/web/README.md` | 服务端页面的说明：四个页面各给谁用、关键函数、令牌从哪来、哪些东西不写死在页面里 |
 | `server/web/app.html` | 老人端网页/PWA：大字高对比、语音播报、长按呼救、确认/稍后、记录与自检 |
