@@ -301,8 +301,58 @@ def wait_health(timeout=30):
 DB_PATH = ""      # run_server 用的临时库；子进程复用，避免和生产实例抢同一个 SQLite 文件
 
 
+LEGACY_DB_SNIPPET = r'''
+# 用当前代码建一个库，再把它改成"线上老库"的样子：records 没有 client_id 列。
+# 然后重新跑 init_db()——这一步就是线上真实发生过的崩溃点：
+#   sqlite3.OperationalError: no such column: client_id
+# （SCHEMA 里 CREATE TABLE IF NOT EXISTS 对已存在的表是空操作，只有 migrate() 会补列，
+#   所以任何把索引/约束写进 SCHEMA、却引用后加列的地方都会在老库上启动即死。）
+import sqlite3, sys
+import server as S
+
+S.init_db()                                     # 1) 当前 schema 建库
+with S.connect() as c:
+    try:
+        c.execute("DROP INDEX IF EXISTS idx_rec_client")
+        c.execute("ALTER TABLE records DROP COLUMN client_id")
+    except sqlite3.OperationalError as exc:     # 老 SQLite 不支持 DROP COLUMN 就跳过
+        print("SKIP:", exc)
+        sys.exit(0)
+S.init_db()                                     # 2) 老库启动路径：必须不抛异常
+with S.connect() as c:
+    cols = {r[1] for r in c.execute("PRAGMA table_info(records)")}
+    idx = {r[1] for r in c.execute("PRAGMA index_list(records)")}
+if "client_id" not in cols:
+    print("FAIL: migrate() 没补上 client_id")
+    sys.exit(3)
+if "idx_rec_client" not in idx:
+    print("FAIL: migrate() 没建 idx_rec_client")
+    sys.exit(4)
+print("OK")
+'''
+
+
+def legacy_db_check():
+    """老库能不能启动（把 records.client_id 删掉再 init_db 一次）。"""
+    db = os.path.join(tempfile.gettempdir(), "caremate_legacy.db")
+    for suf in ("", "-wal", "-shm"):
+        p = db + suf
+        if os.path.exists(p):
+            os.remove(p)
+    env = dict(os.environ, CAREMATE_DB=db, CAREMATE_SKIP_ENV="1",
+               PYTHONIOENCODING="utf-8")
+    r = subprocess.run([sys.executable, "-c", LEGACY_DB_SNIPPET], cwd=SERVER, env=env,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out = (r.stdout or "") + (r.stderr or "")
+    if "SKIP:" in out:
+        return True, "本机 SQLite 不支持 DROP COLUMN，跳过"
+    ok = r.returncode == 0 and "OK" in out
+    return ok, "老库（无 client_id 列）启动正常" if ok else out.strip().replace("\n", " ")[-200:]
+
+
 def run_server():
     global DB_PATH
+    mig_ok, mig_detail = legacy_db_check()
     db = os.path.join(tempfile.gettempdir(), "caremate_verify.db")
     DB_PATH = db
     for suf in ("", "-wal", "-shm"):
@@ -315,7 +365,11 @@ def run_server():
                             cwd=SERVER, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     ok = wait_health()
-    record("服务启动（%s）" % BASE, ok, "" if ok else "健康检查失败")
+    detail = "" if ok else "健康检查失败"
+    if not mig_ok:
+        detail = ("迁移检查：" + mig_detail + "；" + detail).strip("；")
+    record("服务启动（%s）" % BASE, ok and mig_ok,
+           detail if detail else (mig_detail if "跳过" in mig_detail else ""))
     return proc, db
 
 
