@@ -682,6 +682,17 @@ def _record_write(handler, body, elder, record_int, method):
         if not owned:
             handler.json(404, {"error": "record_not_found", "detail": "记录不存在"})
             return True
+        # 幂等：回执丢了端上会重发同一条 DELETE。已经撤销过就直接回 200 + 原来的序号，
+        # 不要报错——否则端上把"其实已经成功"的一次撤销记成失败，界面上会留个说不清的错。
+        with S.connect() as conn:
+            ensure_tables(conn)
+            done = conn.execute("SELECT deleted FROM records WHERE id=? AND user_id=?",
+                                (local, elder)).fetchone()
+            if done and done["deleted"]:
+                seq = row_seq(conn, "record", local)
+                handler.json(200, {"record_id": record_int, "deleted": True,
+                                   "server_seq": seq, "already": True})
+                return True
         try:
             S.delete_record(local, elder)
         except TimeoutError as exc:
