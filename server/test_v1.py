@@ -2,7 +2,7 @@
 # 作用：颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式 + 批量拒收 + 手机端 fire/呼救两种真实动作 + 看板改删计划的增量同步 + 记录幂等/撤销
 """端上契约验收（对齐 fspro7967/yiban_android_app 的 docs/fixtures/*.json）。
 
-16 项：
+18 项：
 1. 形状：GET /v1/state 的 occurrence 字段（与 state_since.json 逐键比对）
 2. 形状：GET /v1/plans 的 plan 字段（与 plans_since.json 逐键比对）
 3. 游标：同一次变化的第二次拉取返回空（增量语义）
@@ -19,6 +19,7 @@
 14. 看板改计划 → 端上增量收到新内容，version 加 1（以前完全不 bump，端上永远跳过）
 15. 看板删计划 → 端上增量收到 deleted:true（软删留 tombstone，以前硬删收不到）
 16. 记录幂等/撤销：同一 client_id 连发两次只落一条；DELETE /v1/records/{id} 能撤到云端
+17. 重复撤销幂等：同一条记录再删一次仍 200（already:true），不报 400
 """
 
 import json
@@ -250,6 +251,13 @@ def main():
                and del_rec.get("server_seq") and not still)
     check("DELETE /v1/records/{id} 撤销到云端", ok_rdel,
           "status=%s seen=%s 仍在看板 %d 条" % (st_del, del_rec.get("server_seq"), len(still)))
+
+    # ⑭ 重复撤销同一条：回执丢了端上会重发，第二次必须还是 200（幂等），不能报错
+    st_again, del_again = call("/v1/records/%s" % rec_a.get("record_id"), ELDER, None, method="DELETE")
+    ok_idem = (st_again == 200 and del_again.get("deleted") is True
+               and del_again.get("already") is True and del_again.get("server_seq"))
+    check("重复撤销同一条记录（幂等）", ok_idem,
+          "status=%s already=%s seen=%s" % (st_again, del_again.get("already"), del_again.get("server_seq")))
 
     width = max(len(r[0]) for r in RESULTS)
     print("=" * 70)
