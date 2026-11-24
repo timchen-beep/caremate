@@ -617,9 +617,7 @@ def _plan_write(handler, body, elder, plan_int, method):
         S.save_plan(elder, {"active": 0}, plan_id=local)
         with S.connect() as conn:
             ensure_tables(conn)
-            conn.execute("UPDATE v1_version SET version=version+1 WHERE kind='plan' AND local_id=?",
-                         (local,))
-            conn.commit()
+            # 序号与版本由 S.save_plan 里的 _bump_plan_sync 统一 bump，这里只读回执
             row = conn.execute("SELECT * FROM plans WHERE id=?", (local,)).fetchone()
             payload = plan_payload(conn, row)
             conn.commit()
@@ -664,9 +662,7 @@ def _plan_write(handler, body, elder, plan_int, method):
     pid = (res or {}).get("id") or local
     with S.connect() as conn:
         ensure_tables(conn)
-        conn.execute("INSERT INTO v1_version(kind, local_id, version) VALUES ('plan',?,1)"
-                     " ON CONFLICT(kind, local_id) DO UPDATE SET version=version+1", (pid,))
-        conn.commit()
+        # 序号与版本由 S.save_plan 里的 _bump_plan_sync 统一 bump（这里再 bump 会一次跳两版）
         row = conn.execute("SELECT * FROM plans WHERE id=?", (pid,)).fetchone()
         payload = plan_payload(conn, row)
         conn.commit()
@@ -681,6 +677,31 @@ def _record_write(handler, body, elder, record_int, method):
         local = local_id(conn, "record", record_int) if record_int else None
         owned = bool(local) and bool(
             conn.execute("SELECT 1 FROM records WHERE id=? AND user_id=?", (local, elder)).fetchone())
+    if method == "DELETE":
+        # C-4：/v1 也要能删记录（老人点错了"喝了一杯水"，端上撤销要真的撤到云端）
+        if not owned:
+            handler.json(404, {"error": "record_not_found", "detail": "记录不存在"})
+            return True
+        try:
+            S.delete_record(local, elder)
+        except TimeoutError as exc:
+            # 撤销有 30 分钟窗口，超时属于业务规则，不是客户端该重试的错误
+            handler.json(409, {"error": "too_late", "detail": str(exc), "retryable": False})
+            return True
+        except ValueError as exc:
+            handler.json(422, {"error": "bad_request", "detail": str(exc), "retryable": False})
+            return True
+        with S.connect() as conn:
+            ensure_tables(conn)
+            seq = next_seq(conn)
+            rid = int_id(conn, "record", local)
+            conn.execute("INSERT INTO v1_rowseq(kind, local_id, seq) VALUES ('record',?,?)"
+                         " ON CONFLICT(kind, local_id) DO UPDATE SET seq=excluded.seq", (local, seq))
+            conn.commit()
+        handler.json(200, {"record_id": rid, "deleted": True, "server_seq": seq})
+        return True
+
+    duplicate = False
     if method == "PATCH":
         if not owned:
             handler.json(404, {"error": "record_not_found", "detail": "记录不存在"})
@@ -691,7 +712,8 @@ def _record_write(handler, body, elder, record_int, method):
             for key in ("value", "unit", "note", "occurred_at"):
                 if body.get(key) is not None:
                     patch[key] = body[key]
-            S.correct_record(local, patch, elder)
+            fixed = S.correct_record(local, patch, elder)
+            local = (fixed or {}).get("id") or local
         except ValueError as exc:
             handler.json(422, {"error": "bad_request", "detail": str(exc)})
             return True
@@ -702,6 +724,8 @@ def _record_write(handler, body, elder, record_int, method):
             "unit": body.get("unit"),
             "occurred_at": iso_of_ms(body.get("at")) or None,
             "note": body.get("note", ""),
+            # 幂等键：端上重发同一条（信号差、回执丢）云端只落一条
+            "client_id": str(body.get("client_id") or "")[:80],
         }
         try:
             res = S.add_record(elder, payload, elder)
@@ -709,13 +733,21 @@ def _record_write(handler, body, elder, record_int, method):
             handler.json(422, {"error": "bad_request", "detail": str(exc)})
             return True
         local = res["id"]
+        duplicate = bool(res.get("duplicate"))
     with S.connect() as conn:
         ensure_tables(conn)
-        seq = next_seq(conn)
         rid = int_id(conn, "record", local)
-        conn.execute("INSERT INTO v1_rowseq(kind, local_id, seq) VALUES ('record',?,?)"
-                     " ON CONFLICT(kind, local_id) DO UPDATE SET seq=excluded.seq", (local, seq))
-        conn.commit()
-    handler.json(201 if method == "POST" else 200,
-                 {"record_id": rid, "corrected_from": int(record_int or 0), "server_seq": seq})
+        if duplicate:
+            # 命中已存在的那条：序号不 bump，回执里给同一个 record_id，端上就能把它移出队列
+            seq = row_seq(conn, "record", local)
+            conn.commit()
+        else:
+            seq = next_seq(conn)
+            conn.execute("INSERT INTO v1_rowseq(kind, local_id, seq) VALUES ('record',?,?)"
+                         " ON CONFLICT(kind, local_id) DO UPDATE SET seq=excluded.seq", (local, seq))
+            conn.commit()
+    body_out = {"record_id": rid, "corrected_from": int(record_int or 0), "server_seq": seq}
+    if duplicate:
+        body_out["duplicate"] = True
+    handler.json(200 if duplicate else (201 if method == "POST" else 200), body_out)
     return True
