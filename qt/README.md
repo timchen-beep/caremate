@@ -43,6 +43,6 @@ CAREMATE_OFFLINE=1 ./appCareMate
 
 | 项 | 状态 |
 |---|---|
-| 后端 `/v1/*` 契约 | ✅ `server/test_v1.py` 17 项自动化 |
+| 后端 `/v1/*` 契约 | ✅ `server/test_v1.py` 18 项自动化 |
 | 本目录能否编译 | ❌ 开发机没有 Qt 6.5+/Android kit，**未编译** |
 | 真机 JNI 闹钟 | ❌ 未在真机验证 |
