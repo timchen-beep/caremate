@@ -53,7 +53,7 @@
 
 | 分支 | 文件数 | 是什么 | 什么时候看它 |
 |---|---|---|---|
-| [`main`](https://github.com/timchen-beep/caremate/tree/main) | 163 | 整合版：网页端 + Qt 骨架 + Flutter 验证版 + 硬件脚本 | 交付与答辩用这个 |
+| [`main`](https://github.com/timchen-beep/caremate/tree/main) | 165 | 整合版：网页端 + Qt 骨架 + Flutter 验证版 + 硬件脚本 | 交付与答辩用这个 |
 | [`web`](https://github.com/timchen-beep/caremate/tree/web) | 49 | **网页端迭代分支**：只有后端 + 三个网页 + PWA + 九套验收 | 改网页端就来这里 |
 | [`qt`](https://github.com/timchen-beep/caremate/tree/qt) | 75 | **Qt 老人端迭代分支**：`qt/` 客户端 + 后端 + 对接补丁 | 改 Qt 端就来这里 |
 | [`v1-web`](https://github.com/timchen-beep/caremate/tree/v1-web) | 64 | 归档：最早的纯 Web 实现（后端 + 看板 + PWA） | 对照"纯 Web 长什么样" |
@@ -178,7 +178,7 @@ python tools/verify_all.py --flutter  # 额外跑 flutter analyze
 | `test_v06.py` | 派发延迟/限速/磁盘水位/备份 7 项 |
 | `test_extra.py` | 扩展 7 项 |
 | `test_sync.py` | 端云同步 5 项 |
-| `test_v1.py` | 手机端 v1.1 契约 12 项（含批量拒收、到点 fire、呼救） |
+| `test_v1.py` | 手机端 v1.1 契约 17 项（含批量拒收、到点 fire、呼救、计划增量与记录撤销） |
 | `test_bridge.py` | MQTT 桥：订阅雷达 presence 转 HTTP（假 broker，14 项） |
 
 > `test_accept.py` 与 `test_v1.py` 需要**先有服务在跑**；`verify_all.py` 会自己起。
