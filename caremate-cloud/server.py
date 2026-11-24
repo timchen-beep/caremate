@@ -399,8 +399,11 @@ CREATE TABLE IF NOT EXISTS records (
     note TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL DEFAULT '',
     updated_by TEXT NOT NULL DEFAULT '', revision INTEGER NOT NULL DEFAULT 1,
     superseded_by TEXT NOT NULL DEFAULT '', deleted INTEGER NOT NULL DEFAULT 0,
+    client_id TEXT NOT NULL DEFAULT '',       -- 端上生成的幂等键：重发只落一条
     created_at TEXT NOT NULL
 );
+-- 同一老人同一 client_id 只能有一条记录；空串不参与（看板/网页建的记录没有这个键）
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rec_client ON records (user_id, client_id) WHERE client_id <> '';
 CREATE TABLE IF NOT EXISTS alarms (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL,
     level INTEGER NOT NULL DEFAULT 1, occurrence TEXT NOT NULL DEFAULT '',
@@ -445,6 +448,10 @@ def migrate(conn):
         conn.execute("ALTER TABLE users ADD COLUMN tz TEXT NOT NULL DEFAULT 'Asia/Shanghai'")
     if "superseded_by" not in cols("records"):
         conn.execute("ALTER TABLE records ADD COLUMN superseded_by TEXT NOT NULL DEFAULT ''")
+    if "client_id" not in cols("records"):
+        conn.execute("ALTER TABLE records ADD COLUMN client_id TEXT NOT NULL DEFAULT ''")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_rec_client ON records (user_id, client_id)"
+                 " WHERE client_id <> ''")
     if "created_at" not in cols("occurrences"):
         conn.execute("ALTER TABLE occurrences ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
         conn.execute("UPDATE occurrences SET created_at=updated_at WHERE created_at=''")
@@ -1241,13 +1248,30 @@ def add_record(user_id, body, creator):
     except ValueError:
         raise ValueError("occurred_at 格式应为 YYYY-MM-DD HH:MM")
     ensure_disk()
+    # 端上重发同一条记录（信号差、回执丢）只能落一条：client_id 是端上生成的幂等键。
+    # 以前云端不读它，同一条"喝了 200ml"在手机上传三次就变成记录 3 条，看板显示"喝了 3 次"。
+    client_id = str(body.get("client_id") or "").strip()[:80]
+    if client_id:
+        with _lock, connect() as conn:
+            dup = conn.execute("SELECT id,revision FROM records WHERE user_id=? AND client_id=?",
+                               (user_id, client_id)).fetchone()
+        if dup:
+            return {"id": dup["id"], "revision": dup["revision"], "duplicate": True}
     rid = "r-" + uuid.uuid4().hex[:12]
     with _lock, connect() as conn:
-        conn.execute(
-            "INSERT INTO records (id,user_id,type,value,unit,occurred_at,note,created_by,created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?)",
-            (rid, user_id, rtype, body.get("value"), body.get("unit") or RECORD_UNITS.get(rtype, ""),
-             occurred, body.get("note", ""), creator, iso(utc_now())))
+        try:
+            conn.execute(
+                "INSERT INTO records (id,user_id,type,value,unit,occurred_at,note,created_by,created_at,"
+                "client_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (rid, user_id, rtype, body.get("value"), body.get("unit") or RECORD_UNITS.get(rtype, ""),
+                 occurred, body.get("note", ""), creator, iso(utc_now()), client_id))
+        except sqlite3.IntegrityError:
+            # 并发重发：唯一索引挡住了第二条，按已存在的那条回执
+            dup = conn.execute("SELECT id,revision FROM records WHERE user_id=? AND client_id=?",
+                               (user_id, client_id)).fetchone()
+            if dup:
+                return {"id": dup["id"], "revision": dup["revision"], "duplicate": True}
+            raise
     publish("home/record/%s" % user_id, {"id": rid, "type": rtype, "occurred_at": occurred})
     return {"id": rid, "revision": 1}
 
@@ -1452,6 +1476,22 @@ def plan_preview(user_id, days=7, day=None):
 
 
 # ================================================================ 计划写入
+# 函数 _bump_plan_sync：计划一改/一删，手机端的增量拉取必须看得见
+def _bump_plan_sync(conn, pid):
+    """bump 写入序号 + 版本号 +1。
+
+    以前只有 /v1 写接口 bump：家人在看板把"8:00 1 片"改成"7:00 2 片"，端上按 since 拉
+    永远拉不到这条，手机上照旧 8:00、1 片提醒——这是"云端改了手机上没变"的真因。
+    """
+    try:
+        v1_adapter.ensure_tables(conn)
+        v1_adapter.row_seq(conn, "plan", pid, bump=True)
+        conn.execute("INSERT INTO v1_version (kind, local_id, version) VALUES ('plan', ?, 1)"
+                     " ON CONFLICT(kind, local_id) DO UPDATE SET version=version+1", (pid,))
+    except Exception as exc:  # noqa: BLE001 —— 同步书签写不进去不该让"改计划"整体失败
+        print("[sync] 计划增量序号没写上（不影响主流程）：%s" % exc)
+
+
 def save_plan(user_id, body, plan_id=None):
     if plan_id and set(body.keys()) <= {"active", "user_id", "paused_until"}:
         with _lock, connect() as conn:
@@ -1460,7 +1500,36 @@ def save_plan(user_id, body, plan_id=None):
                              (body.get("paused_until") or "", iso(utc_now()), plan_id, user_id))
             conn.execute("UPDATE plans SET active=?,updated_at=? WHERE id=? AND user_id=?",
                          (1 if body.get("active", 1) else 0, iso(utc_now()), plan_id, user_id))
+            if not body.get("active", 1):
+                # 停用/删除：还没提醒过的实例直接撤掉，别让已经取消的药继续响
+                conn.execute("DELETE FROM occurrences WHERE plan_id=? AND user_id=?"
+                             " AND state='pending' AND due_at > ?",
+                             (plan_id, user_id, iso(utc_now())))
+            _bump_plan_sync(conn, plan_id)
         return {"id": plan_id}
+
+    # 部分更新：看板只想改个剂量时不该逼它把 title/times 全传一遍。
+    # 以前只传 {"dose":"2 片"} 会 422「时刻格式不对」，C-2 那条"改剂量手机上没变"就卡在这。
+    if plan_id:
+        with connect() as conn:
+            cur = conn.execute("SELECT * FROM plans WHERE id=? AND user_id=?",
+                               (plan_id, user_id)).fetchone()
+        if cur:
+            merged = dict(body)
+            if not merged.get("title"):
+                merged["title"] = cur["title"]
+            if not merged.get("times"):
+                merged["times"] = [t for t in (cur["times"] or "").split(",") if t]
+            if not merged.get("rule"):
+                try:
+                    keep_rule = json.loads(cur["rule"] or "{}")
+                except ValueError:
+                    keep_rule = {}
+                merged["rule"] = keep_rule or {"kind": "daily"}
+            for key in ("dose", "note", "kind", "weekdays"):
+                if merged.get(key) in (None, ""):
+                    merged[key] = cur[key]
+            body = merged
 
     # 名字必填：老人端首页按名字念"该吃氨氯地平了"，空名字会变成只有时间的一条提醒
     title = str(body.get("title") or "").strip()
@@ -1536,6 +1605,7 @@ def save_plan(user_id, body, plan_id=None):
                  ",".join(str(x) for x in weekdays), json.dumps(rule, ensure_ascii=False),
                  body.get("dose", ""), body.get("note", ""), 1 if body.get("active", 1) else 0,
                  iso(utc_now()), plan_id, user_id))
+            _bump_plan_sync(conn, plan_id)
             return {"id": plan_id}
         # 加随机后缀：连建多条计划时 Windows 时钟只有毫秒精度，纯时间戳会撞主键
         pid = "p-" + datetime.now().strftime("%Y%m%d%H%M%S") + uuid.uuid4().hex[:6]
@@ -1546,6 +1616,7 @@ def save_plan(user_id, body, plan_id=None):
              ",".join(str(x) for x in weekdays), json.dumps(rule, ensure_ascii=False),
              body.get("dose", ""), body.get("note", ""), 1 if body.get("active", 1) else 0,
              iso(utc_now()), iso(utc_now())))
+        _bump_plan_sync(conn, pid)
     return {"id": pid}
 
 
@@ -1911,7 +1982,7 @@ class Handler(BaseHTTPRequestHandler):
                     "SELECT * FROM alarms WHERE user_id=? ORDER BY created_at DESC LIMIT 20",
                     (target,)).fetchall()]
                 plans = [dict(r) for r in conn.execute(
-                    "SELECT * FROM plans WHERE user_id=? ORDER BY times", (target,)).fetchall()]
+                    "SELECT * FROM plans WHERE user_id=? AND active=1 ORDER BY times", (target,)).fetchall()]
             for pl in plans:
                 pl["rule"] = rule_of(pl)
             return self.json(200, {"date": day, "tz": CONFIG["tz"],
@@ -1923,7 +1994,7 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/v1/plans":
             with connect() as conn:
                 rows = [dict(r) for r in conn.execute(
-                    "SELECT * FROM plans WHERE user_id=? ORDER BY times", (target,)).fetchall()]
+                    "SELECT * FROM plans WHERE user_id=? AND active=1 ORDER BY times", (target,)).fetchall()]
             for r in rows:
                 r["rule"] = rule_of(r)
             return self.json(200, {"items": rows})
@@ -2461,7 +2532,14 @@ class Handler(BaseHTTPRequestHandler):
             if not self._need_edit(user, target):
                 return self.json(403, {"error": "没有编辑权限"})
             with _lock, connect() as conn:
-                conn.execute("DELETE FROM plans WHERE id=? AND user_id=?", (parts[3], target))
+                row = conn.execute("SELECT id FROM plans WHERE id=? AND user_id=?",
+                                   (parts[3], target)).fetchone()
+            if not row:
+                return self.json(404, {"error": "计划不存在"})
+            # 软删除：行留着、active=0，手机端增量拉取才收得到 deleted:true。
+            # 以前是硬删——删完 tombstone 就没了，断网的手机第二天照旧提醒（医生停了
+            # "每天 8:00 阿司匹林"，老人还按点吃）。
+            save_plan(target, {"active": 0}, plan_id=parts[3])
             return self.json(200, {"deleted": parts[3]})
         return self.json(404, {"error": "no route"})
 
