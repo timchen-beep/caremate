@@ -1865,6 +1865,18 @@ class Handler(BaseHTTPRequestHandler):
 
     # 函数 do_DELETE：HTTP DELETE 入口
     def do_DELETE(self):
+        # DELETE 的处理函数只读 query、不读 body。浏览器/脚本偶尔仍会带一个 body，
+        # 不读走就会留在 keep-alive 连接里，被当成下一个请求行（实测报
+        # Unsupported method '{"user_id":"u-elder"}GET'）。所以先丢弃再分发。
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        if length > 0:
+            try:
+                self.rfile.read(length)
+            except Exception:
+                pass
         self._dispatch(self._delete)
 
     # 函数 do_OPTIONS：CORS 预检请求
