@@ -178,7 +178,7 @@ python tools/verify_all.py --flutter  # 额外跑 flutter analyze
 | `test_v06.py` | 派发延迟/限速/磁盘水位/备份 7 项 |
 | `test_extra.py` | 扩展 7 项 |
 | `test_sync.py` | 端云同步 5 项 |
-| `test_v1.py` | 手机端 v1.1 契约 17 项（含批量拒收、到点 fire、呼救、计划增量与记录撤销） |
+| `test_v1.py` | 手机端 v1.1 契约 18 项（含批量拒收、到点 fire、呼救、计划增量、记录撤销与幂等） |
 | `test_bridge.py` | MQTT 桥：订阅雷达 presence 转 HTTP（假 broker，14 项） |
 
 > `test_accept.py` 与 `test_v1.py` 需要**先有服务在跑**；`verify_all.py` 会自己起。
