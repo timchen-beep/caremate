@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-# 作用：颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式 + 批量拒收 + 手机端 fire/呼救两种真实动作
+# 作用：颐伴手机端（Qt/QML）v1.1 契约验收：7 个 /v1/* 接口 + 4 份 fixtures 形状 + 端上 ID 公式 + 批量拒收 + 手机端 fire/呼救两种真实动作 + 看板改删计划的增量同步 + 记录幂等/撤销
 """端上契约验收（对齐 fspro7967/yiban_android_app 的 docs/fixtures/*.json）。
 
-12 项：
+16 项：
 1. 形状：GET /v1/state 的 occurrence 字段（与 state_since.json 逐键比对）
 2. 形状：GET /v1/plans 的 plan 字段（与 plans_since.json 逐键比对）
 3. 游标：同一次变化的第二次拉取返回空（增量语义）
@@ -15,6 +15,10 @@
 10. 配对：POST /v1/pair 用 6 位码换 token + cursor
 11. 告警：POST /v1/alarm（occurrence_id 可空、source=manual）→ {sent, channel}
 12. ID 公式：端上算的 occurrenceId 能反查到我们下发的同一条
+13. 看板建计划 → 端上增量（/v1/plans?since=）能拉到，version=1
+14. 看板改计划 → 端上增量收到新内容，version 加 1（以前完全不 bump，端上永远跳过）
+15. 看板删计划 → 端上增量收到 deleted:true（软删留 tombstone，以前硬删收不到）
+16. 记录幂等/撤销：同一 client_id 连发两次只落一条；DELETE /v1/records/{id} 能撤到云端
 """
 
 import json
@@ -191,6 +195,61 @@ def main():
              and abs(x["occurrence_id"] - guess) < 100]
     check("端上 ID 公式可反查", bool(found),
           "公式基准 %d，同计划实例 %d 条" % (guess, len(found)))
+
+    # ⑩～⑬ 云组 11/23 的四个同步问题（1105PDF C-1..C-4）
+    # ⑩ C-2 看板建/改计划要 bump v1_rowseq + v1_version，否则端上按 since 增量永远拉不到
+    st, base = call("/v1/plans?since=0")
+    seq0 = int(base.get("next_seq") or 0)
+    stamp = datetime.now().strftime("%H%M%S")
+    st, made = call("/api/v1/plans", FAM, {"title": "增量测试-%s" % stamp, "times": ["07:15"],
+                                           "user_id": "u-elder"})
+    plan_id = made.get("id") if isinstance(made, dict) else ""
+    st, inc1 = call("/v1/plans?since=%d" % seq0)
+    seq1 = int(inc1.get("next_seq") or 0)
+    hit1 = [p for p in (inc1.get("plans") or []) if p.get("plan_id") and p.get("title") == "增量测试-%s" % stamp]
+    ok_new = bool(plan_id) and bool(hit1) and hit1[0].get("version") == 1 and hit1[0].get("deleted") is False
+    check("看板建计划 → 端上增量能拉到（version=1）", ok_new,
+          "plan_id=%s 命中 %d 条 version=%s" % (plan_id, len(hit1), hit1[0].get("version") if hit1 else "-"))
+
+    st, patched = call("/api/v1/plans/%s" % plan_id, FAM,
+                       {"user_id": "u-elder", "title": "增量测试-%s-改过" % stamp,
+                        "dose": "2 片"}, method="PATCH")
+    st, inc2 = call("/v1/plans?since=%d" % seq1)
+    seq2 = int(inc2.get("next_seq") or 0)
+    hit2 = [p for p in (inc2.get("plans") or []) if p.get("title") == "增量测试-%s-改过" % stamp]
+    ok_patch = st == 200 and bool(hit2) and hit2[0].get("version") == 2 and hit2[0].get("dose") == "2 片"
+    check("看板改计划 → 端上增量收到新内容 + version=2", ok_patch,
+          "status=%s 命中 %d 条 version=%s" % (st, len(hit2), hit2[0].get("version") if hit2 else "-"))
+
+    # ⑪ C-1 看板删计划要留 tombstone：软删 + bump，端上增量必须收到 deleted:true
+    st_del_plan, gone = call("/api/v1/plans/%s?user_id=u-elder" % plan_id, FAM, None, method="DELETE")
+    st, inc3 = call("/v1/plans?since=%d" % seq2)
+    hit3 = [p for p in (inc3.get("plans") or []) if p.get("title", "").startswith("增量测试-%s" % stamp)]
+    ok_del = st_del_plan == 200 and any(p.get("deleted") is True for p in hit3)
+    check("看板删计划 → 端上增量收到 deleted:true", ok_del,
+          "status=%s 命中 %d 条 deleted=%s" % (st_del_plan, len(hit3), [p.get("deleted") for p in hit3]))
+
+    # ⑫ C-3 记录按 client_id 去重：同一 client_id 连发两次只落一条，两次回执 record_id 相同
+    cid = "cid-%s" % stamp
+    st_a, rec_a = call("/v1/records", ELDER, {"type": "water", "value": 200, "unit": "ml",
+                                             "at": int(time.time() * 1000), "client_id": cid})
+    st_b, rec_b = call("/v1/records", ELDER, {"type": "water", "value": 200, "unit": "ml",
+                                             "at": int(time.time() * 1000), "client_id": cid})
+    st_list, recs = call("/api/v1/records?days=1", FAM)
+    rows = [r for r in (recs.get("items") or []) if r.get("client_id") == cid]
+    same = rec_a.get("record_id") and rec_a.get("record_id") == rec_b.get("record_id")
+    ok_cid = bool(same) and len(rows) == 1 and rec_b.get("duplicate") is True
+    check("记录按 client_id 去重（发两次只一条）", ok_cid,
+          "record_id %s/%s 库内 %d 条" % (rec_a.get("record_id"), rec_b.get("record_id"), len(rows)))
+
+    # ⑬ C-4 /v1 能删记录：撤销要真的撤到云端（30 分钟窗口内）
+    st_del, del_rec = call("/v1/records/%s" % rec_a.get("record_id"), ELDER, None, method="DELETE")
+    st_list2, recs2 = call("/api/v1/records?days=1", FAM)
+    still = [r for r in (recs2.get("items") or []) if r.get("client_id") == cid]
+    ok_rdel = (st_del == 200 and del_rec.get("deleted") is True
+               and del_rec.get("server_seq") and not still)
+    check("DELETE /v1/records/{id} 撤销到云端", ok_rdel,
+          "status=%s seen=%s 仍在看板 %d 条" % (st_del, del_rec.get("server_seq"), len(still)))
 
     width = max(len(r[0]) for r in RESULTS)
     print("=" * 70)
